@@ -27,3 +27,6 @@ jobs:
 
       - name: Verificar Tipos (TypeScript)
         run: bunx tsc --noEmit
+
+      - name: Ejecutar pruebas (Vitest)
+        run: bun run test
