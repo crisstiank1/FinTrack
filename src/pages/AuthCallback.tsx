@@ -1,13 +1,17 @@
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { supabase } from '../lib/supabaseClient'
+
+import { supabase } from '@/lib/supabase'
 
 export default function AuthCallback() {
   const navigate = useNavigate()
 
   useEffect(() => {
     const handleAuth = async () => {
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession()
 
       if (sessionError || !session) {
         navigate('/auth', { replace: true })
@@ -31,7 +35,7 @@ export default function AuthCallback() {
   }, [navigate])
 
   return (
-    <div className="grid min-h-screen place-items-center">
+    <div className="grid min-h-screen place-items-center bg-background text-foreground">
       <p>Verificando credenciales...</p>
     </div>
   )
