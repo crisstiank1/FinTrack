@@ -13,11 +13,10 @@ Aplicación web de finanzas personales.
 ## Moneda Inicial
 
 - COP como moneda predeterminada.
-- Cada usuario podrá elegir su moneda principal.
 - No habrá conversión automática de monedas en el MVP.
 
 ## Stack Tecnológico
-
+ 
 - React + TypeScript
 - Vite
 - Tailwind CSS
@@ -34,37 +33,33 @@ Aplicación web de finanzas personales.
 2. **Onboarding**
    - Wizard de bienvenida al primer inicio de sesión.
 
-3. **Cuentas Financieras**
-   - Crear, editar y eliminar cuentas (banco, efectivo, tarjeta, etc.).
-   - Saldo actual por cuenta.
-
-4. **Categorías**
+3. **Categorías**
    - Categorías de ingresos y gastos predefinidas.
    - Crear categorías personalizadas.
 
-5. **Movimientos**
-   - Registrar ingresos, gastos y transferencias entre cuentas.
+4. **Movimientos**
+   - Registrar ingresos, gastos.
    - Fecha, monto, categoría, descripción.
 
-6. **Dashboard Mensual**
+5. **Dashboard Mensual**
    - Resumen de ingresos, gastos y balance del mes.
    - Gráficos básicos (barras o dona).
 
-7. **Presupuestos**
+6. **Presupuestos**
    - Establecer límite por categoría por mes.
    - Alertar cuando se supera el presupuesto.
 
-8. **Libro Financiero Tipo Tabla**
+7. **Libro Financiero Tipo Tabla**
    - Vista tipo Excel con todos los movimientos.
    - Filtros por fecha, categoría, tipo, cuenta.
    - Ordenamiento por columnas.
    - Exportación a CSV.
 
-9. **Seguridad**
+8. **Seguridad**
    - Row Level Security (RLS) en Supabase.
    - Cada usuario solo ve sus datos.
 
-10. **Despliegue**
+9. **Despliegue**
     - Deploy en Cloudflare Pages.
 
 ## Fuera del MVP
