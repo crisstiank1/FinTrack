@@ -46,6 +46,7 @@ export function AccountCard({ account, index, onEdit, onArchive }: AccountCardPr
         <p className="mt-1 text-2xl font-semibold tabular-nums text-foreground">
           {formatAmount(account.initial_balance_minor, account.currency_code)}
         </p>
+        <p className="mt-0.5 text-xs text-muted-foreground">Dinero actual disponible en esta cuenta</p>
       </div>
 
       {!account.is_archived && (

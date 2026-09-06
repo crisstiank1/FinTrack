@@ -16,19 +16,26 @@ describe('AccountForm', () => {
     expect(onSubmit).not.toHaveBeenCalled()
   })
 
-  it('rechaza un saldo inicial negativo', async () => {
+  it('formatea el saldo inicial con separadores de miles y muestra el equivalente en la moneda elegida', async () => {
     const onSubmit = vi.fn()
     const user = userEvent.setup()
     render(<AccountForm onSubmit={onSubmit} />)
 
-    await user.type(screen.getByLabelText('Nombre de la cuenta'), 'Cuenta de prueba')
     const balanceInput = screen.getByLabelText('Saldo inicial')
-    await user.clear(balanceInput)
-    await user.type(balanceInput, '-100')
-    await user.click(screen.getByRole('button', { name: /guardar/i }))
+    await user.type(balanceInput, '1900000')
 
-    expect(await screen.findByText('El saldo no puede ser negativo')).toBeInTheDocument()
-    expect(onSubmit).not.toHaveBeenCalled()
+    expect(balanceInput).toHaveValue('1.900.000')
+    expect(screen.getByText('Equivale a COP 1.900.000')).toBeInTheDocument()
+  })
+
+  it('no permite escribir signos negativos en el saldo inicial', async () => {
+    const user = userEvent.setup()
+    render(<AccountForm onSubmit={vi.fn()} />)
+
+    const balanceInput = screen.getByLabelText('Saldo inicial')
+    await user.type(balanceInput, '-100')
+
+    expect(balanceInput).toHaveValue('100')
   })
 
   it('envía los valores con ícono y color seleccionados por defecto', async () => {
