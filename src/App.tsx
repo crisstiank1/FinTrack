@@ -1,9 +1,19 @@
-function App() {
+import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import Auth from './pages/Auth'
+import AuthCallback from './pages/AuthCallback'
+import Dashboard from './pages/Dashboard'
+import Onboarding from './pages/Onboarding'
+
+export default function App() {
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-      <h1 className="text-3xl font-bold text-indigo-600">FinTrack</h1>
-    </div>
+    <BrowserRouter>
+      <Routes>
+        <Route path="/auth" element={<Auth />} />
+        <Route path="/auth/callback" element={<AuthCallback />} />
+        <Route path="/onboarding" element={<Onboarding />} />
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="*" element={<Dashboard />} />
+      </Routes>
+    </BrowserRouter>
   )
 }
-
-export default App
