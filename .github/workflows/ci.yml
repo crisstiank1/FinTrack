@@ -1,0 +1,29 @@
+name: Integración Continua (CI)
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  validar-codigo:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Clonar repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Instalar dependencias
+        run: bun install
+
+      - name: Verificar sintaxis (ESLint)
+        run: bun run lint
+
+      - name: Verificar Tipos (TypeScript)
+        run: bunx tsc --noEmit
