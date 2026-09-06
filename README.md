@@ -7,32 +7,35 @@ Aplicación web de finanzas personales.
 - React + TypeScript
 - Vite
 - Tailwind CSS
+- shadcn/ui
 - Supabase
 - Cloudflare Pages
 
 ## Inicio Rápido
 
 ```bash
-npm install
-npm run dev
+bun install
+bun run dev
 ```
 
 ## Scripts
 
 ```bash
-npm run dev       # Desarrollo local
-npm run build     # Build de producción
-npm run preview   # Preview del build
-npm run lint      # Linting
+bun run dev       # Desarrollo local
+bun run build     # Build de producción
+bun run preview   # Preview del build
+bun run lint      # Linting
+bun run test      # Pruebas (Vitest)
+bun run test:ui   # Pruebas con interfaz de Vitest
 ```
 
 ## Variables de Entorno
 
-Crea un archivo `.env` en la raíz:
+Copia `.env.example` a `.env.local` y completa los valores:
 
 ```
 VITE_SUPABASE_URL=tu_url
-VITE_SUPABASE_ANON_KEY=tu_key
+VITE_SUPABASE_PUBLISHABLE_KEY=tu_key
 ```
 
 ## Despliegue
