@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Plus } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -14,13 +14,34 @@ import {
   useUpdateAccount,
 } from '@/features/accounts/hooks'
 import type { AccountFormValues } from '@/features/accounts/schemas'
+import { useAllTransactions } from '@/features/dashboard/hooks'
+import { calculateAccountBalance } from '@/lib/calculations'
 import type { Tables } from '@/types/database.types'
 
 export default function Accounts() {
   const { data: accounts, isLoading } = useAccounts()
+  const { data: transactions = [] } = useAllTransactions()
   const createAccount = useCreateAccount()
   const updateAccount = useUpdateAccount()
   const archiveAccount = useArchiveAccount()
+
+  // Mismo cálculo que alimenta el saldo consolidado del dashboard, para que
+  // ambas pantallas no puedan mostrar cifras distintas.
+  const balances = useMemo(() => {
+    const forCalculation = transactions.map((transaction) => ({
+      type: transaction.type as 'income' | 'expense' | 'transfer',
+      transfer_direction: transaction.transfer_direction as 'incoming' | 'outgoing' | null,
+      account_id: transaction.account_id,
+      amount_minor: transaction.amount_minor,
+    }))
+
+    return new Map(
+      (accounts ?? []).map((account) => [
+        account.id,
+        calculateAccountBalance(account.initial_balance_minor, forCalculation, account.id),
+      ]),
+    )
+  }, [accounts, transactions])
 
   const [formOpen, setFormOpen] = useState(false)
   const [editingAccount, setEditingAccount] = useState<Tables<'accounts'> | null>(null)
@@ -115,6 +136,7 @@ export default function Accounts() {
             <AccountCard
               key={account.id}
               account={account}
+              balanceMinor={balances.get(account.id) ?? account.initial_balance_minor}
               index={index}
               onEdit={() => openEditForm(account)}
               onArchive={() => setArchivingAccount(account)}
