@@ -11,6 +11,24 @@ export interface AccountForCalculation {
 }
 
 /**
+ * Efecto de un movimiento sobre el saldo de su cuenta: los ingresos y las
+ * transferencias recibidas suman; los gastos y las transferencias enviadas
+ * restan (docs/02-base-de-datos.md).
+ */
+export function signedAmountMinor(
+  transaction: Pick<TransactionForCalculation, 'type' | 'transfer_direction' | 'amount_minor'>,
+): number {
+  if (transaction.type === 'income') return transaction.amount_minor
+  if (transaction.type === 'expense') return -transaction.amount_minor
+  if (transaction.type === 'transfer') {
+    return transaction.transfer_direction === 'incoming'
+      ? transaction.amount_minor
+      : -transaction.amount_minor
+  }
+  return 0
+}
+
+/**
  * Saldo de una cuenta: saldo inicial + ingresos - gastos + transferencias
  * recibidas - transferencias enviadas (docs/02-base-de-datos.md).
  */
@@ -21,16 +39,7 @@ export function calculateAccountBalance(
 ): number {
   return transactions
     .filter((transaction) => transaction.account_id === accountId)
-    .reduce((balance, transaction) => {
-      if (transaction.type === 'income') return balance + transaction.amount_minor
-      if (transaction.type === 'expense') return balance - transaction.amount_minor
-      if (transaction.type === 'transfer') {
-        return transaction.transfer_direction === 'incoming'
-          ? balance + transaction.amount_minor
-          : balance - transaction.amount_minor
-      }
-      return balance
-    }, initialBalanceMinor)
+    .reduce((balance, transaction) => balance + signedAmountMinor(transaction), initialBalanceMinor)
 }
 
 /**
