@@ -53,11 +53,20 @@ create table public.budgets (
   -- '2026-09-15' y '2026-09-01' serían dos meses distintos para los índices
   -- únicos y la misma categoría podría acabar con dos presupuestos en
   -- septiembre.
-  constraint budgets_period_month_is_first_day_check check (
-    period_month is null or extract(day from period_month) = 1
+  -- El truncado a mes expresa la intención directamente ("esta fecha es el
+  -- comienzo de su mes") en vez de comprobar el número de día.
+  --
+  -- El cast explícito a `timestamp` no es decorativo. Con un argumento `date`,
+  -- PostgreSQL resuelve `date_trunc` hacia la variante `timestamptz`, que es
+  -- STABLE por depender de la zona horaria, y una restricción CHECK exige
+  -- funciones IMMUTABLE: la migración fallaría al crearse. Al forzar
+  -- `timestamp` se usa la variante inmutable, con el mismo significado.
+  constraint budgets_period_month_is_month_start_check check (
+    period_month is null
+    or period_month = date_trunc('month', period_month::timestamp)::date
   ),
-  constraint budgets_effective_from_is_first_day_check check (
-    extract(day from effective_from) = 1
+  constraint budgets_effective_from_is_month_start_check check (
+    effective_from = date_trunc('month', effective_from::timestamp)::date
   ),
 
   -- En una excepción, effective_from no aporta información propia: la fila
@@ -155,6 +164,11 @@ create policy "budgets_delete_own"
 -- quedan las dos reglas que dependen de atributos mutables de la categoría y
 -- que, por tanto, no caben en una clave foránea: `type` e `is_archived`.
 --
+-- Sobre `is_archived`, la regla no es "prohibido tocar": es "prohibido
+-- estrenar". Se deniega al insertar y al cambiar de categoría hacia una
+-- archivada; se permite seguir editando un presupuesto histórico que ya
+-- apuntaba a esa categoría.
+--
 -- Se implementa como trigger y no como RPC porque un trigger no se puede
 -- esquivar: se ejecuta en cualquier INSERT o UPDATE, venga del cliente o de
 -- donde venga. Una RPC solo protege a quien decide llamarla.
@@ -176,6 +190,7 @@ as $$
 declare
   v_category_type text;
   v_category_is_archived boolean;
+  v_category_is_new boolean;
 begin
   select type, is_archived
     into v_category_type, v_category_is_archived
@@ -194,7 +209,21 @@ begin
       v_category_type;
   end if;
 
-  if v_category_is_archived then
+  -- ¿Esta fila está estrenando categoría? Se comprueba con TG_OP en vez de
+  -- con un `or` sobre OLD porque SQL no garantiza evaluación en cortocircuito
+  -- y OLD no está asignado durante un INSERT.
+  if tg_op = 'INSERT' then
+    v_category_is_new := true;
+  else
+    v_category_is_new := new.category_id is distinct from old.category_id;
+  end if;
+
+  -- Archivar una categoría impide presupuestarla de nuevo, pero no congela los
+  -- presupuestos históricos que ya la usaban: sin esta distinción, archivar
+  -- una categoría dejaría sus presupuestos pasados imposibles de corregir.
+  -- Consultarlos y borrarlos siempre se permite: DELETE no dispara este
+  -- trigger y SELECT no pasa por él.
+  if v_category_is_archived and v_category_is_new then
     raise exception 'No se puede presupuestar una categoría archivada.';
   end if;
 

@@ -98,7 +98,7 @@ begin;
 rollback;
 ```
 
-Esperado: error de `budgets_period_month_is_first_day_check`.
+Esperado: error de `budgets_period_month_is_month_start_check`.
 
 ```sql
 begin;
@@ -111,7 +111,7 @@ begin;
 rollback;
 ```
 
-Esperado: error de `budgets_effective_from_is_first_day_check`.
+Esperado: error de `budgets_effective_from_is_month_start_check`.
 
 ---
 
@@ -132,7 +132,13 @@ tipo income.`
 
 ---
 
-## f. Categoría archivada — debe fallar
+## f. Categoría archivada
+
+La regla no es "prohibido tocar" sino "prohibido estrenar": se deniega
+**empezar** a usar una categoría archivada, pero un presupuesto histórico que
+ya la usaba se puede seguir corrigiendo.
+
+### f.1 INSERT con categoría archivada — debe fallar
 
 ```sql
 begin;
@@ -146,9 +152,76 @@ rollback;
 
 Esperado: `No se puede presupuestar una categoría archivada.`
 
-> Consecuencia a tener en cuenta: la regla también aplica en UPDATE. Si se
-> archiva una categoría que ya tenía presupuestos, esos presupuestos quedan
-> consultables y borrables, pero **no editables** hasta desarchivarla.
+### f.2 UPDATE que cambia hacia una categoría archivada — debe fallar
+
+```sql
+begin;
+  set local role authenticated;
+  set local request.jwt.claims = '{"sub":"UUID_A","role":"authenticated"}';
+
+  insert into public.budgets (id, user_id, category_id, period_month, effective_from, amount_minor)
+  values ('11111111-1111-1111-1111-111111111111',
+          'UUID_A', 'CAT_GASTO_A', null, '2026-09-01', 500000);
+
+  update public.budgets
+  set category_id = 'CAT_ARCHIVADA_A'
+  where id = '11111111-1111-1111-1111-111111111111';
+rollback;
+```
+
+Esperado: `No se puede presupuestar una categoría archivada.`
+
+### f.3 UPDATE conservando la misma categoría archivada — debe pasar
+
+Simula un presupuesto histórico cuya categoría se archivó después.
+
+```sql
+begin;
+  set local role authenticated;
+  set local request.jwt.claims = '{"sub":"UUID_A","role":"authenticated"}';
+
+  -- Se crea con la categoría todavía activa
+  insert into public.budgets (id, user_id, category_id, period_month, effective_from, amount_minor)
+  values ('22222222-2222-2222-2222-222222222222',
+          'UUID_A', 'CAT_GASTO_A', null, '2026-09-01', 500000);
+
+  -- Y después se archiva la categoría
+  update public.categories set is_archived = true where id = 'CAT_GASTO_A';
+
+  -- Corregir el monto debe seguir siendo posible
+  update public.budgets
+  set amount_minor = 650000
+  where id = '22222222-2222-2222-2222-222222222222'
+  returning amount_minor;
+rollback;
+```
+
+Esperado: **1 fila actualizada** con `amount_minor = 650000`, sin error.
+
+### f.4 SELECT y DELETE sobre categoría archivada — deben pasar
+
+```sql
+begin;
+  set local role authenticated;
+  set local request.jwt.claims = '{"sub":"UUID_A","role":"authenticated"}';
+
+  insert into public.budgets (id, user_id, category_id, period_month, effective_from, amount_minor)
+  values ('33333333-3333-3333-3333-333333333333',
+          'UUID_A', 'CAT_GASTO_A', null, '2026-09-01', 500000);
+
+  update public.categories set is_archived = true where id = 'CAT_GASTO_A';
+
+  select count(*) as visibles from public.budgets
+  where id = '33333333-3333-3333-3333-333333333333';
+
+  delete from public.budgets
+  where id = '33333333-3333-3333-3333-333333333333'
+  returning id;
+rollback;
+```
+
+Esperado: `visibles = 1` y la fila se borra sin error (DELETE no dispara el
+trigger y SELECT no pasa por él).
 
 ---
 
