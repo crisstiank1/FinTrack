@@ -7,6 +7,7 @@ import { DashboardSkeleton } from '@/features/dashboard/components/dashboard-sta
 import Accounts from '@/pages/Accounts'
 import Auth from '@/pages/Auth'
 import AuthCallback from '@/pages/AuthCallback'
+import Ledger from '@/pages/Ledger'
 import Onboarding from '@/pages/Onboarding'
 import ResetPassword from '@/pages/ResetPassword'
 import Settings from '@/pages/Settings'
@@ -44,6 +45,7 @@ export function AppRouter() {
             />
             <Route path="/accounts" element={<Accounts />} />
             <Route path="/transactions" element={<Transactions />} />
+            <Route path="/ledger" element={<Ledger />} />
             <Route path="/settings" element={<Settings />} />
           </Route>
         </Route>

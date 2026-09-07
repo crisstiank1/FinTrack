@@ -11,12 +11,14 @@ import { fetchAllTransactions } from './api'
  * (crear, editar, duplicar, eliminar) que invalidan ['transactions', userId]
  * también refresquen el dashboard sin trabajo adicional.
  */
-export function useAllTransactions() {
+export function useAllTransactions(options?: { enabled?: boolean }) {
   const { user } = useAuth()
 
   return useQuery({
     queryKey: ['transactions', user?.id, 'all'],
     queryFn: () => fetchAllTransactions(user!.id),
-    enabled: !!user,
+    // El libro solo necesita el historial si el usuario activa la columna de
+    // saldo acumulado, así que puede pedirse desactivado.
+    enabled: !!user && (options?.enabled ?? true),
   })
 }
