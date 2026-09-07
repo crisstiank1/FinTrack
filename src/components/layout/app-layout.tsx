@@ -10,6 +10,7 @@ const NAV_ITEMS = [
   { to: '/dashboard', label: 'Dashboard' },
   { to: '/accounts', label: 'Cuentas' },
   { to: '/transactions', label: 'Movimientos' },
+  { to: '/ledger', label: 'Libro' },
   { to: '/settings', label: 'Ajustes' },
 ]
 
