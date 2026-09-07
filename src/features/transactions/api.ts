@@ -1,4 +1,4 @@
-import { todayIsoDate } from '@/lib/dates'
+import { monthRange, todayIsoDate } from '@/lib/dates'
 import { supabase } from '@/lib/supabase'
 import type { Tables, TablesInsert, TablesUpdate } from '@/types/database.types'
 
@@ -6,14 +6,6 @@ export interface TransactionFilters {
   month?: string
   accountId?: string
   type?: 'income' | 'expense' | 'transfer'
-}
-
-function monthRange(month: string) {
-  const [year, monthNumber] = month.split('-').map(Number)
-  const start = `${month}-01`
-  const lastDay = new Date(year, monthNumber, 0).getDate()
-  const end = `${month}-${String(lastDay).padStart(2, '0')}`
-  return { start, end }
 }
 
 export async function fetchTransactions(userId: string, filters: TransactionFilters) {
