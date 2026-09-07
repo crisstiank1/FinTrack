@@ -18,6 +18,18 @@ export function formatAmount(amountMinor: number, currencyCode: string): string 
   return `${currencyCode} ${formatted}`
 }
 
+/**
+ * Monto abreviado sin código de moneda ('4,3 M'), para ejes de gráficos donde
+ * un valor completo como '4.250.000' no cabe. Nunca usarlo para las cifras
+ * principales: ahí se necesita el valor exacto.
+ */
+export function formatCompactAmount(amountMinor: number): string {
+  return new Intl.NumberFormat('es-CO', {
+    notation: 'compact',
+    maximumFractionDigits: 1,
+  }).format(amountMinor)
+}
+
 export const CURRENCIES = [
   { code: 'COP', label: 'Peso colombiano (COP)' },
   { code: 'USD', label: 'Dólar estadounidense (USD)' },
