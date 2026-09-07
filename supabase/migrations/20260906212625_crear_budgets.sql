@@ -49,12 +49,10 @@ create table public.budgets (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
 
-  -- Ambas fechas representan meses, así que deben caer en el día 1. Sin esto,
-  -- '2026-09-15' y '2026-09-01' serían dos meses distintos para los índices
-  -- únicos y la misma categoría podría acabar con dos presupuestos en
-  -- septiembre.
-  -- El truncado a mes expresa la intención directamente ("esta fecha es el
-  -- comienzo de su mes") en vez de comprobar el número de día.
+  -- Ambas fechas representan meses, no días sueltos, y se validan comparando
+  -- contra su propio truncado a mes. Sin esto, '2026-09-15' y '2026-09-01'
+  -- serían dos valores distintos para los índices únicos y la misma categoría
+  -- podría acabar con dos presupuestos en septiembre.
   --
   -- El cast explícito a `timestamp` no es decorativo. Con un argumento `date`,
   -- PostgreSQL resuelve `date_trunc` hacia la variante `timestamptz`, que es
