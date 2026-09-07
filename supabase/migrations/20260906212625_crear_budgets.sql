@@ -78,18 +78,26 @@ create table public.budgets (
   -- el presupuesto. Al ser una clave foránea, PostgreSQL la aplica siempre,
   -- incluso a un superusuario o a una conexión que no pase por RLS.
   --
+  -- La comprobación es `deferrable initially deferred`: no ocurre al terminar
+  -- cada sentencia, sino recién al commit de la transacción. Por defecto una
+  -- FK es NOT DEFERRABLE / INITIALLY IMMEDIATE y se comprueba cuando cada
+  -- sentencia termina; con esa semántica, al borrar un usuario de auth.users
+  -- la cascada elimina categories y budgets dentro de la misma sentencia y,
+  -- si en el punto intermedio un presupuesto todavía referencia a una
+  -- categoría ya borrada, la operación fallaría a mitad de camino aunque al
+  -- final no quedasen referencias. Diferida al commit, la cadena de borrado
+  -- completa tiene oportunidad de terminar y la comprobación solo ve el
+  -- estado final de la transacción.
+  --
   -- `no action`, no `restrict`, y la diferencia importa: ambas impiden borrar
-  -- una categoría que tenga presupuestos, pero `restrict` comprueba de
-  -- inmediato mientras que `no action` puede esperar al final de la sentencia.
-  -- Al borrar un usuario de auth.users se propaga el borrado en cascada a
-  -- categories y a budgets a la vez; con `restrict`, si las categorías caen
-  -- primero, el borrado fallaría aunque los presupuestos vayan a desaparecer
-  -- en la misma sentencia. Con `no action` la comprobación ocurre cuando ya
-  -- no queda ninguna fila que apunte a la categoría.
+  -- una categoría que conserve presupuestos cuando la FK se comprueba, pero
+  -- `restrict` comprueba de inmediato y no admite diferimiento, mientras que
+  -- `no action`, tal como se declara aquí, hereda la comprobación diferida.
   constraint budgets_category_same_user_fkey
     foreign key (category_id, user_id)
     references public.categories (id, user_id)
     on delete no action
+    deferrable initially deferred
 );
 
 -- =============================================================
@@ -162,10 +170,11 @@ create policy "budgets_delete_own"
 -- quedan las dos reglas que dependen de atributos mutables de la categoría y
 -- que, por tanto, no caben en una clave foránea: `type` e `is_archived`.
 --
--- Sobre `is_archived`, la regla no es "prohibido tocar": es "prohibido
+-- Las dos siguen la misma regla: no es "prohibido tocar", es "prohibido
 -- estrenar". Se deniega al insertar y al cambiar de categoría hacia una
--- archivada; se permite seguir editando un presupuesto histórico que ya
--- apuntaba a esa categoría.
+-- categoría de tipo income o archivada; se permite seguir editando un
+-- presupuesto histórico que conserva su categoría, aunque después esa
+-- categoría se haya archivado o se le haya cambiado el tipo.
 --
 -- Se implementa como trigger y no como RPC porque un trigger no se puede
 -- esquivar: se ejecuta en cualquier INSERT o UPDATE, venga del cliente o de
@@ -201,12 +210,6 @@ begin
     raise exception 'La categoría indicada no existe o no pertenece al usuario.';
   end if;
 
-  if v_category_type <> 'expense' then
-    raise exception
-      'Solo se pueden presupuestar categorías de gasto; la indicada es de tipo %.',
-      v_category_type;
-  end if;
-
   -- ¿Esta fila está estrenando categoría? Se comprueba con TG_OP en vez de
   -- con un `or` sobre OLD porque SQL no garantiza evaluación en cortocircuito
   -- y OLD no está asignado durante un INSERT.
@@ -216,13 +219,24 @@ begin
     v_category_is_new := new.category_id is distinct from old.category_id;
   end if;
 
-  -- Archivar una categoría impide presupuestarla de nuevo, pero no congela los
-  -- presupuestos históricos que ya la usaban: sin esta distinción, archivar
-  -- una categoría dejaría sus presupuestos pasados imposibles de corregir.
-  -- Consultarlos y borrarlos siempre se permite: DELETE no dispara este
-  -- trigger y SELECT no pasa por él.
-  if v_category_is_archived and v_category_is_new then
-    raise exception 'No se puede presupuestar una categoría archivada.';
+  -- Los atributos mutables de la categoría — `type` e `is_archived` — se
+  -- validan solo cuando la fila estrena categoría: en un INSERT y en un
+  -- UPDATE que cambia category_id, la nueva categoría debe ser de gasto y no
+  -- estar archivada. Un UPDATE que conserva la misma categoría permite
+  -- corregir un presupuesto histórico aunque después esa categoría se haya
+  -- archivado o se le haya cambiado el tipo: sin esta distinción, corregir
+  -- esos presupuestos pasados sería imposible. Consultar y borrarlos siempre
+  -- se permite: DELETE no dispara este trigger y SELECT no pasa por él.
+  if v_category_is_new then
+    if v_category_type <> 'expense' then
+      raise exception
+        'Solo se pueden presupuestar categorías de gasto; la indicada es de tipo %.',
+        v_category_type;
+    end if;
+
+    if v_category_is_archived then
+      raise exception 'No se puede presupuestar una categoría archivada.';
+    end if;
   end if;
 
   return new;
