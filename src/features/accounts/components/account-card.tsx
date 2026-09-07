@@ -8,12 +8,23 @@ import type { Tables } from '@/types/database.types'
 
 interface AccountCardProps {
   account: Tables<'accounts'>
+  /**
+   * Saldo actual (inicial + movimientos), no el saldo inicial: la tarjeta dice
+   * "dinero disponible" y debe coincidir con el saldo consolidado del dashboard.
+   */
+  balanceMinor: number
   index: number
   onEdit: () => void
   onArchive: () => void
 }
 
-export function AccountCard({ account, index, onEdit, onArchive }: AccountCardProps) {
+export function AccountCard({
+  account,
+  balanceMinor,
+  index,
+  onEdit,
+  onArchive,
+}: AccountCardProps) {
   const Icon = getIcon(account.icon)
   const typeLabel =
     accountTypeOptions.find((option) => option.value === account.type)?.label ?? account.type
@@ -44,7 +55,7 @@ export function AccountCard({ account, index, onEdit, onArchive }: AccountCardPr
         <p className="text-sm text-muted-foreground">{typeLabel}</p>
         <h3 className="text-lg font-semibold text-foreground">{account.name}</h3>
         <p className="mt-1 text-2xl font-semibold tabular-nums text-foreground">
-          {formatAmount(account.initial_balance_minor, account.currency_code)}
+          {formatAmount(balanceMinor, account.currency_code)}
         </p>
         <p className="mt-0.5 text-xs text-muted-foreground">Dinero actual disponible en esta cuenta</p>
       </div>
