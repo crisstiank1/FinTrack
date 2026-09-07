@@ -9,6 +9,7 @@ import Dashboard from '@/pages/Dashboard'
 import Onboarding from '@/pages/Onboarding'
 import ResetPassword from '@/pages/ResetPassword'
 import Settings from '@/pages/Settings'
+import Transactions from '@/pages/Transactions'
 
 export function AppRouter() {
   return (
@@ -22,6 +23,7 @@ export function AppRouter() {
           <Route element={<AppLayout />}>
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/accounts" element={<Accounts />} />
+            <Route path="/transactions" element={<Transactions />} />
             <Route path="/settings" element={<Settings />} />
           </Route>
         </Route>
