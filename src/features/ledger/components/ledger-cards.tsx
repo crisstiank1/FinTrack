@@ -1,7 +1,8 @@
 import { Copy, Pencil, Trash2 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
-import { AmountCell, TYPE_LABELS } from '@/features/ledger/columns'
+import { AmountCell } from '@/features/ledger/components/amount-cell'
+import { TYPE_LABELS } from '@/features/ledger/labels'
 import { formatAmount } from '@/lib/currency'
 import { formatShortDate } from '@/lib/dates'
 import type { Tables } from '@/types/database.types'

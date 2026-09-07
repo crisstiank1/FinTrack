@@ -3,7 +3,7 @@ import { toCsv, type CsvColumn } from '@/lib/csv'
 import { todayIsoDate } from '@/lib/dates'
 import type { Tables } from '@/types/database.types'
 
-import { TYPE_LABELS } from './columns'
+import { TYPE_LABELS } from './labels'
 
 type Transaction = Tables<'transactions'>
 

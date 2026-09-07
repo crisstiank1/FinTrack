@@ -11,7 +11,7 @@ interface LedgerPaginationProps {
   onPageSizeChange: (pageSize: number) => void
 }
 
-export const PAGE_SIZE_OPTIONS = [25, 50, 100]
+const PAGE_SIZE_OPTIONS = [25, 50, 100]
 
 const numberFormatter = new Intl.NumberFormat('es-CO')
 

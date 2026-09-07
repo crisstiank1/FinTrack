@@ -7,17 +7,18 @@ import { DashboardSkeleton } from '@/features/dashboard/components/dashboard-sta
 import Accounts from '@/pages/Accounts'
 import Auth from '@/pages/Auth'
 import AuthCallback from '@/pages/AuthCallback'
-import Ledger from '@/pages/Ledger'
 import Onboarding from '@/pages/Onboarding'
 import ResetPassword from '@/pages/ResetPassword'
 import Settings from '@/pages/Settings'
 import Transactions from '@/pages/Transactions'
 
 /**
- * El dashboard es la única pantalla que usa Recharts (~130 KB gzip). Cargarlo
- * aparte evita que /auth, /onboarding y el resto de rutas paguen ese costo.
+ * Las dos pantallas pesadas van en su propio chunk: el dashboard es la única
+ * que usa Recharts y el libro la única que usa TanStack Table. Así /auth,
+ * /onboarding y el resto de rutas no pagan el costo de ninguna de las dos.
  */
 const Dashboard = lazy(() => import('@/pages/Dashboard'))
+const Ledger = lazy(() => import('@/pages/Ledger'))
 
 export function AppRouter() {
   return (
@@ -45,7 +46,18 @@ export function AppRouter() {
             />
             <Route path="/accounts" element={<Accounts />} />
             <Route path="/transactions" element={<Transactions />} />
-            <Route path="/ledger" element={<Ledger />} />
+            <Route
+              path="/ledger"
+              element={
+                <Suspense
+                  fallback={
+                    <p className="p-6 text-sm text-muted-foreground">Cargando libro...</p>
+                  }
+                >
+                  <Ledger />
+                </Suspense>
+              }
+            />
             <Route path="/settings" element={<Settings />} />
           </Route>
         </Route>

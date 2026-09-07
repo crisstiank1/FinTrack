@@ -2,9 +2,10 @@ import { createColumnHelper, type RowData } from '@tanstack/react-table'
 import { Copy, Pencil, Trash2 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
+import { AmountCell } from '@/features/ledger/components/amount-cell'
+import { TypeBadge } from '@/features/ledger/components/type-badge'
 import { formatAmount } from '@/lib/currency'
 import { formatShortDate } from '@/lib/dates'
-import { cn } from '@/lib/utils'
 import type { Tables } from '@/types/database.types'
 
 type Transaction = Tables<'transactions'>
@@ -31,59 +32,6 @@ export interface LedgerColumnContext {
   onEdit: (transaction: Transaction) => void
   onDuplicate: (transaction: Transaction) => void
   onDelete: (transaction: Transaction) => void
-}
-
-export const TYPE_LABELS: Record<string, string> = {
-  income: 'Ingreso',
-  expense: 'Gasto',
-  transfer: 'Transferencia',
-}
-
-const TYPE_STYLES: Record<string, string> = {
-  income: 'bg-success/12 text-success',
-  expense: 'bg-danger/12 text-danger',
-  transfer: 'bg-muted text-muted-foreground',
-}
-
-function TypeBadge({ type }: { type: string }) {
-  return (
-    <span
-      className={cn(
-        'inline-flex whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium',
-        TYPE_STYLES[type] ?? TYPE_STYLES.transfer,
-      )}
-    >
-      {TYPE_LABELS[type] ?? type}
-    </span>
-  )
-}
-
-/** Signo y color del monto, con el mismo criterio que el resto de la app. */
-export function AmountCell({
-  transaction,
-  currencyCode,
-}: {
-  transaction: Transaction
-  currencyCode: string
-}) {
-  const isTransfer = transaction.type === 'transfer'
-  const isNegative =
-    transaction.type === 'expense' || (isTransfer && transaction.transfer_direction === 'outgoing')
-
-  return (
-    <span
-      className={cn(
-        'whitespace-nowrap font-medium tabular-nums',
-        isTransfer
-          ? 'text-muted-foreground'
-          : transaction.type === 'income'
-            ? 'text-success'
-            : 'text-danger',
-      )}
-    >
-      {isNegative ? '−' : '+'} {formatAmount(transaction.amount_minor, currencyCode)}
-    </span>
-  )
 }
 
 const column = createColumnHelper<Transaction>()
