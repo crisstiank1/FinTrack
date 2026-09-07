@@ -117,6 +117,13 @@ Esperado: error de `budgets_effective_from_is_month_start_check`.
 
 ## e. Categoría de ingreso — debe fallar
 
+La regla de `type = expense` también es "prohibido estrenar", igual que la de
+archivado: se valida en el INSERT y en el UPDATE que cambia `category_id`,
+pero un presupuesto histórico que conserva su categoría puede seguir
+editándose aunque después la categoría haya pasado a ser de ingreso.
+
+### e.1 INSERT con categoría de ingreso — debe fallar
+
 ```sql
 begin;
   set local role authenticated;
@@ -124,6 +131,26 @@ begin;
 
   insert into public.budgets (user_id, category_id, period_month, effective_from, amount_minor)
   values ('UUID_A', 'CAT_INGRESO_A', null, '2026-09-01', 500000);
+rollback;
+```
+
+Esperado: `Solo se pueden presupuestar categorías de gasto; la indicada es de
+tipo income.`
+
+### e.2 UPDATE que cambia hacia una categoría de ingreso — debe fallar
+
+```sql
+begin;
+  set local role authenticated;
+  set local request.jwt.claims = '{"sub":"UUID_A","role":"authenticated"}';
+
+  insert into public.budgets (id, user_id, category_id, period_month, effective_from, amount_minor)
+  values ('55555555-5555-5555-5555-555555555555',
+          'UUID_A', 'CAT_GASTO_A', null, '2026-09-01', 500000);
+
+  update public.budgets
+  set category_id = 'CAT_INGRESO_A'
+  where id = '55555555-5555-5555-5555-555555555555';
 rollback;
 ```
 
@@ -198,7 +225,37 @@ rollback;
 
 Esperado: **1 fila actualizada** con `amount_minor = 650000`, sin error.
 
-### f.4 SELECT y DELETE sobre categoría archivada — deben pasar
+### f.4 UPDATE conservando una categoría cuyo tipo cambió después — debe pasar
+
+Simula un presupuesto histórico cuya categoría pasó de `expense` a `income`
+después de crear el presupuesto.
+
+```sql
+begin;
+  set local role authenticated;
+  set local request.jwt.claims = '{"sub":"UUID_A","role":"authenticated"}';
+
+  -- Se crea cuando la categoría todavía es de gasto
+  insert into public.budgets (id, user_id, category_id, period_month, effective_from, amount_minor)
+  values ('44444444-4444-4444-4444-444444444444',
+          'UUID_A', 'CAT_GASTO_A', null, '2026-09-01', 500000);
+
+  -- Y después la categoría se convierte en ingreso
+  update public.categories set type = 'income' where id = 'CAT_GASTO_A';
+
+  -- Corregir el monto debe seguir siendo posible
+  update public.budgets
+  set amount_minor = 520000
+  where id = '44444444-4444-4444-4444-444444444444'
+  returning amount_minor;
+rollback;
+```
+
+Esperado: **1 fila actualizada** con `amount_minor = 520000`, sin error. Aunque
+la categoría ya no es de gasto, el UPDATE conserva el mismo `category_id`, así
+que la validación de `type = expense` no aplica.
+
+### f.5 SELECT y DELETE sobre categoría archivada — deben pasar
 
 ```sql
 begin;
@@ -390,6 +447,57 @@ Limpieza final:
 ```sql
 delete from public.budgets where user_id = 'UUID_A';
 ```
+
+---
+
+## k. Comprobación diferida de la FK — el borrado de la categoría espera al commit
+
+`budgets_category_same_user_fkey` es `deferrable initially deferred`: la
+comprobación no ocurre al terminar cada sentencia, sino al commit. Este bloque
+la demuestra: borra la categoría **mientras todavía hay un presupuesto que la
+referencia** y recién después borra el presupuesto. Con una FK inmediata, el
+`delete` de la categoría fallaría ahí mismo; con la comprobación diferida, la
+transacción termina bien porque al commit ya no queda ninguna referencia.
+
+Ejecutar **sin impersonar** (como superusuario, para que RLS no oculte nada):
+
+```sql
+begin;
+  insert into public.categories (id, user_id, name, type)
+  values ('a1111111-1111-1111-1111-111111111111',
+          'UUID_A', 'Paquete temporal (diferida)', 'expense');
+
+  insert into public.budgets (user_id, category_id, period_month, effective_from, amount_minor)
+  values ('UUID_A', 'a1111111-1111-1111-1111-111111111111',
+          '2026-12-01', '2026-12-01', 300000);
+
+  -- Aquí el presupuesto todavía referencia a la categoría. Con una FK
+  -- NOT DEFERRABLE esto fallaría; con `deferrable initially deferred` la
+  -- comprobación se pospone al commit de abajo.
+  delete from public.categories
+  where id = 'a1111111-1111-1111-1111-111111111111';
+
+  -- Se elimina la referencia pendiente antes del commit
+  delete from public.budgets
+  where category_id = 'a1111111-1111-1111-1111-111111111111';
+commit;
+
+select count(*) as categorias_sobrantes
+from public.categories
+where id = 'a1111111-1111-1111-1111-111111111111';
+```
+
+Esperado: el `commit` no da error y `categorias_sobrantes = 0`.
+
+Contraprueba de que el diferimiento es lo que lo permite: si el bloque anterior
+se repite **sin** borrar el presupuesto antes del commit, la transacción falla
+con `update or delete on table "categories" violates foreign key constraint
+"budgets_category_same_user_fkey"`.
+
+Esto es exactamente lo que necesita la cadena de borrado de un usuario: al
+borrar un `auth.users`, la cascada elimina `categories` y `budgets` en la misma
+transacción, y la FK compuesta se comprueba recién al commit, cuando ya no
+queda ninguna fila.
 
 ---
 

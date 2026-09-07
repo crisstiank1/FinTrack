@@ -136,6 +136,11 @@ archivada: se deniega insertar un presupuesto con ella o cambiar un presupuesto
 existente hacia ella, pero se permite seguir corrigiendo uno que ya la usaba, y
 consultarlo o borrarlo.
 
+La regla de tipo se comporta igual: solo se exige `expense` al insertar o al
+cambiar de categoría. Un presupuesto histórico conserva su categoría original y
+sigue siendo editable aunque después esa categoría se haya archivado o se le
+haya cambiado el tipo.
+
 `buildBudgetProgressList` recibe la lista de categorías a evaluar en vez de
 deducirla, precisamente para que quien llama decida si incluir las archivadas
 (necesario al consultar meses pasados) o solo las activas.
