@@ -121,6 +121,7 @@ export function OnboardingWizard() {
         {step === 2 && (
           <AccountsStep
             defaultValues={accounts.length > 0 ? accounts : undefined}
+            currencyCode={profile?.currencyCode ?? 'COP'}
             onBack={() => goTo(1, 'back')}
             onNext={(values) => {
               setAccounts(values)

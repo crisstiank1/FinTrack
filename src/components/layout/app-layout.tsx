@@ -9,6 +9,7 @@ import { supabase } from '@/lib/supabase'
 const NAV_ITEMS = [
   { to: '/dashboard', label: 'Dashboard' },
   { to: '/accounts', label: 'Cuentas' },
+  { to: '/transactions', label: 'Movimientos' },
   { to: '/settings', label: 'Ajustes' },
 ]
 

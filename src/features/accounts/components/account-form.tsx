@@ -5,12 +5,13 @@ import type { z } from 'zod'
 
 import { Button } from '@/components/ui/button'
 import { ColorPicker } from '@/components/ui/color-picker'
+import { CurrencyInput } from '@/components/ui/currency-input'
 import { IconPicker } from '@/components/ui/icon-picker'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
 import { accountSchema, accountTypeOptions, type AccountFormValues } from '@/features/accounts/schemas'
-import { CURRENCIES } from '@/lib/currency'
+import { CURRENCIES, formatAmount } from '@/lib/currency'
 
 interface AccountFormProps {
   defaultValues?: Partial<AccountFormValues>
@@ -46,6 +47,8 @@ export function AccountForm({
 
   const icon = watch('icon')
   const color = watch('color')
+  const initialBalance = Number(watch('initialBalance')) || 0
+  const currencyCode = watch('currencyCode')
 
   return (
     <form className="flex flex-col gap-4" onSubmit={handleSubmit(onSubmit)} noValidate>
@@ -91,19 +94,20 @@ export function AccountForm({
 
       <div className="flex flex-col gap-2">
         <Label htmlFor="account-initial-balance">Saldo inicial</Label>
-        <Input
+        <CurrencyInput
           id="account-initial-balance"
-          type="number"
-          min={0}
-          step={1}
-          inputMode="numeric"
           aria-invalid={!!errors.initialBalance}
-          aria-describedby={errors.initialBalance ? 'account-balance-error' : undefined}
-          {...register('initialBalance')}
+          aria-describedby="account-balance-hint"
+          value={initialBalance}
+          onChange={(value) => setValue('initialBalance', value, { shouldValidate: true })}
         />
-        {errors.initialBalance && (
-          <p id="account-balance-error" className="text-sm text-destructive">
+        {errors.initialBalance ? (
+          <p id="account-balance-hint" className="text-sm text-destructive">
             {errors.initialBalance.message}
+          </p>
+        ) : (
+          <p id="account-balance-hint" className="text-xs text-muted-foreground">
+            Equivale a {formatAmount(initialBalance, currencyCode || 'COP')}
           </p>
         )}
       </div>

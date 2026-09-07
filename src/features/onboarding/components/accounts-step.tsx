@@ -4,6 +4,7 @@ import { Plus, Trash2 } from 'lucide-react'
 import type { z } from 'zod'
 
 import { Button } from '@/components/ui/button'
+import { CurrencyInput } from '@/components/ui/currency-input'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
@@ -13,19 +14,23 @@ import {
   type AccountsStepValues,
   type DraftAccountValues,
 } from '@/features/onboarding/schemas'
+import { formatAmount } from '@/lib/currency'
 
 interface AccountsStepProps {
   defaultValues?: DraftAccountValues[]
+  currencyCode: string
   onBack: () => void
   onNext: (values: DraftAccountValues[]) => void
 }
 
 const EMPTY_ACCOUNT: DraftAccountValues = { name: '', type: 'cash', initialBalance: 0 }
 
-export function AccountsStep({ defaultValues, onBack, onNext }: AccountsStepProps) {
+export function AccountsStep({ defaultValues, currencyCode, onBack, onNext }: AccountsStepProps) {
   const {
     register,
     control,
+    watch,
+    setValue,
     handleSubmit,
     formState: { errors },
   } = useForm<z.input<typeof accountsStepSchema>, unknown, AccountsStepValues>({
@@ -95,18 +100,27 @@ export function AccountsStep({ defaultValues, onBack, onNext }: AccountsStepProp
 
                 <div className="flex flex-col gap-2">
                   <Label htmlFor={`account-${index}-balance`}>Saldo inicial</Label>
-                  <Input
+                  <CurrencyInput
                     id={`account-${index}-balance`}
-                    type="number"
-                    min={0}
-                    step={1}
-                    inputMode="numeric"
                     aria-invalid={!!errors.accounts?.[index]?.initialBalance}
-                    {...register(`accounts.${index}.initialBalance` as const)}
+                    value={Number(watch(`accounts.${index}.initialBalance` as const)) || 0}
+                    onChange={(value) =>
+                      setValue(`accounts.${index}.initialBalance` as const, value, {
+                        shouldValidate: true,
+                      })
+                    }
                   />
-                  {errors.accounts?.[index]?.initialBalance && (
+                  {errors.accounts?.[index]?.initialBalance ? (
                     <p className="text-sm text-destructive">
                       {errors.accounts[index]?.initialBalance?.message}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      Equivale a{' '}
+                      {formatAmount(
+                        Number(watch(`accounts.${index}.initialBalance` as const)) || 0,
+                        currencyCode,
+                      )}
                     </p>
                   )}
                 </div>

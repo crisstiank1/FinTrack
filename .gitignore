@@ -42,3 +42,4 @@ pnpm-debug.log*
 # Misc
 coverage/
 .cache/
+graphify-out/
