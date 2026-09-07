@@ -42,7 +42,9 @@ describe('buildLedgerCsv', () => {
     const csv = buildLedgerCsv([tx({}), tx({ id: 't2' })], context)
     const lines = rows(csv)
 
-    expect(lines[0]).toBe('Fecha;Descripción;Cuenta;Categoría;Tipo;Monto;Moneda;Notas')
+    expect(lines[0]).toBe(
+      'Fecha;Descripción;Cuenta;Categoría;Tipo;Dirección;Grupo de transferencia;Monto;Moneda;Notas',
+    )
     expect(lines).toHaveLength(3)
   })
 
@@ -78,9 +80,66 @@ describe('buildLedgerCsv', () => {
 
     const amounts = rows(csv)
       .slice(1)
-      .map((line) => line.split(';')[5])
+      .map((line) => line.split(';')[7])
 
     expect(amounts).toEqual(['300000', '-120000', '-80000', '80000'])
+  })
+
+  it('las dos mitades de una transferencia se anulan al sumar la columna Monto', () => {
+    const csv = buildLedgerCsv(
+      [
+        tx({
+          id: 'c',
+          type: 'transfer',
+          transfer_direction: 'outgoing',
+          transfer_group_id: 'grupo-1',
+          category_id: null,
+          amount_minor: 200_000,
+        }),
+        tx({
+          id: 'd',
+          type: 'transfer',
+          transfer_direction: 'incoming',
+          transfer_group_id: 'grupo-1',
+          account_id: 'acc-2',
+          category_id: null,
+          amount_minor: 200_000,
+        }),
+      ],
+      context,
+    )
+
+    const total = rows(csv)
+      .slice(1)
+      .reduce((sum, line) => sum + Number(line.split(';')[7]), 0)
+
+    expect(total).toBe(0)
+  })
+
+  it('marca dirección y grupo de la transferencia para poder auditarla', () => {
+    const csv = buildLedgerCsv(
+      [
+        tx({
+          type: 'transfer',
+          transfer_direction: 'outgoing',
+          transfer_group_id: 'grupo-1',
+          category_id: null,
+        }),
+      ],
+      context,
+    )
+    const cells = rows(csv)[1].split(';')
+
+    expect(cells[4]).toBe('Transferencia')
+    expect(cells[5]).toBe('Enviada')
+    expect(cells[6]).toBe('grupo-1')
+  })
+
+  it('deja vacías dirección y grupo en un movimiento normal', () => {
+    const cells = rows(buildLedgerCsv([tx({})], context))[1].split(';')
+
+    expect(cells[5]).toBe('')
+    expect(cells[6]).toBe('')
   })
 
   it('usa punto y coma como separador, no coma', () => {
@@ -102,7 +161,7 @@ describe('buildLedgerCsv', () => {
     const cells = rows(csv)[1].split(';')
 
     expect(cells[3]).toBe('')
-    expect(cells[7]).toBe('')
+    expect(cells[9]).toBe('')
   })
 })
 
