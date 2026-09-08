@@ -144,3 +144,111 @@ haya cambiado el tipo.
 `buildBudgetProgressList` recibe la lista de categorías a evaluar en vez de
 deducirla, precisamente para que quien llama decida si incluir las archivadas
 (necesario al consultar meses pasados) o solo las activas.
+
+---
+
+## Reglas de escritura
+
+Guardar un presupuesto exige declarar **qué se está haciendo**. No se deduce
+del mes ni del importe, porque las tres operaciones producen filas distintas y
+obedecen reglas distintas.
+
+| Intención | Fila que produce | Meses permitidos |
+| --- | --- | --- |
+| `template` | Plantilla vigente desde ese mes en adelante | Mes actual o futuro |
+| `exception` | Excepción de un único mes | Pasado, actual o futuro |
+| `correction` | Cambia el importe de una fila concreta | Cualquiera |
+
+**Versionar hacia atrás está prohibido.** Una plantilla con `effective_from`
+anterior al mes actual reescribiría el progreso de meses ya cerrados, que es
+justo lo que el modelo histórico promete que no ocurre. Ni el CHECK ni el
+trigger lo impiden —ninguno sabe en qué mes estamos—, así que el invariante
+vive en `planBudgetWrite`. Para ajustar un mes ya cerrado se usa una excepción,
+o una corrección sobre la fila concreta.
+
+**Poner un mes a cero no es una operación aparte**: es una excepción con
+`amountMinor: 0`.
+
+**Una corrección solo cambia el importe.** Nunca `category_id`, `period_month`
+ni `effective_from`. Conservar la categoría no es cosmético: es lo que hace que
+el trigger permita corregir un presupuesto cuya categoría se archivó o cambió
+de tipo después.
+
+### INSERT o UPDATE
+
+`budgets_template_unique_idx` cubre `(user_id, category_id, effective_from)
+where period_month is null`. Editar dos veces la plantilla dentro del mismo mes
+reutiliza el mismo `effective_from`, así que un INSERT ciego chocaría con el
+índice. Un `upsert` tampoco vale: PostgREST no puede expresar el predicado
+`where period_month is null` que PostgreSQL necesita para inferir un índice
+único **parcial** en el `ON CONFLICT`.
+
+Por eso `planBudgetWrite` decide entre INSERT y UPDATE mirando las filas ya
+conocidas: si existe la plantilla de ese mes exacto, o la excepción de ese mes,
+actualiza; si no, inserta. Reescribir la versión que empieza en el mes actual o
+en uno futuro no es retroactivo, porque esa versión todavía no gobierna ningún
+mes cerrado.
+
+Implementación: [`planBudgetWrite`](../src/features/budgets/mutations.ts).
+
+### Conflictos entre pestañas
+
+El plan se calcula sobre una lista que puede estar obsoleta. Si otra pestaña
+escribió antes, el INSERT choca con el índice único y PostgreSQL devuelve un
+error de duplicado.
+
+Ese caso **no se reintenta como UPDATE**: hacerlo pisaría en silencio el
+importe que la otra pestaña acaba de guardar. Lo único automático es refrescar
+la lista de presupuestos. Quien llama recibe un error de conflicto, ve el valor
+actualizado y decide si vuelve a guardar.
+
+### Errores
+
+La capa de datos no deja escapar errores crudos de PostgreSQL. Todo sale como
+un error de dominio con un código estable, para que la interfaz decida mirando
+el código y no parseando texto, y para que ningún mensaje muestre códigos SQL o
+nombres de índices al usuario.
+
+| Origen | Código de dominio |
+| --- | --- |
+| Trigger: categoría de ingresos | `category_not_expense` |
+| Trigger: categoría archivada | `category_archived` |
+| Trigger o clave foránea: categoría ausente | `category_missing` |
+| Índice único violado | `conflict` |
+| Plantilla con mes pasado | `past_month_template` |
+| Importe no entero o negativo | `invalid_amount` |
+| RLS, permisos o sesión caducada | `forbidden` |
+| Sin conexión | `network` |
+
+Los tres mensajes del trigger llegan con el mismo SQLSTATE genérico `P0001`, así
+que distinguirlos exige mirar el texto. Es el punto más frágil del mapeo y es
+deliberado: darle a cada regla su propio SQLSTATE exigiría cambiar el trigger.
+Si el texto cambia, el error cae en `unknown`, que sigue siendo correcto aunque
+menos específico.
+
+Implementación: [`toBudgetError`](../src/features/budgets/errors.ts).
+
+---
+
+## Consultas
+
+| Hook | Clave | Qué trae |
+| --- | --- | --- |
+| `useBudgets()` | `['budgets', userId]` | Todas las filas del usuario |
+| `useBudgetProgress()` | — | Derivación memoizada, sin caché propia |
+
+La resolución por mes y categoría ocurre en memoria: son pocas filas y así
+cambiar de mes no dispara una consulta. `fetchBudgets` tampoco pagina, a
+diferencia del historial del dashboard, porque la tabla crece como mucho una
+fila por categoría y mes editado.
+
+El gasto se lee **acotado al mes consultado**, reutilizando
+`useTransactions({ month, type: 'expense' })`, que filtra por rango de fechas y
+por tipo en el servidor. No se reutiliza `useAllTransactions` del dashboard:
+ese descarga el historial completo paginado porque necesita acumular saldos
+desde el saldo inicial de cada cuenta, y colgar los presupuestos de él los haría
+depender de que el dashboard se hubiera visitado antes.
+
+`user_id` procede siempre de la sesión autenticada y actúa como filtro de
+alcance y rendimiento. **La frontera de seguridad son las políticas RLS**, que
+el servidor aplica aunque ese filtro faltase.
