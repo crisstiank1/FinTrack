@@ -20,6 +20,13 @@ import Transactions from '@/pages/Transactions'
 const Dashboard = lazy(() => import('@/pages/Dashboard'))
 const Ledger = lazy(() => import('@/pages/Ledger'))
 
+/**
+ * Presupuestos no arrastra ninguna librería pesada, pero sí es la única
+ * pantalla que no se visita en cada sesión, así que su chunk aparte evita
+ * cargarla mientras el usuario solo consulta saldos.
+ */
+const Budgets = lazy(() => import('@/pages/Budgets'))
+
 export function AppRouter() {
   return (
     <BrowserRouter>
@@ -55,6 +62,18 @@ export function AppRouter() {
                   }
                 >
                   <Ledger />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/budgets"
+              element={
+                <Suspense
+                  fallback={
+                    <p className="p-6 text-sm text-muted-foreground">Cargando presupuestos...</p>
+                  }
+                >
+                  <Budgets />
                 </Suspense>
               }
             />

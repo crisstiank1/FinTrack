@@ -252,3 +252,78 @@ depender de que el dashboard se hubiera visitado antes.
 `user_id` procede siempre de la sesión autenticada y actúa como filtro de
 alcance y rendimiento. **La frontera de seguridad son las políticas RLS**, que
 el servidor aplica aunque ese filtro faltase.
+
+---
+
+## Interfaz
+
+### Las intenciones no se enseñan; se traducen
+
+`template`, `exception` y `correction` son precisas, pero nadie piensa su
+presupuesto en esos términos. El formulario pregunta por el efecto, no por el
+mecanismo:
+
+| Lo que ve el usuario | Intención |
+| --- | --- |
+| «Desde este mes en adelante» | `template` |
+| «Solo este mes» | `exception` |
+| «Corregir monto», dentro del historial | `correction` |
+
+En un **mes ya cerrado la primera opción no se ofrece**: versionar hacia atrás
+reescribiría meses pasados. La interfaz lo explica en vez de dejar que el
+usuario descubra el error al guardar, pero `planBudgetWrite` sigue rechazándolo
+igualmente — la restricción no puede depender de que la pantalla se comporte
+bien.
+
+La corrección no aparece en el flujo principal. Vive en el historial de cada
+categoría, junto a las versiones que puede corregir, porque solo tiene sentido
+sobre una fila concreta.
+
+### Categorías archivadas
+
+Aparecen **solo si tienen un presupuesto resoluble para el mes en pantalla**.
+Sin esa condición, un mes pasado mostraría un progreso incompleto; con ella, la
+lista del mes actual no se llena de categorías retiradas.
+
+Cuando aparecen llevan la etiqueta «Archivada» y **no ofrecen crear un
+presupuesto**: cualquier INSERT con una categoría archivada lo rechaza el
+trigger, así que ofrecer el botón sería prometer algo que la base de datos no
+va a permitir. Lo que sí conservan es el historial, con corrección y borrado de
+sus filas: es exactamente lo que el trigger permite y sin ello los presupuestos
+de una categoría retirada quedarían congelados con un error dentro.
+
+Las categorías de ingreso no se listan nunca.
+
+### Alertas
+
+Derivadas, no persistentes: se calculan desde el progreso en cada render. No
+hay nada que marcar como leído ni tabla que mantener.
+
+- **Una sola alerta por presupuesto.** `classifyBudgetStatus` ya devuelve un
+  único estado, así que el caso de tres avisos por la misma categoría no puede
+  darse. Entre categorías se ordenan por gravedad: superado, luego 90%, luego
+  70%.
+- **Una sola alerta global**, la de ahorro neto negativo.
+- En el dashboard cada alerta enlaza a `/budgets?month=YYYY-MM`, con el mes que
+  se está viendo. Por eso el mes de esa pantalla vive en la URL: si viviera en
+  el estado del componente, el enlace llevaría siempre al mes actual y perdería
+  la razón por la que se pulsó.
+- **A una categoría archivada no se le propone ajustar nada.** Se informa del
+  umbral y se marca como archivada, porque la acción que sugeriría el enlace no
+  está disponible para ella.
+
+### Presupuesto de cero
+
+Es una decisión válida, no un campo sin llenar, y la interfaz lo trata en dos
+momentos:
+
+- **Al escribirlo**, antes de guardar, aparece la advertencia: *"Un presupuesto
+  de COP 0 significa que esta categoría no tendrá presupuesto en el periodo
+  elegido"*. El campo del monto es de texto justamente por esto: un campo
+  numérico convertiría el vacío en 0 y guardaría una decisión que nadie tomó.
+  Vacío es error; 0 es una elección.
+- **Al mostrarlo**, no se dibuja barra ni porcentaje. Una barra al 0% junto a un
+  gasto real sugeriría "vas bien", que es lo contrario de lo que pasa: no hay
+  con qué comparar. En su lugar se dice «Sin presupuesto este mes» —añadiendo
+  «excepción de este mes» cuando el 0 fue deliberado para ese mes— y el gasto
+  real se muestra aparte.

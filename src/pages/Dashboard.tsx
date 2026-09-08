@@ -6,6 +6,11 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useAccounts } from '@/features/accounts/hooks'
+import { selectBudgetCategories } from '@/features/budgets/categories'
+import { BudgetAlerts, type BudgetAlertItem } from '@/features/budgets/components/budget-alerts'
+import { BudgetProgressBar } from '@/features/budgets/components/budget-progress-bar'
+import { useBudgetProgress, useBudgets } from '@/features/budgets/hooks'
+import { buildGlobalBudgetAlert } from '@/features/budgets/progress'
 import { useCategories } from '@/features/categories/hooks'
 import { BalanceHeroCard } from '@/features/dashboard/components/balance-hero-card'
 import { CategoryDonut } from '@/features/dashboard/components/category-donut'
@@ -76,6 +81,53 @@ export default function Dashboard() {
 
   const accountsById = useMemo(() => new Map(accounts.map((a) => [a.id, a])), [accounts])
   const categoriesById = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories])
+
+  // Los presupuestos no tienen dimensión de cuenta: se reparten por categoría
+  // sobre todo el gasto del mes. Por eso el panel no reacciona al filtro de
+  // cuenta, aunque la alerta global sí, porque sale del resumen en pantalla.
+  const budgetsQuery = useBudgets()
+  const budgetCategories = useMemo(
+    () => selectBudgetCategories(categories, budgetsQuery.data ?? [], monthKey),
+    [categories, budgetsQuery.data, monthKey],
+  )
+  const budgetCategoryIds = useMemo(
+    () => budgetCategories.map((category) => category.id),
+    [budgetCategories],
+  )
+  const budgetProgress = useBudgetProgress({ monthKey, categoryIds: budgetCategoryIds })
+
+  const budgetAlertItems = useMemo<BudgetAlertItem[]>(() => {
+    const byId = new Map(budgetCategories.map((category) => [category.id, category]))
+
+    return (budgetProgress.data ?? []).flatMap((progress) => {
+      const category = byId.get(progress.categoryId)
+      if (!category) return []
+
+      return [
+        {
+          categoryId: category.id,
+          categoryName: category.name,
+          isArchived: category.is_archived,
+          progress,
+        },
+      ]
+    })
+  }, [budgetCategories, budgetProgress.data])
+
+  /** Las cinco categorías más cerca de su límite; el resto vive en /budgets. */
+  const topBudgets = useMemo(
+    () =>
+      budgetAlertItems
+        .filter((item) => item.progress.budgetMinor !== null)
+        .sort((a, b) => (b.progress.ratio ?? 0) - (a.progress.ratio ?? 0))
+        .slice(0, 5),
+    [budgetAlertItems],
+  )
+
+  const globalBudgetAlert = useMemo(
+    () => buildGlobalBudgetAlert(summary.income.currentMinor, summary.expense.currentMinor),
+    [summary],
+  )
 
   const toolbarAccounts = useMemo(
     () =>
@@ -227,6 +279,58 @@ export default function Dashboard() {
 
           <DashboardPanel
             index={7}
+            className="mt-4"
+            title="Presupuestos"
+            description={monthLabel}
+            action={
+              <Button asChild variant="ghost" size="sm">
+                <Link to={`/budgets?month=${monthKey}`}>Ver todos</Link>
+              </Button>
+            }
+          >
+            {topBudgets.length > 0 || globalBudgetAlert ? (
+              <div className="flex flex-col gap-4">
+                <BudgetAlerts
+                  items={budgetAlertItems}
+                  globalAlert={globalBudgetAlert}
+                  currencyCode={currencyCode}
+                  linkToMonth={monthKey}
+                />
+
+                {topBudgets.length > 0 && (
+                  <ul className="flex flex-col gap-4">
+                    {topBudgets.map((item) => (
+                      <li key={item.categoryId}>
+                        <div className="mb-1 flex items-center gap-2">
+                          <span className="text-sm font-medium text-foreground">
+                            {item.categoryName}
+                          </span>
+                          {item.isArchived && (
+                            <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                              Archivada
+                            </span>
+                          )}
+                        </div>
+                        <BudgetProgressBar
+                          progress={item.progress}
+                          categoryName={item.categoryName}
+                          currencyCode={currencyCode}
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            ) : (
+              <PanelEmptyMessage>
+                Todavía no repartes tu dinero en {monthLabel}. Define un presupuesto por categoría y
+                aquí verás cuánto te queda.
+              </PanelEmptyMessage>
+            )}
+          </DashboardPanel>
+
+          <DashboardPanel
+            index={8}
             className="mt-4"
             title="Últimos movimientos"
             description={monthLabel}
