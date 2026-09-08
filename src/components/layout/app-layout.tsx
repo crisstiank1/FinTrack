@@ -11,6 +11,7 @@ const NAV_ITEMS = [
   { to: '/accounts', label: 'Cuentas' },
   { to: '/transactions', label: 'Movimientos' },
   { to: '/ledger', label: 'Libro' },
+  { to: '/budgets', label: 'Presupuestos' },
   { to: '/settings', label: 'Ajustes' },
 ]
 

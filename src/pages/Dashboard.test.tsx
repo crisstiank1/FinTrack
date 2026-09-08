@@ -22,10 +22,16 @@ vi.mock('recharts', async () => {
 const useAllTransactions = vi.fn()
 const useAccounts = vi.fn()
 const useCategories = vi.fn()
+const useBudgets = vi.fn()
+const useBudgetProgress = vi.fn()
 const createTransactionMutate = vi.fn()
 
 vi.mock('@/features/dashboard/hooks', () => ({
   useAllTransactions: () => useAllTransactions(),
+}))
+vi.mock('@/features/budgets/hooks', () => ({
+  useBudgets: () => useBudgets(),
+  useBudgetProgress: (options: unknown) => useBudgetProgress(options),
 }))
 vi.mock('@/features/accounts/hooks', () => ({
   useAccounts: () => useAccounts(),
@@ -118,10 +124,26 @@ function kpi(name: string) {
   return within(screen.getByRole('region', { name }))
 }
 
+/** Plantilla vigente para Alimentación, para que el panel tenga algo que mostrar. */
+const budgetRows = [
+  {
+    id: 'tpl-food',
+    user_id: 'user-1',
+    category_id: 'cat-food',
+    period_month: null,
+    effective_from: `${month}-01`,
+    amount_minor: 130_000,
+    created_at: '',
+    updated_at: '',
+  },
+] as Tables<'budgets'>[]
+
 beforeEach(() => {
   vi.clearAllMocks()
   useAccounts.mockReturnValue({ data: accounts })
   useCategories.mockReturnValue({ data: categories })
+  useBudgets.mockReturnValue({ data: [], isPending: false, isError: false })
+  useBudgetProgress.mockReturnValue({ data: [], isPending: false, isError: false })
   useAllTransactions.mockReturnValue({
     data: transactions,
     isPending: false,
@@ -218,6 +240,126 @@ describe('Dashboard', () => {
 
     expect(screen.queryByRole('region', { name: 'Saldo consolidado' })).not.toBeInTheDocument()
     expect(screen.queryByText('Tu dashboard está listo')).not.toBeInTheDocument()
+  })
+
+  it('muestra el progreso de los presupuestos del mes', () => {
+    useBudgets.mockReturnValue({ data: budgetRows, isPending: false, isError: false })
+    useBudgetProgress.mockReturnValue({
+      data: [
+        {
+          categoryId: 'cat-food',
+          budgetMinor: 130_000,
+          spentMinor: 120_000,
+          remainingMinor: 10_000,
+          ratio: 120_000 / 130_000,
+          status: 'warning_90',
+          source: 'template',
+        },
+      ],
+      isPending: false,
+      isError: false,
+    })
+
+    renderDashboard()
+
+    const panel = within(screen.getByRole('region', { name: 'Presupuestos' }))
+    expect(panel.getByText('Alimentación')).toBeInTheDocument()
+    expect(panel.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '92')
+    expect(panel.getByText(/va por el 92 % de su presupuesto/)).toBeInTheDocument()
+  })
+
+  it('las alertas enlazan al mes que se está viendo', () => {
+    useBudgets.mockReturnValue({ data: budgetRows, isPending: false, isError: false })
+    useBudgetProgress.mockReturnValue({
+      data: [
+        {
+          categoryId: 'cat-food',
+          budgetMinor: 100_000,
+          spentMinor: 120_000,
+          remainingMinor: -20_000,
+          ratio: 1.2,
+          status: 'over',
+          source: 'template',
+        },
+      ],
+      isPending: false,
+      isError: false,
+    })
+
+    renderDashboard()
+
+    fireEvent.change(screen.getByLabelText('Mes'), { target: { value: '2026-03' } })
+
+    const panel = within(screen.getByRole('region', { name: 'Presupuestos' }))
+    expect(panel.getByRole('link', { name: 'Ajustar presupuesto' })).toHaveAttribute(
+      'href',
+      '/budgets?month=2026-03',
+    )
+  })
+
+  it('no propone ajustar el presupuesto de una categoría archivada', () => {
+    useCategories.mockReturnValue({
+      data: [
+        ...categories,
+        { id: 'cat-gym', name: 'Gimnasio', type: 'expense', color: '#0FF', is_archived: true },
+      ] as Tables<'categories'>[],
+    })
+    useBudgets.mockReturnValue({
+      data: [{ ...budgetRows[0], id: 'tpl-gym', category_id: 'cat-gym' }],
+      isPending: false,
+      isError: false,
+    })
+    useBudgetProgress.mockReturnValue({
+      data: [
+        {
+          categoryId: 'cat-gym',
+          budgetMinor: 100_000,
+          spentMinor: 200_000,
+          remainingMinor: -100_000,
+          ratio: 2,
+          status: 'over',
+          source: 'template',
+        },
+      ],
+      isPending: false,
+      isError: false,
+    })
+
+    renderDashboard()
+
+    const panel = within(screen.getByRole('region', { name: 'Presupuestos' }))
+    expect(panel.getByText(/Gimnasio superó su presupuesto/)).toBeInTheDocument()
+    expect(panel.queryByRole('link', { name: 'Ajustar presupuesto' })).not.toBeInTheDocument()
+    expect(panel.getAllByText('Categoría archivada').length).toBeGreaterThan(0)
+  })
+
+  it('avisa cuando el mes cierra con ahorro neto negativo', () => {
+    useAllTransactions.mockReturnValue({
+      data: [
+        transaction({
+          type: 'income',
+          category_id: 'cat-salary',
+          amount_minor: 300_000,
+          description: 'Salario',
+        }),
+        transaction({ amount_minor: 400_000, description: 'Mercado' }),
+      ],
+      isPending: false,
+      isError: false,
+      refetch: vi.fn(),
+    })
+
+    renderDashboard()
+
+    const panel = within(screen.getByRole('region', { name: 'Presupuestos' }))
+    expect(panel.getByText(/Gastaste COP 100.000 más de lo que ingresaste/)).toBeInTheDocument()
+  })
+
+  it('no avisa de ahorro neto negativo cuando el mes cierra en positivo', () => {
+    renderDashboard()
+
+    const panel = within(screen.getByRole('region', { name: 'Presupuestos' }))
+    expect(panel.queryByText(/más de lo que ingresaste/)).not.toBeInTheDocument()
   })
 
   it('ofrece reintentar cuando la consulta falla', async () => {
