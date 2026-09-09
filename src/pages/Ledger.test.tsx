@@ -64,6 +64,7 @@ function tx(overrides: Partial<Tables<'transactions'>>): Tables<'transactions'> 
     description: 'Mercado del mes',
     notes: null,
     is_reconciled: false,
+    custom_fields: {},
     created_at: '',
     updated_at: '',
     ...overrides,

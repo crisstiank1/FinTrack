@@ -27,6 +27,7 @@ function tx(overrides: Partial<Tables<'transactions'>>): Tables<'transactions'> 
     description: 'Mercado',
     notes: null,
     is_reconciled: false,
+    custom_fields: {},
     created_at: '',
     updated_at: '',
     ...overrides,
