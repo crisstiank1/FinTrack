@@ -304,7 +304,38 @@ No implementar edición inline todavía.
 - Las transferencias no se consideran gasto presupuestal.
 - Las alertas son claras y no duplicadas.
 
-### FASE 9 — Recurrentes, metas e importación CSV
+### FASE 8.5 — Hojas de cálculo
+
+Funcionalidad independiente del flujo de presupuestos y de importación CSV.
+Ubicada en el roadmap entre la Fase 8 y la Fase 9: se implementa completa y con
+sus propios pasos en orden antes de comenzar la Fase 9.
+
+**Estado del esquema:** ya aplicado mediante la migración
+`20260907221059_crear_hojas.sql`, que crea `sheets`, `sheet_drafts` y la columna
+`transactions.custom_fields`.
+
+**Objetivo:**
+- Construir `/sheets`: captura estructurada de borradores persistidos.
+- Permitir hasta 20 columnas propias de texto por hoja.
+- Implementar el registro explícito de un borrador como movimiento `income` o
+  `expense`.
+- Validar con Zod las reglas internas de columnas y celdas.
+
+**Frontera:** un borrador no registrado no afecta saldos, dashboard,
+presupuestos ni Historial financiero. Una fila registrada desaparece de la
+rejilla y pasa a `/transactions` y `/ledger`. Las Hojas **no reemplazan**
+`/transactions` ni `/ledger`.
+
+Modelo y reglas: `docs/07-hojas.md`. Pruebas SQL: `docs/08-pruebas-hojas.md`.
+
+**Criterios de aprobación:**
+- Registrar un borrador crea el movimiento y lo retira de la rejilla.
+- Un borrador no registrado no altera ninguna cifra financiera.
+- Las columnas propias conservan su valor al renombrar la columna.
+- Un usuario no puede leer ni escribir hojas ni borradores de otro.
+- Las 31 pruebas SQL de `docs/08-pruebas-hojas.md` pasan.
+
+### FASE 9 — Recurrentes y metas
 
 Solo comenzar después de aprobación explícita.
 
@@ -313,6 +344,12 @@ Solo comenzar después de aprobación explícita.
 - Crear `goals`.
 - Implementar movimientos recurrentes.
 - Implementar metas.
+
+### FASE 10 — Importación CSV
+
+Solo comenzar después de aprobación explícita.
+
+**Objetivo:**
 - Implementar importación CSV con:
   - Previsualización.
   - Mapeo de columnas.
@@ -321,7 +358,10 @@ Solo comenzar después de aprobación explícita.
   - Resumen de resultados.
   - Detección básica de duplicados.
 
-### FASE 10 — Calidad, seguridad y despliegue
+La importación CSV opera sobre `transactions`. No depende de las Hojas de
+cálculo ni forma parte de ellas.
+
+### FASE 11 — Calidad, seguridad, despliegue y documentación final
 
 **Objetivo:**
 - Completar pruebas Vitest, RTL y Playwright.
@@ -342,6 +382,18 @@ Solo comenzar después de aprobación explícita.
 - Build output directory: `dist`.
 
 No colocar secretos en GitHub ni en documentación.
+
+---
+
+## Fuera del roadmap actual
+
+No incluir sin decisión explícita posterior:
+
+- IA y asistentes automáticos.
+- Integración bancaria.
+- Open Finance.
+- Fórmulas libres tipo Excel.
+- Edición inline masiva.
 
 ---
 

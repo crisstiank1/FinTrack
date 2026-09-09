@@ -108,6 +108,18 @@ Durante onboarding, crear las categorías por usuario mediante una estrategia se
 
 ## Rutas y pantallas
 
+### Separación de superficies de movimientos
+
+Tres rutas trabajan sobre movimientos y no se solapan:
+
+| Ruta | Propósito |
+| --- | --- |
+| `/transactions` | Uso diario: crear, editar, duplicar y eliminar movimientos. |
+| `/ledger` | Historial financiero: consulta, filtros, ordenamiento, exportación CSV, edición y saldo acumulado. |
+| `/sheets` | Borradores estructurados: captura previa al registro. Fase 8.5, sin UI todavía. |
+
+Ninguna reemplaza a las otras.
+
 ### `/auth`
 
 - Pantalla completa.
@@ -178,7 +190,10 @@ Pasos:
 
 ### `/ledger`
 
-Libro financiero tipo Excel, basado en `transactions` (sin tabla independiente).
+**Historial financiero.** Basado en `transactions` (sin tabla independiente).
+Su propósito es consulta, filtros, ordenamiento, exportación CSV, edición de
+movimientos y saldo acumulado. **No es una superficie de captura de
+borradores**: esa es `/sheets`.
 
 **Columnas MVP:**
 - Fecha.
@@ -210,6 +225,32 @@ Libro financiero tipo Excel, basado en `transactions` (sin tabla independiente).
 - Acciones masivas.
 - Columnas personalizadas.
 - Vistas guardadas.
+
+### `/budgets`
+
+Ruta existente. Presupuesto mensual por categoría, progreso y alertas.
+Acepta `?month=YYYY-MM`. Modelo y reglas: `docs/06-presupuestos.md`.
+
+### `/sheets`
+
+**Ruta futura de la Fase 8.5. Todavía no tiene UI implementada:** el esquema
+está aplicado (`sheets`, `sheet_drafts`), pero no existen ni la ruta ni los
+componentes.
+
+**Hojas de cálculo.** Captura estructurada de borradores persistidos, con
+columnas propias de texto por hoja y registro explícito de ingresos y gastos.
+
+**No reemplaza `/transactions` ni `/ledger`.** Un borrador no registrado no
+aparece en ninguna de las dos, ni afecta saldos, dashboard o presupuestos.
+
+**No incluir:**
+- Fórmulas y columnas calculadas.
+- Importación CSV: es la Fase 10 y opera sobre `transactions`.
+- Edición de movimientos ya registrados dentro de la hoja.
+- Acciones masivas.
+- Reordenamiento de filas.
+
+Modelo y reglas: `docs/07-hojas.md`.
 
 ### `/accounts`
 

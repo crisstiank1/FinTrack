@@ -146,13 +146,45 @@
 
 ---
 
-## Tablas posteriores (fuera del primer esquema)
+## Registro de tablas
 
-No crear estas tablas hasta llegar a su fase y recibir aprobación:
+Este documento es la fuente de verdad del esquema. Toda tabla del proyecto
+aparece aquí, en uno de estos tres estados.
 
-- `budgets`.
-- `recurring_rules`.
-- `goals`.
+### Creadas y aplicadas
+
+| Tabla | Migración | Fase |
+| --- | --- | --- |
+| `profiles` | `20260906205216_inicializar_esquema.sql` | Fase 2 |
+| `accounts` | `20260906205216_inicializar_esquema.sql` | Fase 2 |
+| `categories` | `20260906205216_inicializar_esquema.sql` | Fase 2 |
+| `transactions` | `20260906205216_inicializar_esquema.sql` | Fase 2 |
+| `budgets` | `20260906212625_crear_budgets.sql` | Fase 8 |
+| `sheets` | `20260907221059_crear_hojas.sql` | Fase 8.5 |
+| `sheet_drafts` | `20260907221059_crear_hojas.sql` | Fase 8.5 |
+
+La misma migración `20260907221059_crear_hojas.sql` añade la columna
+`transactions.custom_fields` (`jsonb not null default '{}'`), que guarda los
+valores de las columnas propias junto al movimiento ya registrado.
+
+El modelo y las reglas de `sheets` y `sheet_drafts` están en
+`docs/07-hojas.md`, y sus pruebas en `docs/08-pruebas-hojas.md`. El modelo de
+`budgets` está en `docs/06-presupuestos.md`.
+
+### Pendientes con fase asignada
+
+No crear hasta llegar a su fase y recibir aprobación explícita:
+
+| Tabla | Fase |
+| --- | --- |
+| `recurring_rules` | Fase 9 |
+| `goals` | Fase 9 |
+
+### Futuras, sin fase ni aprobación
+
+Documentadas como intención. No diseñar ni crear sin una decisión previa que
+les asigne fase:
+
 - `notifications`.
 - `saved_ledger_views`.
 
