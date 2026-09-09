@@ -175,10 +175,51 @@ El modelo y las reglas de `sheets` y `sheet_drafts` están en
 
 No crear hasta llegar a su fase y recibir aprobación explícita:
 
-| Tabla | Fase |
-| --- | --- |
-| `recurring_rules` | Fase 9 |
-| `goals` | Fase 9 |
+| Tabla | Fase | Papel |
+| --- | --- | --- |
+| `category_classifications` | Fase 8.7 | Clasifica cada categoría de gasto en `needs`, `wants` o `debt` |
+| `plan_months` | Fase 8.7 | Cabecera del plan de un mes |
+| `plan_allocations` | Fase 8.7 | Porcentajes del reparto, en puntos base |
+| `plan_income_sources` | Fase 8.7 | Fuentes de ingreso planeadas |
+| `plan_income_source_categories` | Fase 8.7 | Puente entre fuentes y categorías de ingreso |
+| `plan_lines` | Fase 8.7 | Facturas, gastos variables, ahorro e inversión |
+| `recurring_rules` | Fase 9 | Movimientos recurrentes |
+| `goals` | Fase 9 | Metas de ahorro |
+
+Las seis tablas de la Fase 8.7 son **exclusivamente de planificación**: ninguna
+almacena un importe real. Los valores «Actual» se calculan siempre desde
+`transactions` en tiempo de consulta, lo que vuelve imposible por construcción
+que un valor real sea editable. Su modelo completo está en
+`docs/09-plan-mensual.md`.
+
+La deuda no tiene tabla ni línea propia: es una categoría de gasto clasificada
+como `debt` en `category_classifications`, con su presupuesto en `budgets` como
+cualquier otra categoría.
+
+### Modificaciones previstas sobre tablas ya creadas
+
+| Tabla | Cambio | Fase |
+| --- | --- | --- |
+| `accounts` | Ampliar `accounts_type_check` con `'investment'` | Fase 8.7 |
+| `accounts` | Añadir `unique (id, user_id)` | Fase 8.7 |
+
+Ampliar un CHECK no invalida ninguna fila existente: es incremental, sin
+backfill y sin cambio de valor predeterminado. La restricción única
+`(id, user_id)` no cambia qué filas son válidas —`id` ya es única por ser clave
+primaria—; existe porque una clave foránea compuesta necesita una restricción
+única que cubra exactamente sus columnas de destino, y es lo que permite
+delegar en la base de datos la garantía de que una línea de plan solo puede
+apuntar a una cuenta del mismo usuario. Es el mismo recurso que
+`categories_id_user_id_key` aporta desde la Fase 8.
+
+`investment` sirve únicamente para que el usuario registre manualmente una
+cuenta de destino y los aportes que ya realizó. No implica conectar brokers,
+abrir productos, comprar activos ni operar dinero, y no se almacena ninguna
+credencial ni dato sensible de terceros.
+
+Tras aplicar el cambio de `accounts.type` hay que regenerar
+`database.types.ts`: hasta entonces los tipos generados no reflejan el dominio
+real de la columna.
 
 ### Futuras, sin fase ni aprobación
 

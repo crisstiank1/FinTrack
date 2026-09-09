@@ -110,15 +110,18 @@ Durante onboarding, crear las categorías por usuario mediante una estrategia se
 
 ### Separación de superficies de movimientos
 
-Tres rutas trabajan sobre movimientos y no se solapan:
+Cuatro rutas trabajan sobre movimientos y no se solapan:
 
 | Ruta | Propósito |
 | --- | --- |
 | `/transactions` | Uso diario: crear, editar, duplicar y eliminar movimientos. |
 | `/ledger` | Historial financiero: consulta, filtros, ordenamiento, exportación CSV, edición y saldo acumulado. |
+| `/plan` | Plan mensual: planificación del mes y comparación Presupuesto vs. Actual. Fase 8.7, sin UI todavía. |
 | `/sheets` | Borradores estructurados: captura previa al registro. Fase 8.5, sin UI todavía. |
 
-Ninguna reemplaza a las otras.
+Ninguna reemplaza a las otras. `/ledger` y `/plan` son ambas de consulta, pero
+miran en direcciones opuestas: el Historial mira movimiento a movimiento hacia
+atrás; el Plan mensual compara un mes entero contra lo que se había previsto.
 
 ### `/auth`
 
@@ -252,6 +255,65 @@ aparece en ninguna de las dos, ni afecta saldos, dashboard o presupuestos.
 
 Modelo y reglas: `docs/07-hojas.md`.
 
+### `/plan`
+
+**Ruta futura de la Fase 8.7. Todavía no tiene UI implementada:** no existen ni
+la ruta ni las tablas.
+
+**Plan mensual.** Planificación del mes y comparación Presupuesto vs. Actual.
+El usuario define planes; los valores reales se calculan desde `transactions` y
+**no son editables en ningún punto de la pantalla**.
+
+Es una pantalla de lectura, análisis y configuración de la planificación. **No
+es un medio para pagar:** no inicia ni ejecuta ningún movimiento de dinero.
+
+**Bloques, en orden:**
+- Vista general: selector de año y mes, moneda del perfil y los indicadores del
+  mes.
+- Ingresos planeados vs. actuales, por fuente.
+- Reparto 50/30/20, con porcentajes modificables.
+- Cuadro Presupuesto vs. Actual.
+- Reconciliación del presupuesto.
+- Facturas y gastos fijos.
+- Gastos variables.
+- Ahorro e inversión.
+- Seguimiento de gastos, de solo lectura, con enlace a `/transactions` o
+  `/ledger` para editar el movimiento real.
+
+La deuda no tiene bloque de planificación propio: se planifica como cualquier
+categoría de gasto, desde `/budgets`, y aparece como grupo del reparto y como
+fila del cuadro Presupuesto vs. Actual.
+
+**Reglas de presentación:**
+- Distinguir siempre «Planeado» de «Actual»; nunca presentarlos como una sola
+  columna.
+- La diferencia favorable o desfavorable se dice **en texto**. El color solo
+  acompaña, nunca es el único portador de la información.
+- Sin presupuesto se muestra «Sin presupuesto», nunca un `0`.
+- «Por asignar» compara planes, no dinero disponible. La nota que lo aclara es
+  fija, no un tooltip.
+- En el cuadro Presupuesto vs. Actual, distinguir visualmente las filas que
+  **descomponen** Gastos totales (Facturas, Gastos variables, No planeado) de
+  las que son **indicadores aparte** (Ahorro, Inversión, Deuda). Solo las
+  primeras suman.
+- La suma de los grupos del reparto **no** tiene que coincidir con Gastos
+  totales, porque ahorro e inversión son transferencias registradas y no
+  gastos. Los dos bloques van visualmente separados y la pantalla lo explica.
+- Secciones plegables; en móvil, cada bloque nace plegado con su titular.
+- Compatible con ambos temas.
+
+**No incluir en el primer release:**
+- Editar cualquier valor «Actual».
+- Copiar el plan de un mes a otro.
+- Reordenar líneas.
+- Corregir automáticamente meses cerrados.
+- Metas y aportes a metas: dependen de `goals`, que es Fase 9.
+- Importación CSV.
+- Cualquier indicador, bloque o acción relativo a tarjetas: pagos, cupos,
+  intereses, fechas de corte o pagos mínimos.
+
+Modelo, fórmulas y reglas: `docs/09-plan-mensual.md`.
+
 ### `/accounts`
 
 - Crear cuentas.
@@ -271,3 +333,23 @@ Modelo y reglas: `docs/07-hojas.md`.
 - Dejar documentadas, pero **no implementar sin aprobación**:
   - Exportación completa de datos.
   - Eliminación de cuenta.
+
+---
+
+## Navegación
+
+En escritorio se muestran los siete destinos sin agrupar.
+
+En móvil, cuatro ranuras. Ningún acceso desaparece: los cinco restantes viven
+en «Más», que abre una hoja inferior con sus etiquetas completas.
+
+| Ranura | Contenido |
+| --- | --- |
+| Resumen | `/dashboard` |
+| Plan | `/plan` |
+| Movimientos | `/transactions` |
+| Más | `/ledger` (Historial financiero), `/budgets` (Presupuestos), `/sheets` (Hojas), `/accounts` (Cuentas), `/settings` (Ajustes) |
+
+Los nombres visibles son «Plan mensual», «Historial financiero», «Movimientos»,
+«Presupuestos», «Hojas», «Cuentas» y «Ajustes». En la barra móvil se abrevian a
+una palabra; en los encabezados de cada pantalla se escriben completos.

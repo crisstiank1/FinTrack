@@ -327,3 +327,43 @@ momentos:
   con qué comparar. En su lugar se dice «Sin presupuesto este mes» —añadiendo
   «excepción de este mes» cuando el 0 fue deliberado para ese mes— y el gasto
   real se muestra aparte.
+
+---
+
+## Frontera con Plan mensual
+
+Desde la Fase 8.7 existe `/plan`, que también muestra presupuestos. La frontera
+es estricta y va en una sola dirección:
+
+**Esta tabla, `budgets`, es la única fuente de verdad del presupuesto por
+categoría.** `/plan` no tiene una tabla paralela ni una segunda cifra
+presupuestada por categoría. Lee el presupuesto vigente con la misma
+`resolveBudget` documentada arriba, y cuando el usuario edita un monto desde
+`/plan`, la escritura pasa por la capa de mutación de esta fase. No hay una
+segunda ruta de escritura.
+
+La consecuencia es que las dos pantallas no pueden discrepar: no es una
+convención que haya que respetar, es que no existe el segundo dato.
+
+| | `/budgets` | `/plan` |
+| --- | --- | --- |
+| Alcance | Una categoría | El mes entero |
+| Presupuesto por categoría | Fuente de verdad | Lo lee y lo escribe aquí |
+| Deuda | Una categoría de gasto más | La agrupa y la compara |
+| Aportes a ahorro e inversión | Fuera de alcance | Los planifica con importe propio |
+| Reparto del ingreso | No aplica | 50/30/20 modificable |
+
+La deuda no es una excepción: se modela como una categoría de gasto clasificada
+`debt`, y su presupuesto se resuelve aquí igual que el de cualquier otra.
+
+Los aportes a ahorro e inversión sí son una excepción, y por un motivo del
+esquema: se registran como transferencias, y una transferencia no puede tener
+categoría —el CHECK de `transactions` lo impide—. `budgets` cubre solo
+categorías de gasto, así que no puede representarlos. Por eso esas líneas de
+`/plan` llevan su propio importe planeado: no duplican nada de aquí, porque
+aquí eso no existe.
+
+En una fase futura se evaluará absorber `/budgets` dentro de `/plan`. No en
+este release.
+
+Detalle completo: `docs/09-plan-mensual.md`.
