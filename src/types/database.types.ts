@@ -194,12 +194,85 @@ export type Database = {
         }
         Relationships: []
       }
+      sheet_drafts: {
+        Row: {
+          cells: Json
+          created_at: string
+          id: string
+          position: number
+          sheet_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          cells?: Json
+          created_at?: string
+          id?: string
+          position: number
+          sheet_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          cells?: Json
+          created_at?: string
+          id?: string
+          position?: number
+          sheet_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sheet_drafts_sheet_id_fkey"
+            columns: ["sheet_id"]
+            isOneToOne: false
+            referencedRelation: "sheets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sheet_drafts_sheet_same_user_fkey"
+            columns: ["sheet_id", "user_id"]
+            isOneToOne: false
+            referencedRelation: "sheets"
+            referencedColumns: ["id", "user_id"]
+          },
+        ]
+      }
+      sheets: {
+        Row: {
+          columns: Json
+          created_at: string
+          id: string
+          name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          columns?: Json
+          created_at?: string
+          id?: string
+          name: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          columns?: Json
+          created_at?: string
+          id?: string
+          name?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       transactions: {
         Row: {
           account_id: string
           amount_minor: number
           category_id: string | null
           created_at: string
+          custom_fields: Json
           description: string
           id: string
           is_reconciled: boolean
@@ -216,6 +289,7 @@ export type Database = {
           amount_minor: number
           category_id?: string | null
           created_at?: string
+          custom_fields?: Json
           description: string
           id?: string
           is_reconciled?: boolean
@@ -232,6 +306,7 @@ export type Database = {
           amount_minor?: number
           category_id?: string | null
           created_at?: string
+          custom_fields?: Json
           description?: string
           id?: string
           is_reconciled?: boolean
@@ -265,7 +340,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      register_sheet_draft: { Args: { p_draft_id: string }; Returns: Json }
     }
     Enums: {
       [_ in never]: never
