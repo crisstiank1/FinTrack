@@ -745,11 +745,42 @@ estados intermedios inválidos.
 
 **Sin backfill:** las seis tablas nacen vacías.
 
-**Reversibilidad:** M2 y M3 se revierten borrando tablas y funciones en orden
-inverso. El rollback de M1 solo es válido si ninguna cuenta usa `'investment'`,
-y debe comprobarlo y fallar con un mensaje claro en vez de borrar cuentas.
+**Las tres son solo forward.** Ninguna incluye SQL de reversión dentro del
+archivo de migración. Un rollback copiable, listo para ejecutar, invita a
+ejecutarse sin leer sus guardas; revertir un esquema es una decisión
+deliberada, no un paso más de un procedimiento.
 
 **Paso obligatorio tras M1:** regenerar `database.types.ts`.
+
+### Rollback manual de M1
+
+M1 hace dos cosas, y ambas se deshacen a mano en orden inverso:
+
+1. **Eliminar la restricción `accounts_id_user_id_key`.** Solo es posible si
+   ninguna clave foránea la usa como destino, es decir, únicamente antes de
+   aplicar M3 o después de haberla revertido.
+2. **Recrear `accounts_type_check`** con los cinco valores originales: `cash`,
+   `checking`, `savings`, `digital_wallet` y `credit_card`.
+
+**Guarda obligatoria antes del paso 2:** comprobar si existe alguna cuenta con
+`type = 'investment'`. Si la hay, **el rollback debe detenerse con un error
+explícito** y no continuar.
+
+**Nunca se debe borrar, reasignar, archivar ni modificar automáticamente una
+cuenta con `type = 'investment'`** para que el rollback pueda seguir adelante.
+Esa cuenta es un dato del usuario, no un obstáculo. Si se intenta recrear el
+CHECK estrecho con filas que lo violan, PostgreSQL rechaza la operación: esa
+negativa es la señal correcta, no un problema que haya que sortear. Qué hacer
+con esas cuentas lo decide el usuario, y se decide **antes** de revertir nada.
+
+Este documento no incluye el SQL del rollback a propósito, por el mismo motivo
+por el que la migración tampoco lo lleva.
+
+### Rollback manual de M2 y M3
+
+Se revierten borrando sus tablas y funciones de trigger en orden inverso al de
+creación. M3 antes que M2 si ambas están aplicadas, y M1 solo después de M3,
+porque F9 apunta a `accounts_id_user_id_key`.
 
 ---
 
