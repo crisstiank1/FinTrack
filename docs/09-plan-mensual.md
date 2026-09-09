@@ -358,7 +358,7 @@ ninguna referencia. Diferida al commit, la comprobación solo ve el estado final
 | T2 | `plan_income_source_categories` | La categoría es de tipo `income` y no está archivada al estrenar |
 | T3 | `plan_lines` | `bill` y `variable`: categoría `expense` no archivada al estrenar. `savings`: cuenta `type='savings'` no archivada al estrenar. `investment`: cuenta `type='investment'` no archivada al estrenar |
 | T4 | `plan_allocations` | La suma de `percent_bp` del mes es exactamente 10000 |
-| T5 | Las seis tablas | `set_updated_at()`, reutilizando la función existente |
+| T5 | Las cinco tablas con `updated_at` | `set_updated_at()`, reutilizando la función existente |
 
 T1, T2 y T3 siguen la semántica de `validate_budget()`: **prohibido estrenar,
 no prohibido conservar**. Se deniega apuntar hacia una categoría o cuenta
