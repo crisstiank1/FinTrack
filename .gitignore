@@ -43,3 +43,6 @@ pnpm-debug.log*
 coverage/
 .cache/
 graphify-out/
+
+# Claude Code MCP config (local)
+.mcp.json
