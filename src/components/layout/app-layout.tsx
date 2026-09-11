@@ -1,6 +1,7 @@
 import { LogOut } from 'lucide-react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 
+import { Logo } from '@/components/shared/logo'
 import { ThemeToggle } from '@/components/theme/theme-toggle'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -27,7 +28,7 @@ export function AppLayout() {
     <div className="min-h-screen bg-background text-foreground">
       <header className="flex items-center justify-between gap-4 border-b border-border px-6 py-4">
         <div className="flex items-center gap-6">
-          <span className="text-lg font-semibold text-primary">FinTrack</span>
+          <Logo className="h-11" />
           <nav className="flex items-center gap-1">
             {NAV_ITEMS.map((item) => (
               <NavLink
