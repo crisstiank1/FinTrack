@@ -11,7 +11,9 @@ import {
 
 describe('sumPlannedIncome', () => {
   it('suma varias fuentes', () => {
-    expect(sumPlannedIncome([{ plannedMinor: 3_000_000 }, { plannedMinor: 500_000 }])).toBe(3_500_000)
+    expect(sumPlannedIncome([{ plannedMinor: 3_000_000 }, { plannedMinor: 500_000 }])).toBe(
+      3_500_000,
+    )
   })
 
   it('sin fuentes, es cero', () => {
@@ -21,7 +23,9 @@ describe('sumPlannedIncome', () => {
 
 describe('sumPlannedLineAmounts', () => {
   it('suma el planned_minor de varias líneas', () => {
-    expect(sumPlannedLineAmounts([{ plannedMinor: 100_000 }, { plannedMinor: 50_000 }])).toBe(150_000)
+    expect(sumPlannedLineAmounts([{ plannedMinor: 100_000 }, { plannedMinor: 50_000 }])).toBe(
+      150_000,
+    )
   })
 })
 
@@ -37,14 +41,20 @@ describe('sumEffectiveCategoryBudgets', () => {
 })
 
 describe('sumBudgetsForCategories', () => {
-  const budgetsByCategory = { 'cat-rent': 500_000, 'cat-internet': 80_000, 'cat-groceries': 300_000 }
+  const budgetsByCategory = {
+    'cat-rent': 500_000,
+    'cat-internet': 80_000,
+    'cat-groceries': 300_000,
+  }
 
   it('suma solo las categorías pedidas', () => {
     expect(sumBudgetsForCategories(budgetsByCategory, ['cat-rent'])).toBe(500_000)
   })
 
   it('una categoría sin presupuesto efectivo en el mapa cuenta como 0', () => {
-    expect(sumBudgetsForCategories(budgetsByCategory, ['cat-rent', 'cat-sin-presupuesto'])).toBe(500_000)
+    expect(sumBudgetsForCategories(budgetsByCategory, ['cat-rent', 'cat-sin-presupuesto'])).toBe(
+      500_000,
+    )
   })
 })
 

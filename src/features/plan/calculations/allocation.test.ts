@@ -17,7 +17,13 @@ describe('resolveAllocation', () => {
   it('divide exactamente cuando el ingreso es múltiplo de 10000', () => {
     const result = resolveAllocation(100_000, { needs: 5000, wants: 3000, savings: 2000 })
 
-    expect(result).toEqual({ needs: 50_000, wants: 30_000, savings: 20_000, investment: 0, debt: 0 })
+    expect(result).toEqual({
+      needs: 50_000,
+      wants: 30_000,
+      savings: 20_000,
+      investment: 0,
+      debt: 0,
+    })
     expect(sumAmounts(result)).toBe(100_000)
   })
 
@@ -152,7 +158,13 @@ describe('resolveAllocation', () => {
     expect(sumAmounts(resolveAllocation(100, { needs: 6000, wants: 4000 }))).toBe(100)
     expect(
       sumAmounts(
-        resolveAllocation(100, { needs: 2000, wants: 2000, savings: 2000, investment: 2000, debt: 2000 }),
+        resolveAllocation(100, {
+          needs: 2000,
+          wants: 2000,
+          savings: 2000,
+          investment: 2000,
+          debt: 2000,
+        }),
       ),
     ).toBe(100)
   })

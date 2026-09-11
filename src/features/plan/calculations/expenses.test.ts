@@ -76,9 +76,9 @@ describe('groupExpensesByClassification', () => {
     const result = groupExpensesByClassification(transactions, classification)
     const gastoActual = sumActualExpenses(transactions)
 
-    expect(result.needsMinor + result.wantsMinor + result.debtMinor + result.sinClasificarMinor).toBe(
-      gastoActual,
-    )
+    expect(
+      result.needsMinor + result.wantsMinor + result.debtMinor + result.sinClasificarMinor,
+    ).toBe(gastoActual)
   })
 
   it('una categoría archivada que conserva su clasificación se sigue agrupando normalmente', () => {

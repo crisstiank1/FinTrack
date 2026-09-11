@@ -56,7 +56,12 @@ describe('calculateBalanceForAccountType', () => {
   it('solo suma el saldo de las cuentas del tipo pedido', () => {
     const transactions = [
       { type: 'income' as const, transfer_direction: null, account_id: 'a1', amount_minor: 20_000 },
-      { type: 'expense' as const, transfer_direction: null, account_id: 'a2', amount_minor: 300_000 },
+      {
+        type: 'expense' as const,
+        transfer_direction: null,
+        account_id: 'a2',
+        amount_minor: 300_000,
+      },
     ]
 
     expect(calculateBalanceForAccountType(accounts, transactions, 'savings')).toBe(120_000)
