@@ -10,11 +10,23 @@
             stored === 'dark' ||
             (stored === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
           if (isDark) document.documentElement.classList.add('dark')
+
+          function updateFavicon() {
+            var isDarkNow = document.documentElement.classList.contains('dark')
+            document.getElementById('favicon').href = isDarkNow
+              ? '/favicon-dark.png'
+              : '/favicon-light.png'
+          }
+          updateFavicon()
+
+          new MutationObserver(updateFavicon).observe(document.documentElement, {
+            attributes: true,
+            attributeFilter: ['class'],
+          })
         } catch (e) {}
-      })()
+      })();
     </script>
-    <link rel="icon" type="image/png" href="/favicon-light.png" media="(prefers-color-scheme: light)" />
-    <link rel="icon" type="image/png" href="/favicon-dark.png" media="(prefers-color-scheme: dark)" />
+    <link id="favicon" rel="icon" type="image/png" href="/favicon-light.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>FinTrack</title>
   </head>
