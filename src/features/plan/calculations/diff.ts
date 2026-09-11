@@ -22,10 +22,15 @@ export type Diff =
  * está codificado en `status`, así que quien consume el resultado no necesita
  * volver a interpretarlo.
  */
-export function calculateDiff(actualMinor: number, plannedMinor: number | null, kind: DiffRowKind): Diff {
+export function calculateDiff(
+  actualMinor: number,
+  plannedMinor: number | null,
+  kind: DiffRowKind,
+): Diff {
   if (plannedMinor === null) return { status: 'no_budget' }
 
-  const signedDiff = kind === 'income_like' ? actualMinor - plannedMinor : plannedMinor - actualMinor
+  const signedDiff =
+    kind === 'income_like' ? actualMinor - plannedMinor : plannedMinor - actualMinor
 
   if (signedDiff === 0) return { status: 'on_target' }
   if (signedDiff > 0) return { status: 'favorable', amountMinor: signedDiff }

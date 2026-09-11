@@ -15,8 +15,8 @@ export function Logo({ variant = 'full', className }: LogoProps) {
 
   return (
     <span className={cn('inline-flex items-center', className)}>
-      <img src={light} alt="FinTrack" className="block h-full w-auto dark:hidden" />
-      <img src={dark} alt="FinTrack" className="hidden h-full w-auto dark:block" />
+      <img src={light} alt="FinTrack" className="block h-full w-auto object-contain dark:hidden" />
+      <img src={dark} alt="FinTrack" className="hidden h-full w-auto object-contain dark:block" />
     </span>
   )
 }

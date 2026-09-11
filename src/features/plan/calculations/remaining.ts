@@ -19,7 +19,10 @@ export function calculateRemaining(
 ): RemainingBreakdown {
   return {
     restanteActual:
-      incomeActualMinor - expenseActualMinor - savingsContributionsMinor - investmentContributionsMinor,
+      incomeActualMinor -
+      expenseActualMinor -
+      savingsContributionsMinor -
+      investmentContributionsMinor,
     restantePlaneado: unassignedMinor,
   }
 }
