@@ -24,13 +24,80 @@ versiones.
   UNIQUE, dos únicos parciales, catorce claves foráneas, tres funciones, siete
   triggers, y `prosecdef = false` con `search_path=""` en las tres funciones.
 
-**Qué NO se ha verificado todavía:**
+**Ejecución funcional — completada.** El preflight P.1–P.4 y los bloques 0 a 4
+se ejecutaron contra el proyecto real con dos identidades de prueba dedicadas,
+vía `supabase db query --linked` (80 ejecuciones, cada una en su propia
+transacción con `rollback`). Verificación de limpieza posterior: conteo de
+filas reales en las ocho tablas involucradas para ambas identidades → 0 en
+todas. Resultado: 77 de 80 coinciden exactamente con lo documentado. Tres
+discrepancias quedaron registradas en «Hallazgos de la ejecución», ninguna
+bloqueante — el esquema rechaza y permite lo que debe en los tres casos; lo
+que difiere es el mecanismo que rechaza primero o el canal de ejecución usado
+para probarlo.
 
-> **Los bloques de esta guía no se han ejecutado.** El preflight P.1–P.4 y los
-> bloques 0 a 4 quedan como **suite manual reproducible, pendiente de ejecución
-> funcional** en una sesión posterior. La auditoría confirma que las reglas
-> *existen* y están bien formadas; estos bloques comprueban que *se comportan*
-> como se espera.
+## Hallazgos de la ejecución
+
+Tres discrepancias entre lo documentado y el comportamiento observado. En
+los tres, la fila inválida sigue rechazada y la válida sigue aceptada: lo que
+difiere es el mecanismo, el mensaje exacto, o la cobertura alcanzable con los
+datos que el propio bloque crea.
+
+### H1 — 1.7 y el patrón `UNION ALL` con literales sin tipar
+
+La sentencia de 1.7, copiada tal cual, falla contra el proyecto real vía
+`supabase db query --linked`:
+
+```
+ERROR: 42804: column "user_id" is of type uuid but expression is of type text
+```
+
+El error ocurre en la resolución de tipos del `UNION ALL`, antes de llegar a
+`plan_allocations_plan_month_id_budget_group_key` (U5), que es lo que el caso
+quiere probar. Con un cast explícito (`'<UUID_A>'::uuid`, y `::date` para
+`period_month` si el `UNION ALL` también combina fechas) la sentencia sí llega
+a la restricción y falla exactamente como se predice. No se determinó si la
+SQL Editor de Supabase resuelve el tipo de otra forma; el hallazgo es
+específico del canal `supabase db query --linked`.
+
+**Acción recomendada:** añadir `::uuid` (y `::date` donde aplique) a los
+literales de cualquier bloque de esta guía que combine dos `select` con
+`UNION ALL`, para que la suite sea reproducible sin importar el canal.
+
+### H2 — 1.8-c, 1.8-e y 3.3: el trigger antecede al CHECK del eje cuando ambos son `null`
+
+Documentado como fallo de `plan_lines_category_axis_check` (C5). El error
+real es el de `validate_plan_line()`:
+
+| Caso | Mensaje real |
+| --- | --- |
+| 1.8-c | `Tipo de línea medido por cuenta no contemplado: bill.` |
+| 1.8-e | `La cuenta indicada no existe o no pertenece al usuario.` |
+| 3.3 | `La cuenta indicada no existe o no pertenece al usuario.` |
+
+En los tres, `category_id` llega `null` a la fila (en 3.3, porque la
+categoría es de `<UUID_B>` y RLS la oculta) y `account_id` también es `null`.
+El trigger `BEFORE` evalúa el eje cuenta antes de que el CHECK declarativo del
+eje categoría tenga oportunidad de dispararse — mismo patrón de precedencia
+que ya documentan 0.2 y 0.8-b para `category_classifications`, pero no
+anotado aquí para `plan_lines`. La fila sigue rechazada en los tres casos.
+
+**Acción recomendada:** anotar esta precedencia junto a la tabla de 1.8, igual
+que se hizo para el Bloque 0, y ajustar el mensaje esperado de 3.3 a uno de
+los dos anteriores según corresponda.
+
+### H3 — 1.13-c: cobertura parcial, prevista por la propia guía
+
+El bloque de 1.13-c nunca crea la categoría `M3 ingreso B` para `<UUID_B>`.
+Al ejecutarlo tal cual, `validate_income_source_category()` rechaza la fila
+por categoría inexistente antes de llegar a `SET CONSTRAINTS`, así que la FK
+diferida `plan_income_source_categories_source_same_user_fkey` queda sin
+ejercitar en esta pasada. La propia guía anticipa este desenlace («si el
+`INSERT` falla antes por política, el caso queda parcialmente cubierto:
+anótalo y sigue»), así que no se trató como bloqueante.
+
+**Acción recomendada:** si se quiere cobertura directa de F4b, añadir al
+bloque la creación previa de `M3 ingreso B` para `<UUID_B>` antes del cambio
+de identidad.
 
 ## Reglas de seguridad de la suite
 
@@ -1505,21 +1572,22 @@ entero queda pendiente; no hay variante degradada que merezca la pena.
 - **M2** — auditoría remota del esquema antes de registrar la migración en el
   historial: RLS activa, `validate_category_classification()` como
   `security invoker` con `search_path` vacío, y el filtro de pertenencia en su
-  `SELECT`. Eso confirma que las reglas existen; **su comportamiento se prueba
-  en el bloque 0**, que está pendiente de ejecución.
+  `SELECT`. **El comportamiento se ejecutó en el bloque 0: 9/9 coinciden con lo
+  documentado**, incluidas las precedencias de 0.2 y 0.8-b.
 - **M3** — ensayo completo en transacción revertida y auditoría estructural de
-  21 controles, todos en `OK`. Los bloques 1 a 4 están pendientes.
+  21 controles, todos en `OK`. **Los bloques 1 a 4 se ejecutaron: 61/64
+  coinciden con lo documentado**; las tres discrepancias están en «Hallazgos
+  de la ejecución» (H1–H3), ninguna bloqueante.
 
 ## Trabajo pendiente
 
 | Pendiente | Dónde |
 | --- | --- |
-| Ejecutar el preflight P.1–P.4 | Este documento |
-| Ejecutar los bloques 0 a 4 | Este documento |
-| Ajustar los mensajes de error esperados a lo que devuelva PostgreSQL | Tras la ejecución |
+| Aplicar los casts `::uuid`/`::date` de H1 a 1.7 (y a cualquier otro `UNION ALL` con literales) | Este documento |
+| Anotar la precedencia trigger/CHECK de H2 junto a 1.8 y 3.3 | Este documento |
+| Añadir `M3 ingreso B` al bloque de 1.13-c para cobertura directa de F4b (H3) | Este documento |
 | Cobertura directa de la FK compuesta del puente (caso 0.8-b) | Requiere una instancia desechable donde deshabilitar el trigger sea inocuo |
-| Caso 4.12, cascada de borrado de usuario | Requiere permiso sobre `auth.users` en un entorno aislado |
 
-Las expectativas escritas en los bloques son las **previstas**, no las
-observadas. Al ejecutarlos por primera vez conviene corregir cualquier mensaje
-que difiera, en vez de dar por bueno el texto de esta guía.
+Las expectativas escritas en los bloques son las **previstas**; la sección
+«Hallazgos de la ejecución» documenta dónde el texto de esta guía todavía no
+coincide con lo observado.
