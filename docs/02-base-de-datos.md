@@ -146,13 +146,86 @@
 
 ---
 
-## Tablas posteriores (fuera del primer esquema)
+## Registro de tablas
 
-No crear estas tablas hasta llegar a su fase y recibir aprobación:
+Este documento es la fuente de verdad del esquema. Toda tabla del proyecto
+aparece aquí, en uno de estos tres estados.
 
-- `budgets`.
-- `recurring_rules`.
-- `goals`.
+### Creadas y aplicadas
+
+| Tabla | Migración | Fase |
+| --- | --- | --- |
+| `profiles` | `20260906205216_inicializar_esquema.sql` | Fase 2 |
+| `accounts` | `20260906205216_inicializar_esquema.sql` | Fase 2 |
+| `categories` | `20260906205216_inicializar_esquema.sql` | Fase 2 |
+| `transactions` | `20260906205216_inicializar_esquema.sql` | Fase 2 |
+| `budgets` | `20260906212625_crear_budgets.sql` | Fase 8 |
+| `sheets` | `20260907221059_crear_hojas.sql` | Fase 8.5 |
+| `sheet_drafts` | `20260907221059_crear_hojas.sql` | Fase 8.5 |
+
+La misma migración `20260907221059_crear_hojas.sql` añade la columna
+`transactions.custom_fields` (`jsonb not null default '{}'`), que guarda los
+valores de las columnas propias junto al movimiento ya registrado.
+
+El modelo y las reglas de `sheets` y `sheet_drafts` están en
+`docs/07-hojas.md`, y sus pruebas en `docs/08-pruebas-hojas.md`. El modelo de
+`budgets` está en `docs/06-presupuestos.md`.
+
+### Pendientes con fase asignada
+
+No crear hasta llegar a su fase y recibir aprobación explícita:
+
+| Tabla | Fase | Papel |
+| --- | --- | --- |
+| `category_classifications` | Fase 8.7 | Clasifica cada categoría de gasto en `needs`, `wants` o `debt` |
+| `plan_months` | Fase 8.7 | Cabecera del plan de un mes |
+| `plan_allocations` | Fase 8.7 | Porcentajes del reparto, en puntos base |
+| `plan_income_sources` | Fase 8.7 | Fuentes de ingreso planeadas |
+| `plan_income_source_categories` | Fase 8.7 | Puente entre fuentes y categorías de ingreso |
+| `plan_lines` | Fase 8.7 | Facturas, gastos variables, ahorro e inversión |
+| `recurring_rules` | Fase 9 | Movimientos recurrentes |
+| `goals` | Fase 9 | Metas de ahorro |
+
+Las seis tablas de la Fase 8.7 son **exclusivamente de planificación**: ninguna
+almacena un importe real. Los valores «Actual» se calculan siempre desde
+`transactions` en tiempo de consulta, lo que vuelve imposible por construcción
+que un valor real sea editable. Su modelo completo está en
+`docs/09-plan-mensual.md`.
+
+La deuda no tiene tabla ni línea propia: es una categoría de gasto clasificada
+como `debt` en `category_classifications`, con su presupuesto en `budgets` como
+cualquier otra categoría.
+
+### Modificaciones previstas sobre tablas ya creadas
+
+| Tabla | Cambio | Fase |
+| --- | --- | --- |
+| `accounts` | Ampliar `accounts_type_check` con `'investment'` | Fase 8.7 |
+| `accounts` | Añadir `unique (id, user_id)` | Fase 8.7 |
+
+Ampliar un CHECK no invalida ninguna fila existente: es incremental, sin
+backfill y sin cambio de valor predeterminado. La restricción única
+`(id, user_id)` no cambia qué filas son válidas —`id` ya es única por ser clave
+primaria—; existe porque una clave foránea compuesta necesita una restricción
+única que cubra exactamente sus columnas de destino, y es lo que permite
+delegar en la base de datos la garantía de que una línea de plan solo puede
+apuntar a una cuenta del mismo usuario. Es el mismo recurso que
+`categories_id_user_id_key` aporta desde la Fase 8.
+
+`investment` sirve únicamente para que el usuario registre manualmente una
+cuenta de destino y los aportes que ya realizó. No implica conectar brokers,
+abrir productos, comprar activos ni operar dinero, y no se almacena ninguna
+credencial ni dato sensible de terceros.
+
+Tras aplicar el cambio de `accounts.type` hay que regenerar
+`database.types.ts`: hasta entonces los tipos generados no reflejan el dominio
+real de la columna.
+
+### Futuras, sin fase ni aprobación
+
+Documentadas como intención. No diseñar ni crear sin una decisión previa que
+les asigne fase:
+
 - `notifications`.
 - `saved_ledger_views`.
 

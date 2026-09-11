@@ -57,6 +57,33 @@ Construir **FinTrack**: una aplicación web de finanzas personales, multiusuario
 - No es una aplicación empresarial ni un SaaS masivo.
 - No requiere SEO en el MVP.
 
+**Qué no es FinTrack:**
+
+FinTrack es una aplicación de registro, planificación y análisis. **No inicia,
+ejecuta, autoriza ni procesa movimientos de dinero.**
+
+Una transacción de tipo `transfer` representa un movimiento que el usuario ya
+realizó **fuera** de FinTrack y que registra manualmente dentro de la
+aplicación. No representa una transferencia iniciada por la aplicación.
+
+FinTrack no:
+- Inicia pagos.
+- Ejecuta transferencias.
+- Paga tarjetas.
+- Paga facturas.
+- Cobra a terceros.
+- Gestiona tarjetas como producto financiero.
+- Almacena número de tarjeta, CVV, PIN ni credenciales bancarias.
+- Gestiona cupos, intereses, fechas de corte ni pagos mínimos.
+- Es una billetera ni una pasarela de pago.
+- Implementa integración bancaria, Open Finance, SMS ni lectura de
+  notificaciones.
+
+Un gasto que el usuario hizo con su tarjeta se registra como un movimiento
+`expense` con su categoría real de consumo. La cuenta es una etiqueta
+descriptiva: FinTrack no lo trata como un producto de tarjeta ni realiza
+ninguna operación con él.
+
 **Público:**
 - Usuarios individuales.
 - Cada usuario debe tener sus datos completamente aislados.
@@ -304,7 +331,79 @@ No implementar edición inline todavía.
 - Las transferencias no se consideran gasto presupuestal.
 - Las alertas son claras y no duplicadas.
 
-### FASE 9 — Recurrentes, metas e importación CSV
+### FASE 8.5 — Hojas de cálculo
+
+Funcionalidad independiente del flujo de presupuestos y de importación CSV.
+Ubicada en el roadmap entre la Fase 8 y la Fase 9: se implementa completa y con
+sus propios pasos en orden antes de comenzar la Fase 9.
+
+**Estado del esquema:** ya aplicado mediante la migración
+`20260907221059_crear_hojas.sql`, que crea `sheets`, `sheet_drafts` y la columna
+`transactions.custom_fields`.
+
+**Objetivo:**
+- Construir `/sheets`: captura estructurada de borradores persistidos.
+- Permitir hasta 20 columnas propias de texto por hoja.
+- Implementar el registro explícito de un borrador como movimiento `income` o
+  `expense`.
+- Validar con Zod las reglas internas de columnas y celdas.
+
+**Frontera:** un borrador no registrado no afecta saldos, dashboard,
+presupuestos ni Historial financiero. Una fila registrada desaparece de la
+rejilla y pasa a `/transactions` y `/ledger`. Las Hojas **no reemplazan**
+`/transactions` ni `/ledger`.
+
+Modelo y reglas: `docs/07-hojas.md`. Pruebas SQL: `docs/08-pruebas-hojas.md`.
+
+**Criterios de aprobación:**
+- Registrar un borrador crea el movimiento y lo retira de la rejilla.
+- Un borrador no registrado no altera ninguna cifra financiera.
+- Las columnas propias conservan su valor al renombrar la columna.
+- Un usuario no puede leer ni escribir hojas ni borradores de otro.
+- Las 31 pruebas SQL de `docs/08-pruebas-hojas.md` pasan.
+
+### FASE 8.7 — Plan mensual
+
+Planificación mensual y comparación Presupuesto vs. Actual sobre `/plan`.
+Independiente de las Hojas: no comparte con ellas tablas ni reglas.
+
+**Regla fundamental:** el usuario planifica; los valores reales se calculan.
+Ningún campo «Actual» es editable en ninguna parte de la pantalla. Las
+transferencias no son ingreso ni gasto. Todo cálculo usa `amount_minor` y
+aritmética entera.
+
+`/plan` es una pantalla de **lectura, análisis y configuración de la
+planificación**. No es un medio para pagar: no inicia ni ejecuta ningún
+movimiento de dinero, como el resto de la aplicación.
+
+**Objetivo:**
+- Construir `/plan`: vista general del mes, ingresos planeados, reparto
+  50/30/20, cuadro Presupuesto vs. Actual, facturas, gastos variables, ahorro,
+  inversión, deuda y seguimiento de gastos.
+- Crear seis tablas de planificación y ampliar `accounts.type` con
+  `investment`.
+- Calcular todos los valores «Actual» desde `transactions`.
+
+**Frontera con Presupuestos:** `/budgets` sigue siendo la **única fuente de
+verdad** del presupuesto por categoría. `/plan` lo resuelve con la lógica ya
+existente y lo escribe por la capa de mutación existente; no crea una segunda
+cifra presupuestada. Ambas pantallas conviven en este release.
+
+Modelo, fórmulas y reglas: `docs/09-plan-mensual.md`.
+Pruebas SQL previstas: `docs/10-pruebas-plan.md`.
+
+**Criterios de aprobación:**
+- Ningún valor «Actual» es editable.
+- Los grupos del reparto suman exactamente el ingreso planeado, sin residuo.
+- `Facturas + Variables + No planeado = Gastos totales`.
+- Una categoría no puede pertenecer a dos grupos ni alimentar dos líneas.
+- Un gasto que el usuario hizo con tarjeta cuenta una sola vez, con su
+  categoría real, y ninguna regla consulta el tipo de la cuenta.
+- Las categorías sin clasificar aparecen en una fila propia y nunca se asignan
+  automáticamente a un grupo.
+- Las pruebas de `docs/10-pruebas-plan.md` pasan.
+
+### FASE 9 — Recurrentes y metas
 
 Solo comenzar después de aprobación explícita.
 
@@ -313,6 +412,12 @@ Solo comenzar después de aprobación explícita.
 - Crear `goals`.
 - Implementar movimientos recurrentes.
 - Implementar metas.
+
+### FASE 10 — Importación CSV
+
+Solo comenzar después de aprobación explícita.
+
+**Objetivo:**
 - Implementar importación CSV con:
   - Previsualización.
   - Mapeo de columnas.
@@ -321,7 +426,10 @@ Solo comenzar después de aprobación explícita.
   - Resumen de resultados.
   - Detección básica de duplicados.
 
-### FASE 10 — Calidad, seguridad y despliegue
+La importación CSV opera sobre `transactions`. No depende de las Hojas de
+cálculo ni forma parte de ellas.
+
+### FASE 11 — Calidad, seguridad, despliegue y documentación final
 
 **Objetivo:**
 - Completar pruebas Vitest, RTL y Playwright.
@@ -342,6 +450,18 @@ Solo comenzar después de aprobación explícita.
 - Build output directory: `dist`.
 
 No colocar secretos en GitHub ni en documentación.
+
+---
+
+## Fuera del roadmap actual
+
+No incluir sin decisión explícita posterior:
+
+- IA y asistentes automáticos.
+- Integración bancaria.
+- Open Finance.
+- Fórmulas libres tipo Excel.
+- Edición inline masiva.
 
 ---
 

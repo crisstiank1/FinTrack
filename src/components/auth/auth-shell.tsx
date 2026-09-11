@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
-import { Wallet } from 'lucide-react'
 
+import { Logo } from '@/components/shared/logo'
 import { cn } from '@/lib/utils'
 
 interface AuthShellProps {
@@ -37,11 +37,8 @@ export function AuthShell({ formSide, children }: AuthShellProps) {
 
 function BrandingPanel() {
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex items-center gap-2 text-primary">
-        <Wallet className="size-6" aria-hidden="true" />
-        <span className="text-lg font-semibold">FinTrack</span>
-      </div>
+    <div className="flex flex-col items-center gap-6 text-center">
+      <Logo className="h-20" />
       <div className="flex flex-col gap-2">
         <p className="text-2xl font-semibold text-foreground">Tus finanzas, con claridad.</p>
         <p className="text-sm text-muted-foreground">

@@ -2,6 +2,7 @@
 
 > 31 casos para ejecutar en el editor SQL de Supabase **después** de aplicar
 > `20260907221059_crear_hojas.sql`. Ninguno depende de datos reales.
+> Corresponden a la Fase 8.5 — Hojas de cálculo.
 
 ## Requisitos previos
 

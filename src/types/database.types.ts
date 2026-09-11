@@ -161,6 +161,270 @@ export type Database = {
         }
         Relationships: []
       }
+      category_classifications: {
+        Row: {
+          budget_group: string
+          category_id: string
+          created_at: string
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          budget_group: string
+          category_id: string
+          created_at?: string
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          budget_group?: string
+          category_id?: string
+          created_at?: string
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "category_classifications_category_same_user_fkey"
+            columns: ["category_id", "user_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id", "user_id"]
+          },
+        ]
+      }
+      plan_allocations: {
+        Row: {
+          budget_group: string
+          created_at: string
+          id: string
+          percent_bp: number
+          plan_month_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          budget_group: string
+          created_at?: string
+          id?: string
+          percent_bp: number
+          plan_month_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          budget_group?: string
+          created_at?: string
+          id?: string
+          percent_bp?: number
+          plan_month_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "plan_allocations_plan_month_same_user_fkey"
+            columns: ["plan_month_id", "user_id"]
+            isOneToOne: false
+            referencedRelation: "plan_months"
+            referencedColumns: ["id", "user_id"]
+          },
+        ]
+      }
+      plan_income_source_categories: {
+        Row: {
+          category_id: string
+          created_at: string
+          id: string
+          plan_income_source_id: string
+          plan_month_id: string
+          user_id: string
+        }
+        Insert: {
+          category_id: string
+          created_at?: string
+          id?: string
+          plan_income_source_id: string
+          plan_month_id: string
+          user_id: string
+        }
+        Update: {
+          category_id?: string
+          created_at?: string
+          id?: string
+          plan_income_source_id?: string
+          plan_month_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "plan_income_source_categories_category_same_user_fkey"
+            columns: ["category_id", "user_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id", "user_id"]
+          },
+          {
+            foreignKeyName: "plan_income_source_categories_source_month_fkey"
+            columns: ["plan_income_source_id", "plan_month_id"]
+            isOneToOne: false
+            referencedRelation: "plan_income_sources"
+            referencedColumns: ["id", "plan_month_id"]
+          },
+          {
+            foreignKeyName: "plan_income_source_categories_source_same_user_fkey"
+            columns: ["plan_income_source_id", "user_id"]
+            isOneToOne: false
+            referencedRelation: "plan_income_sources"
+            referencedColumns: ["id", "user_id"]
+          },
+        ]
+      }
+      plan_income_sources: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          plan_month_id: string
+          planned_minor: number
+          position: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          plan_month_id: string
+          planned_minor: number
+          position: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          plan_month_id?: string
+          planned_minor?: number
+          position?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "plan_income_sources_plan_month_same_user_fkey"
+            columns: ["plan_month_id", "user_id"]
+            isOneToOne: false
+            referencedRelation: "plan_months"
+            referencedColumns: ["id", "user_id"]
+          },
+        ]
+      }
+      plan_lines: {
+        Row: {
+          account_id: string | null
+          category_id: string | null
+          created_at: string
+          due_date: string | null
+          id: string
+          kind: string
+          name: string
+          period_month: string
+          plan_month_id: string
+          planned_minor: number | null
+          position: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          account_id?: string | null
+          category_id?: string | null
+          created_at?: string
+          due_date?: string | null
+          id?: string
+          kind: string
+          name: string
+          period_month: string
+          plan_month_id: string
+          planned_minor?: number | null
+          position: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          account_id?: string | null
+          category_id?: string | null
+          created_at?: string
+          due_date?: string | null
+          id?: string
+          kind?: string
+          name?: string
+          period_month?: string
+          plan_month_id?: string
+          planned_minor?: number | null
+          position?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "plan_lines_account_same_user_fkey"
+            columns: ["account_id", "user_id"]
+            isOneToOne: false
+            referencedRelation: "accounts"
+            referencedColumns: ["id", "user_id"]
+          },
+          {
+            foreignKeyName: "plan_lines_category_same_user_fkey"
+            columns: ["category_id", "user_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id", "user_id"]
+          },
+          {
+            foreignKeyName: "plan_lines_plan_month_period_fkey"
+            columns: ["plan_month_id", "period_month"]
+            isOneToOne: false
+            referencedRelation: "plan_months"
+            referencedColumns: ["id", "period_month"]
+          },
+          {
+            foreignKeyName: "plan_lines_plan_month_same_user_fkey"
+            columns: ["plan_month_id", "user_id"]
+            isOneToOne: false
+            referencedRelation: "plan_months"
+            referencedColumns: ["id", "user_id"]
+          },
+        ]
+      }
+      plan_months: {
+        Row: {
+          created_at: string
+          id: string
+          period_month: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          period_month: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          period_month?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -194,12 +458,85 @@ export type Database = {
         }
         Relationships: []
       }
+      sheet_drafts: {
+        Row: {
+          cells: Json
+          created_at: string
+          id: string
+          position: number
+          sheet_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          cells?: Json
+          created_at?: string
+          id?: string
+          position: number
+          sheet_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          cells?: Json
+          created_at?: string
+          id?: string
+          position?: number
+          sheet_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sheet_drafts_sheet_id_fkey"
+            columns: ["sheet_id"]
+            isOneToOne: false
+            referencedRelation: "sheets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sheet_drafts_sheet_same_user_fkey"
+            columns: ["sheet_id", "user_id"]
+            isOneToOne: false
+            referencedRelation: "sheets"
+            referencedColumns: ["id", "user_id"]
+          },
+        ]
+      }
+      sheets: {
+        Row: {
+          columns: Json
+          created_at: string
+          id: string
+          name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          columns?: Json
+          created_at?: string
+          id?: string
+          name: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          columns?: Json
+          created_at?: string
+          id?: string
+          name?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       transactions: {
         Row: {
           account_id: string
           amount_minor: number
           category_id: string | null
           created_at: string
+          custom_fields: Json
           description: string
           id: string
           is_reconciled: boolean
@@ -216,6 +553,7 @@ export type Database = {
           amount_minor: number
           category_id?: string | null
           created_at?: string
+          custom_fields?: Json
           description: string
           id?: string
           is_reconciled?: boolean
@@ -232,6 +570,7 @@ export type Database = {
           amount_minor?: number
           category_id?: string | null
           created_at?: string
+          custom_fields?: Json
           description?: string
           id?: string
           is_reconciled?: boolean
@@ -265,7 +604,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      register_sheet_draft: { Args: { p_draft_id: string }; Returns: Json }
     }
     Enums: {
       [_ in never]: never

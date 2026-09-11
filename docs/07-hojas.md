@@ -1,6 +1,8 @@
 # FinTrack — Hojas de cálculo
 
-> Modelo de datos y reglas de registro. Paso 1: esquema.
+> Modelo de datos y reglas de registro. Fase 8.5 — Hojas de cálculo.
+> Paso 1 de la fase: esquema. Los «pasos» numeran entregables dentro de la
+> Fase 8.5; no son fases del roadmap de `docs/00-master-prompt.md`.
 
 ---
 
@@ -334,3 +336,8 @@ lotes y edición de movimientos reales dentro de la hoja.
 
 El registro de varias filas se resolverá desde el cliente con concurrencia
 limitada en un paso posterior; no se crea una RPC por lotes todavía.
+
+La importación CSV **no forma parte de las Hojas ni depende de ellas**: es la
+Fase 10 del roadmap y opera sobre `transactions`, no sobre `sheet_drafts`. El
+reordenamiento de filas sigue documentado como trabajo futuro en «Orden de las
+filas», con la RPC transaccional `reorder_sheet_drafts`.
