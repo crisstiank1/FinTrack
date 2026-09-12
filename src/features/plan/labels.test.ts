@@ -7,11 +7,13 @@ import {
   formatDiff,
   formatPlannedAmount,
   formatPlannedIncomeAmount,
+  formatRowDiff,
   formatRowPlannedAmount,
   formatUnassigned,
   planRowDiffKind,
   planRowLabel,
   planSummaryLabel,
+  remainingTone,
   NO_BUDGET_LABEL,
   NO_PLANNED_INCOME_LABEL,
 } from './labels'
@@ -124,6 +126,49 @@ describe('formatUnassigned', () => {
 
   it('positivo se muestra tal cual', () => {
     expect(formatUnassigned(305_000, COP).text).toBe('COP 305.000')
+  })
+})
+
+describe('formatRowDiff', () => {
+  const sinComparacion = calculateDiff(3_600_000, null, 'income_like')
+
+  it('en ingresos y restante la ausencia es de ingreso planeado, no de presupuesto', () => {
+    expect(formatRowDiff('income', sinComparacion, COP)).toBe(NO_PLANNED_INCOME_LABEL)
+    expect(formatRowDiff('remaining', sinComparacion, COP)).toBe(NO_PLANNED_INCOME_LABEL)
+  })
+
+  it('en las filas de gasto la ausencia sigue siendo de presupuesto', () => {
+    expect(formatRowDiff('bills', sinComparacion, COP)).toBe(NO_BUDGET_LABEL)
+    expect(formatRowDiff('unplanned', sinComparacion, COP)).toBe(NO_BUDGET_LABEL)
+    expect(formatRowDiff('debt', sinComparacion, COP)).toBe(NO_BUDGET_LABEL)
+  })
+
+  it('coincide con el planeado de la misma fila: una fila no dice dos cosas distintas', () => {
+    for (const rowId of ['income', 'remaining', 'bills', 'unplanned'] as const) {
+      expect(formatRowDiff(rowId, sinComparacion, COP)).toBe(
+        formatRowPlannedAmount(rowId, null, COP),
+      )
+    }
+  })
+
+  it('cuando sí hay comparación, no cambia nada', () => {
+    const diff = calculateDiff(1_500_000, 1_400_000, 'income_like')
+
+    expect(formatRowDiff('income', diff, COP)).toBe('Favorable por COP 100.000')
+    expect(formatRowDiff('bills', calculateDiff(300_000, 400_000, 'expense_like'), COP)).toBe(
+      'Favorable por COP 100.000',
+    )
+  })
+})
+
+describe('remainingTone', () => {
+  it('un restante negativo se destaca', () => {
+    expect(remainingTone(-300_000)).toBe('negative')
+  })
+
+  it('cero y positivo son neutros: no hay nada que advertir', () => {
+    expect(remainingTone(0)).toBe('neutral')
+    expect(remainingTone(340_000)).toBe('neutral')
   })
 })
 

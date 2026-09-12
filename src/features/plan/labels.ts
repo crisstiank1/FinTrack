@@ -163,6 +163,21 @@ export const planRowLabel: Record<PlanRowId, string> = {
 }
 
 /**
+ * Filas que se miden contra el ingreso planeado y no contra un presupuesto:
+ * los ingresos, y el restante, que es «por asignar» leído al revés.
+ *
+ * Está en un solo sitio porque la distinción tiene que valer para **todas** las
+ * columnas de esas filas. Que el planeado dijera «Sin ingreso planeado» y la
+ * diferencia «Sin presupuesto» hacía que una misma fila diera dos versiones de
+ * la misma ausencia.
+ */
+const INCOME_MEASURED_ROWS: readonly PlanRowId[] = ['income', 'remaining']
+
+function isIncomeMeasuredRow(rowId: PlanRowId): boolean {
+  return INCOME_MEASURED_ROWS.includes(rowId)
+}
+
+/**
  * «Planeado» de una fila del cuadro.
  *
  * Ingresos y restante se miden contra el ingreso planeado; el resto, contra un
@@ -173,10 +188,34 @@ export function formatRowPlannedAmount(
   plannedMinor: number | null,
   currencyCode: string,
 ): string {
-  if (rowId === 'income' || rowId === 'remaining') {
+  if (isIncomeMeasuredRow(rowId)) {
     return formatPlannedIncomeAmount(plannedMinor, currencyCode)
   }
   return formatPlannedAmount(plannedMinor, currencyCode)
+}
+
+/**
+ * «Diferencia» de una fila del cuadro.
+ *
+ * `calculateDiff` devuelve `no_budget` siempre que no hay nada que comparar,
+ * sin saber por qué falta. Aquí se nombra la causa real de cada fila: en
+ * ingresos y restante lo que falta es el ingreso planeado, no un presupuesto.
+ */
+export function formatRowDiff(rowId: PlanRowId, diff: Diff, currencyCode: string): string {
+  if (diff.status === 'no_budget' && isIncomeMeasuredRow(rowId)) return NO_PLANNED_INCOME_LABEL
+  return formatDiff(diff, currencyCode)
+}
+
+/**
+ * Tono del restante realmente ocurrido.
+ *
+ * Negativo significa que salió más dinero del que entró, contando los aportes:
+ * es la señal más importante del mes y no debe leerse igual que un sobrante. El
+ * signo sigue estando en el texto, así que el color solo acompaña
+ * (docs/03-ui-ux.md).
+ */
+export function remainingTone(remainingActualMinor: number): PlanTone {
+  return remainingActualMinor < 0 ? 'negative' : 'neutral'
 }
 
 /**

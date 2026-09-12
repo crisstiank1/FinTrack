@@ -250,6 +250,62 @@ describe('Plan', () => {
 
       expect(rowCells('Restante')[0]).toBe('Sin ingreso planeado')
     })
+
+    it('la diferencia dice lo mismo que el planeado: la fila no se contradice', () => {
+      renderPlan()
+
+      const ingresos = rowCells('Ingresos')
+      const restante = rowCells('Restante')
+
+      expect(ingresos[2]).toBe('Sin ingreso planeado')
+      expect(restante[2]).toBe('Sin ingreso planeado')
+      expect(ingresos[2]).toBe(ingresos[0])
+      expect(restante[2]).toBe(restante[0])
+    })
+
+    it('las filas de gasto siguen diciendo «Sin presupuesto»', () => {
+      renderPlan()
+
+      expect(rowCells('No planeado')[2]).toBe('Sin presupuesto')
+    })
+  })
+
+  describe('restante negativo', () => {
+    beforeEach(() => {
+      usePlanActuals.mockReturnValue(
+        resolved({
+          ...actuals,
+          incomeActualMinor: 100_000,
+          expenseActualMinor: 500_000,
+        }),
+      )
+    })
+
+    it('destaca la cifra, sin quitarle el signo al texto', () => {
+      renderPlan()
+
+      const summary = screen.getByRole('region', { name: 'Resumen del mes' })
+      const card = within(summary).getByRole('heading', { name: 'Restante' }).closest('section')
+      if (!card) throw new Error('No se encontró la tarjeta de Restante')
+
+      // 100.000 − 500.000 − 400.000 de aportes.
+      const value = within(card).getByText('COP -800.000')
+
+      expect(value).toBeInTheDocument()
+      expect(value.className).toContain('text-danger')
+    })
+
+    it('un restante positivo no se marca como problema', () => {
+      usePlanActuals.mockReturnValue(resolved(actuals))
+      renderPlan()
+
+      const summary = screen.getByRole('region', { name: 'Resumen del mes' })
+      const card = within(summary).getByRole('heading', { name: 'Restante' }).closest('section')
+      if (!card) throw new Error('No se encontró la tarjeta de Restante')
+
+      // 1.400.000 − 800.000 − 400.000 de aportes.
+      expect(within(card).getByText('COP 200.000').className).not.toContain('text-danger')
+    })
   })
 
   it('dice «Sobreasignado» cuando lo asignado supera el ingreso planeado', () => {

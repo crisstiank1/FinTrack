@@ -8,6 +8,7 @@ import {
   formatPlannedIncomeAmount,
   formatUnassigned,
   planSummaryLabel,
+  remainingTone,
   UNASSIGNED_NOTE,
   type PlanTone,
 } from '../labels'
@@ -137,7 +138,7 @@ export function PlanSummary({
           label={planSummaryLabel.remaining}
           value={formatAmount(remainingActualMinor, currencyCode)}
           caption={plannedIncome(remainingPlannedMinor)}
-          tone="neutral"
+          tone={remainingTone(remainingActualMinor)}
         />
         {/* «Aportes a ahorro», nunca «Total ahorrado»: es el flujo del mes, no
             el saldo acumulado de las cuentas de ahorro. */}
