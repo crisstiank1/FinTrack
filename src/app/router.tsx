@@ -57,9 +57,7 @@ export function AppRouter() {
               path="/ledger"
               element={
                 <Suspense
-                  fallback={
-                    <p className="p-6 text-sm text-muted-foreground">Cargando libro...</p>
-                  }
+                  fallback={<p className="p-6 text-sm text-muted-foreground">Cargando libro...</p>}
                 >
                   <Ledger />
                 </Suspense>
