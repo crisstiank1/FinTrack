@@ -1,9 +1,10 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { PlanError } from '@/features/plan/errors'
 import type { Tables } from '@/types/database.types'
 
 import Plan from './Plan'
@@ -15,6 +16,10 @@ const useEffectiveCategoryBudgets = vi.fn()
 const usePlanActuals = vi.fn()
 const usePlanIncomeSources = vi.fn()
 const usePlanAllocations = vi.fn()
+const usePlanIncomeSourceCategories = vi.fn()
+const createPlanMonth = vi.fn()
+const saveIncomeSource = vi.fn()
+const deleteIncomeSource = vi.fn()
 
 vi.mock('@/features/plan/hooks', () => ({
   usePlanMonth: () => usePlanMonth(),
@@ -24,11 +29,30 @@ vi.mock('@/features/plan/hooks', () => ({
   usePlanActuals: (options: unknown) => usePlanActuals(options),
   usePlanIncomeSources: (planMonthId: unknown) => usePlanIncomeSources(planMonthId),
   usePlanAllocations: (planMonthId: unknown) => usePlanAllocations(planMonthId),
+  usePlanIncomeSourceCategories: (planMonthId: unknown) =>
+    usePlanIncomeSourceCategories(planMonthId),
+  useCreatePlanMonth: () => ({ mutateAsync: createPlanMonth, isPending: false }),
+  useSaveIncomeSource: () => ({ mutateAsync: saveIncomeSource, isPending: false }),
+  useDeleteIncomeSource: () => ({ mutateAsync: deleteIncomeSource, isPending: false }),
+}))
+
+vi.mock('@/features/categories/hooks', () => ({
+  useCategories: () => ({ data: categories }),
+}))
+
+vi.mock('sonner', () => ({
+  toast: {
+    error: (...args: unknown[]) => toastError(...args),
+    success: (...args: unknown[]) => toastSuccess(...args),
+  },
 }))
 
 vi.mock('@/features/accounts/hooks', () => ({
   useAccounts: () => ({ data: [{ id: 'acc-1', currency_code: 'COP' }] }),
 }))
+
+const toastError = vi.fn()
+const toastSuccess = vi.fn()
 
 const CAT_RENT = 'cat-rent'
 const CAT_FOOD = 'cat-food'
@@ -54,8 +78,19 @@ const classifications = [
 const effectiveBudgets = { [CAT_RENT]: 400_000, [CAT_FOOD]: 350_000, [CAT_LOAN]: 60_000 }
 
 const incomeSources = [
-  { id: 'src-1', planned_minor: 1_400_000, position: 0 },
+  { id: 'src-1', name: 'Salario', planned_minor: 1_400_000, position: 0 },
 ] as Tables<'plan_income_sources'>[]
+
+const categories = [
+  { id: 'cat-salario', name: 'Salario', type: 'income', is_archived: false },
+  { id: 'cat-bono', name: 'Bono', type: 'income', is_archived: false },
+  { id: 'cat-viejo', name: 'Antiguo', type: 'income', is_archived: true },
+  { id: CAT_RENT, name: 'Arriendo', type: 'expense', is_archived: false },
+] as Tables<'categories'>[]
+
+const incomeSourceLinks = [
+  { id: 'l1', plan_income_source_id: 'src-1', category_id: 'cat-salario' },
+] as Tables<'plan_income_source_categories'>[]
 
 const allocations = [
   { id: 'a1', budget_group: 'needs', percent_bp: 5_000 },
@@ -121,6 +156,12 @@ beforeEach(() => {
   usePlanActuals.mockReturnValue(resolved(actuals))
   usePlanIncomeSources.mockReturnValue(resolved(incomeSources))
   usePlanAllocations.mockReturnValue(resolved(allocations))
+  usePlanIncomeSourceCategories.mockReturnValue(resolved(incomeSourceLinks))
+  createPlanMonth.mockResolvedValue(planMonth)
+  saveIncomeSource.mockResolvedValue(undefined)
+  deleteIncomeSource.mockResolvedValue(undefined)
+  toastError.mockClear()
+  toastSuccess.mockClear()
 })
 
 const GRUPOS = ['Necesidades', 'Deseos', 'Ahorro', 'Inversión', 'Deuda']
@@ -554,6 +595,254 @@ describe('Plan', () => {
       renderPlan()
 
       expect(screen.getByText(/transferencias registradas, no gastos/)).toBeInTheDocument()
+    })
+  })
+
+  describe('ingresos planeados', () => {
+    it('lista las fuentes con su monto y sus categorías vinculadas', () => {
+      renderPlan()
+
+      const panel = screen.getByRole('region', { name: 'Ingresos planeados' })
+      const fuente = within(panel).getByRole('listitem')
+
+      // «Salario» aparece dos veces a propósito: es el nombre de la fuente y
+      // el de la categoría que la alimenta.
+      expect(within(fuente).getAllByText('Salario')).toHaveLength(2)
+      expect(within(fuente).getByText('COP 1.400.000')).toBeInTheDocument()
+      expect(within(panel).getByRole('button', { name: 'Editar Salario' })).toBeInTheDocument()
+    })
+
+    it('un mes con plan y sin fuentes lo dice sin fingir que no hay plan', () => {
+      usePlanIncomeSources.mockReturnValue(resolved([]))
+      renderPlan()
+
+      expect(screen.getByText(/está listo/)).toBeInTheDocument()
+      expect(screen.getByText(/Añade una fuente de ingreso/)).toBeInTheDocument()
+      expect(screen.queryByText(/todavía no tiene plan/)).not.toBeInTheDocument()
+    })
+
+    it('sin fuentes no hay ingreso planeado; con una de 0 sí lo hay', () => {
+      usePlanIncomeSources.mockReturnValue(resolved([]))
+      const { unmount } = renderPlan()
+
+      const sinFuentes = screen.getByRole('region', { name: 'Ingresos planeados' })
+      expect(within(sinFuentes).getByText('Sin ingreso planeado')).toBeInTheDocument()
+      unmount()
+
+      usePlanIncomeSources.mockReturnValue(
+        resolved([
+          { id: 'src-1', name: 'Salario', planned_minor: 0, position: 0 },
+        ] as Tables<'plan_income_sources'>[]),
+      )
+      renderPlan()
+
+      const conCero = screen.getByRole('region', { name: 'Ingresos planeados' })
+      expect(within(conCero).getAllByText('COP 0').length).toBeGreaterThan(0)
+      expect(within(conCero).queryByText('Sin ingreso planeado')).not.toBeInTheDocument()
+    })
+
+    it('el botón de crear plan solo aparece cuando el mes no tiene plan', async () => {
+      const user = userEvent.setup()
+      usePlanMonth.mockReturnValue(resolved(null))
+      usePlanIncomeSources.mockReturnValue({
+        data: undefined,
+        isPending: true,
+        isError: false,
+        error: null,
+      })
+      usePlanIncomeSourceCategories.mockReturnValue({
+        data: undefined,
+        isPending: true,
+        isError: false,
+        error: null,
+      })
+      renderPlan()
+
+      await user.click(screen.getByRole('button', { name: /Crear plan de/ }))
+
+      expect(createPlanMonth).toHaveBeenCalledWith('2026-09')
+    })
+
+    it('tras crear el plan abre el diálogo de la primera fuente', async () => {
+      const user = userEvent.setup()
+      usePlanMonth.mockReturnValue(resolved(null))
+      usePlanIncomeSources.mockReturnValue({
+        data: undefined,
+        isPending: true,
+        isError: false,
+        error: null,
+      })
+      usePlanIncomeSourceCategories.mockReturnValue({
+        data: undefined,
+        isPending: true,
+        isError: false,
+        error: null,
+      })
+      renderPlan()
+
+      await user.click(screen.getByRole('button', { name: /Crear plan de/ }))
+
+      expect(await screen.findByRole('dialog')).toBeInTheDocument()
+      expect(screen.getByText('Nueva fuente de ingreso')).toBeInTheDocument()
+    })
+
+    it('si crear el plan falla, lo dice y no abre el diálogo', async () => {
+      const user = userEvent.setup()
+      usePlanMonth.mockReturnValue(resolved(null))
+      usePlanIncomeSources.mockReturnValue({
+        data: undefined,
+        isPending: true,
+        isError: false,
+        error: null,
+      })
+      usePlanIncomeSourceCategories.mockReturnValue({
+        data: undefined,
+        isPending: true,
+        isError: false,
+        error: null,
+      })
+      createPlanMonth.mockRejectedValue(new PlanError('month_missing_after_conflict'))
+      renderPlan()
+
+      await user.click(screen.getByRole('button', { name: /Crear plan de/ }))
+
+      await waitFor(() => expect(toastError).toHaveBeenCalled())
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    })
+
+    it('guarda una fuente nueva con las fuentes ya cargadas, para la posición', async () => {
+      const user = userEvent.setup()
+      renderPlan()
+
+      await user.click(screen.getByRole('button', { name: 'Añadir fuente' }))
+      await user.type(screen.getByLabelText('Nombre'), 'Freelance')
+      await user.type(screen.getByLabelText('Monto planeado'), '600000')
+      await user.click(screen.getByRole('button', { name: 'Añadir fuente', hidden: false }))
+
+      await waitFor(() => expect(saveIncomeSource).toHaveBeenCalled())
+      expect(saveIncomeSource.mock.calls[0][0]).toMatchObject({
+        planMonthId: 'plan-month-1',
+        sourceId: undefined,
+        name: 'Freelance',
+        plannedMinor: 600_000,
+        currentCategoryIds: [],
+        sources: incomeSources,
+      })
+    })
+
+    it('al editar envía solo el diff de categorías y conserva las existentes', async () => {
+      const user = userEvent.setup()
+      renderPlan()
+
+      await user.click(screen.getByRole('button', { name: 'Editar Salario' }))
+      await user.click(screen.getByLabelText('Bono'))
+      await user.click(screen.getByRole('button', { name: 'Guardar cambios' }))
+
+      await waitFor(() => expect(saveIncomeSource).toHaveBeenCalled())
+      const input = saveIncomeSource.mock.calls[0][0]
+
+      expect(input.sourceId).toBe('src-1')
+      expect(input.currentCategoryIds).toEqual(['cat-salario'])
+      expect(input.categoryIds).toEqual(['cat-salario', 'cat-bono'])
+    })
+
+    it('al editar, la categoría propia sigue seleccionable y marcada', async () => {
+      const user = userEvent.setup()
+      renderPlan()
+
+      await user.click(screen.getByRole('button', { name: 'Editar Salario' }))
+
+      expect(screen.getByLabelText('Salario')).toBeChecked()
+    })
+
+    it('no ofrece categorías de gasto, archivadas ni de otra fuente del mes', async () => {
+      const user = userEvent.setup()
+      usePlanIncomeSourceCategories.mockReturnValue(
+        resolved([
+          { id: 'l1', plan_income_source_id: 'src-2', category_id: 'cat-bono' },
+        ] as Tables<'plan_income_source_categories'>[]),
+      )
+      renderPlan()
+
+      await user.click(screen.getByRole('button', { name: 'Añadir fuente' }))
+
+      const dialog = screen.getByRole('dialog')
+      expect(within(dialog).getByLabelText('Salario')).toBeInTheDocument()
+      expect(within(dialog).queryByLabelText('Bono')).not.toBeInTheDocument()
+      expect(within(dialog).queryByLabelText('Antiguo')).not.toBeInTheDocument()
+      expect(within(dialog).queryByLabelText('Arriendo')).not.toBeInTheDocument()
+    })
+
+    it('no guarda una fuente sin monto', async () => {
+      const user = userEvent.setup()
+      renderPlan()
+
+      await user.click(screen.getByRole('button', { name: 'Añadir fuente' }))
+      await user.type(screen.getByLabelText('Nombre'), 'Freelance')
+      await user.click(screen.getByRole('button', { name: 'Añadir fuente', hidden: false }))
+
+      await waitFor(() => expect(screen.getByText('Ingresa un monto')).toBeInTheDocument())
+      expect(saveIncomeSource).not.toHaveBeenCalled()
+    })
+
+    it('acepta una fuente de 0 y avisa de lo que significa', async () => {
+      const user = userEvent.setup()
+      renderPlan()
+
+      await user.click(screen.getByRole('button', { name: 'Añadir fuente' }))
+      await user.type(screen.getByLabelText('Nombre'), 'Bono pendiente')
+      await user.type(screen.getByLabelText('Monto planeado'), '0')
+
+      expect(screen.getByText(/cuenta como ingreso planeado de cero/)).toBeInTheDocument()
+
+      await user.click(screen.getByRole('button', { name: 'Añadir fuente', hidden: false }))
+
+      await waitFor(() => expect(saveIncomeSource).toHaveBeenCalled())
+      expect(saveIncomeSource.mock.calls[0][0]).toMatchObject({ plannedMinor: 0 })
+    })
+
+    it('un fallo parcial se muestra y el diálogo no miente diciendo que todo fue bien', async () => {
+      const user = userEvent.setup()
+      saveIncomeSource.mockRejectedValue(new PlanError('category_already_linked'))
+      renderPlan()
+
+      await user.click(screen.getByRole('button', { name: 'Editar Salario' }))
+      await user.click(screen.getByRole('button', { name: 'Guardar cambios' }))
+
+      await waitFor(() => expect(toastError).toHaveBeenCalled())
+      expect(toastSuccess).not.toHaveBeenCalled()
+      expect(screen.getByRole('dialog')).toBeInTheDocument()
+    })
+
+    it('borrar pide confirmación antes de tocar nada', async () => {
+      const user = userEvent.setup()
+      renderPlan()
+
+      await user.click(screen.getByRole('button', { name: 'Eliminar Salario' }))
+      expect(deleteIncomeSource).not.toHaveBeenCalled()
+
+      await user.click(screen.getByRole('button', { name: 'Eliminar' }))
+
+      await waitFor(() => expect(deleteIncomeSource).toHaveBeenCalledWith('src-1'))
+    })
+
+    it('el panel no aparece mientras el mes no tenga plan', () => {
+      usePlanMonth.mockReturnValue(resolved(null))
+      usePlanIncomeSources.mockReturnValue({
+        data: undefined,
+        isPending: true,
+        isError: false,
+        error: null,
+      })
+      usePlanIncomeSourceCategories.mockReturnValue({
+        data: undefined,
+        isPending: true,
+        isError: false,
+        error: null,
+      })
+      renderPlan()
+
+      expect(screen.queryByRole('region', { name: 'Ingresos planeados' })).not.toBeInTheDocument()
     })
   })
 })

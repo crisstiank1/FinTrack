@@ -1,9 +1,13 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { toast } from 'sonner'
 
+import { ConfirmDialog } from '@/components/shared/confirm-dialog'
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useAccounts } from '@/features/accounts/hooks'
+import { useCategories } from '@/features/categories/hooks'
 import {
   ALLOCATION_GROUPS,
   resolveAllocation,
@@ -27,18 +31,36 @@ import {
   type PlanComparisonGroup,
   type PlanComparisonRow,
 } from '@/features/plan/components/budget-vs-actual-table'
+import {
+  IncomeSourceForm,
+  type IncomeSourceFormSubmit,
+} from '@/features/plan/components/income-source-form'
+import {
+  IncomeSourcesPanel,
+  type IncomeSourceItem,
+} from '@/features/plan/components/income-sources-panel'
 import { PlanHeader } from '@/features/plan/components/plan-header'
 import { PlanSummary } from '@/features/plan/components/plan-summary'
+import { PlanError } from '@/features/plan/errors'
 import {
   useCategoryClassifications,
+  useCreatePlanMonth,
+  useDeleteIncomeSource,
   useEffectiveCategoryBudgets,
   usePlanActuals,
   usePlanAllocations,
+  usePlanIncomeSourceCategories,
   usePlanIncomeSources,
   usePlanLines,
   usePlanMonth,
+  useSaveIncomeSource,
 } from '@/features/plan/hooks'
 import { allocationGroupDiffKind, planRowDiffKind, type PlanRowId } from '@/features/plan/labels'
+import {
+  categoriesLinkedElsewhere,
+  categoriesOfSource,
+  selectLinkableIncomeCategories,
+} from '@/features/plan/mutations'
 import {
   buildAllocationPercentages,
   partitionPlanLines,
@@ -66,6 +88,7 @@ import type { Tables } from '@/types/database.types'
 /* Colecciones vacías con identidad estable, para no invalidar los `useMemo`. */
 const NO_INCOME_SOURCES: Tables<'plan_income_sources'>[] = []
 const NO_ALLOCATIONS: Tables<'plan_allocations'>[] = []
+const NO_LINKS: Tables<'plan_income_source_categories'>[] = []
 
 /**
  * Plan de un grupo de categorías.
@@ -120,9 +143,13 @@ function PlanSkeleton() {
 
 export default function Plan() {
   const [monthKey, setMonthKey] = useState(currentMonthKey())
+  // `null` = ninguno abierto; `'new'` = alta; un id = edicion de esa fuente.
+  const [editingSourceId, setEditingSourceId] = useState<string | null>(null)
+  const [deletingSourceId, setDeletingSourceId] = useState<string | null>(null)
   const queryClient = useQueryClient()
 
   const { data: accounts = [] } = useAccounts()
+  const { data: categories = [] } = useCategories()
 
   const planMonthQuery = usePlanMonth(monthKey)
   const planMonthId = planMonthQuery.data?.id
@@ -133,6 +160,11 @@ export default function Plan() {
   const actualsQuery = usePlanActuals({ monthKey, planMonthId })
   const incomeSourcesQuery = usePlanIncomeSources(planMonthId)
   const allocationsQuery = usePlanAllocations(planMonthId)
+  const incomeSourceCategoriesQuery = usePlanIncomeSourceCategories(planMonthId)
+
+  const createPlanMonth = useCreatePlanMonth()
+  const saveIncomeSource = useSaveIncomeSource()
+  const deleteIncomeSource = useDeleteIncomeSource()
 
   // Sin `plan_month_id` la consulta de fuentes queda deshabilitada, y una
   // consulta deshabilitada se queda en `pending` para siempre. Un mes sin plan
@@ -143,6 +175,7 @@ export default function Plan() {
   const incomeSourcesError = planMonthId ? incomeSourcesQuery.isError : false
 
   const allocations = planMonthId ? allocationsQuery.data : NO_ALLOCATIONS
+  const incomeSourceCategories = planMonthId ? incomeSourceCategoriesQuery.data : NO_LINKS
   const allocationsPending = planMonthId ? allocationsQuery.isPending : false
   const allocationsError = planMonthId ? allocationsQuery.isError : false
 
@@ -336,6 +369,102 @@ export default function Plan() {
 
   const hasPlan = Boolean(planMonthQuery.data)
 
+  const categoriesById = useMemo(
+    () => new Map(categories.map((category) => [category.id, category.name])),
+    [categories],
+  )
+
+  const sources = incomeSources ?? NO_INCOME_SOURCES
+  const links = incomeSourceCategories ?? NO_LINKS
+
+  /** Fuentes tal como las pinta el panel, con sus categorias ya resueltas. */
+  const incomeSourceItems = useMemo<IncomeSourceItem[]>(
+    () =>
+      sources.map((source) => ({
+        id: source.id,
+        name: source.name,
+        plannedMinor: source.planned_minor,
+        categoryNames: categoriesOfSource(links, source.id).flatMap((categoryId) => {
+          const name = categoriesById.get(categoryId)
+          return name ? [name] : []
+        }),
+      })),
+    [sources, links, categoriesById],
+  )
+
+  const editingSource =
+    editingSourceId && editingSourceId !== 'new'
+      ? sources.find((source) => source.id === editingSourceId)
+      : undefined
+
+  /**
+   * Categorias que el formulario puede ofrecer: de ingreso, activas y libres
+   * este mes. Las de la fuente que se esta editando no cuentan como ocupadas,
+   * porque tienen que seguir marcadas y poder desmarcarse.
+   */
+  const linkableCategories = useMemo(
+    () =>
+      selectLinkableIncomeCategories(
+        categories,
+        categoriesLinkedElsewhere(links, editingSource?.id),
+      ),
+    [categories, links, editingSource],
+  )
+
+  const editingCategoryIds = useMemo(
+    () => (editingSource ? categoriesOfSource(links, editingSource.id) : []),
+    [links, editingSource],
+  )
+
+  function reportPlanError(error: unknown, fallback: string) {
+    const planError = error instanceof PlanError ? error : null
+    toast.error(fallback, { description: planError?.message })
+  }
+
+  async function handleCreatePlanMonth() {
+    try {
+      await createPlanMonth.mutateAsync(monthKey)
+      // El plan recien creado no tiene fuentes: el siguiente paso es evidente,
+      // asi que se abre solo en lugar de dejar al usuario buscando el boton.
+      setEditingSourceId('new')
+    } catch (error) {
+      reportPlanError(error, 'No se pudo crear el plan del mes')
+    }
+  }
+
+  async function handleSaveIncomeSource(values: IncomeSourceFormSubmit) {
+    if (!planMonthId) return
+
+    try {
+      await saveIncomeSource.mutateAsync({
+        planMonthId,
+        sourceId: editingSource?.id,
+        name: values.name,
+        plannedMinor: values.plannedMinor,
+        categoryIds: values.categoryIds,
+        currentCategoryIds: editingCategoryIds,
+        sources,
+      })
+      toast.success(editingSource ? 'Fuente actualizada' : 'Fuente añadida')
+      setEditingSourceId(null)
+    } catch (error) {
+      // El dialogo sigue abierto a proposito: parte de la escritura pudo
+      // guardarse y la lista de abajo ya muestra el estado real.
+      reportPlanError(error, 'No se pudo guardar la fuente de ingreso')
+    }
+  }
+
+  async function handleDeleteIncomeSource(sourceId: string) {
+    try {
+      await deleteIncomeSource.mutateAsync(sourceId)
+      toast.success('Fuente eliminada')
+    } catch (error) {
+      reportPlanError(error, 'No se pudo eliminar la fuente de ingreso')
+    } finally {
+      setDeletingSourceId(null)
+    }
+  }
+
   function handleRetry() {
     // Invalidar por prefijo alcanza todas las consultas que cuelgan de esas
     // raíces, incluidas las del mes en pantalla.
@@ -377,10 +506,19 @@ export default function Plan() {
           {/* Un mes sin plan no es un error, así que no se anuncia como tal: es
               un estado normal, y las cifras reales se siguen mostrando. */}
           {!hasPlan && model.hasMovements && (
-            <p className="mt-6 rounded-lg border border-border bg-card p-3 text-sm text-muted-foreground first-letter:uppercase">
-              {monthLabel} todavía no tiene plan. Las cifras reales del mes se calculan igual;
-              cuando lo planifiques podrás compararlas.
-            </p>
+            <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card p-3">
+              <p className="text-sm text-muted-foreground first-letter:uppercase">
+                {monthLabel} todavía no tiene plan. Las cifras reales del mes se calculan igual;
+                cuando lo planifiques podrás compararlas.
+              </p>
+              <Button
+                type="button"
+                onClick={handleCreatePlanMonth}
+                disabled={createPlanMonth.isPending}
+              >
+                Crear plan de {monthLabel.split(' ')[0]}
+              </Button>
+            </div>
           )}
 
           {!hasPlan && !model.hasMovements ? (
@@ -392,13 +530,34 @@ export default function Plan() {
                 Aquí verás tu mes planeado frente a lo que realmente ocurrió. Empieza registrando un
                 movimiento.
               </p>
-              <Button asChild variant="outline" className="mt-5">
-                <Link to="/transactions">Registrar movimiento</Link>
-              </Button>
+              <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+                <Button
+                  type="button"
+                  onClick={handleCreatePlanMonth}
+                  disabled={createPlanMonth.isPending}
+                >
+                  Crear plan de {monthLabel.split(' ')[0]}
+                </Button>
+                <Button asChild variant="outline">
+                  <Link to="/transactions">Registrar movimiento</Link>
+                </Button>
+              </div>
             </div>
           ) : (
             <>
               <PlanSummary currencyCode={currencyCode} {...model.summary} />
+              {hasPlan && (
+                <IncomeSourcesPanel
+                  sources={incomeSourceItems}
+                  totalPlannedMinor={model.summary.incomePlannedMinor}
+                  currencyCode={currencyCode}
+                  monthLabel={monthLabel}
+                  isBusy={saveIncomeSource.isPending || deleteIncomeSource.isPending}
+                  onAdd={() => setEditingSourceId('new')}
+                  onEdit={setEditingSourceId}
+                  onDelete={setDeletingSourceId}
+                />
+              )}
               <AllocationBreakdown
                 {...model.allocation}
                 currencyCode={currencyCode}
@@ -413,6 +572,40 @@ export default function Plan() {
           )}
         </>
       )}
+
+      <Dialog
+        open={editingSourceId !== null}
+        onOpenChange={(open) => !open && setEditingSourceId(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {editingSource ? `Editar ${editingSource.name}` : 'Nueva fuente de ingreso'}
+            </DialogTitle>
+          </DialogHeader>
+          {editingSourceId !== null && (
+            <IncomeSourceForm
+              key={editingSourceId}
+              categories={linkableCategories}
+              defaultName={editingSource?.name}
+              defaultPlannedMinor={editingSource?.planned_minor}
+              defaultCategoryIds={editingCategoryIds}
+              submitLabel={editingSource ? 'Guardar cambios' : 'Añadir fuente'}
+              isSubmitting={saveIncomeSource.isPending}
+              onSubmit={handleSaveIncomeSource}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <ConfirmDialog
+        open={deletingSourceId !== null}
+        onOpenChange={(open) => !open && setDeletingSourceId(null)}
+        title="Eliminar fuente de ingreso"
+        description="Se eliminará la fuente y sus categorías vinculadas. Los movimientos registrados no se tocan."
+        confirmLabel="Eliminar"
+        onConfirm={() => deletingSourceId && handleDeleteIncomeSource(deletingSourceId)}
+      />
     </div>
   )
 }

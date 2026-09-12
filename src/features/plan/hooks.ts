@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo } from 'react'
 
 import { useAccounts } from '@/features/accounts/hooks'
@@ -10,6 +10,9 @@ import { useTransactions } from '@/features/transactions/hooks'
 import { calculateMonthlyIncome } from '@/lib/calculations'
 
 import {
+  createPlanMonth,
+  deletePlanIncomeSource,
+  deletePlanIncomeSourceCategories,
   fetchCategoryClassifications,
   fetchPlanAllocations,
   fetchPlanIncomeSourceCategories,
@@ -17,6 +20,9 @@ import {
   fetchPlanLines,
   fetchPlanMonth,
   fetchTransactionsByAccounts,
+  insertPlanIncomeSource,
+  insertPlanIncomeSourceCategories,
+  updatePlanIncomeSource,
 } from './api'
 import {
   calculateBalanceForAccountType,
@@ -29,6 +35,12 @@ import {
   type ExpenseGroupBreakdown,
   type ExpenseLineBreakdown,
 } from './calculations/expenses'
+import { PlanError } from './errors'
+import {
+  diffIncomeSourceCategories,
+  nextIncomeSourcePosition,
+  type PositionedRow,
+} from './mutations'
 import {
   buildClassificationMap,
   buildIncomeActualBySource,
@@ -511,4 +523,126 @@ export function usePlanContributionBalances(): DerivedState<ContributionBalances
     isError: accountsQuery.isError || historyQuery.isError,
     error: accountsQuery.error ?? historyQuery.error,
   }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Mutaciones                                                                 */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * Todas invalidan la raiz `['plan', userId]`. Crear el mes cambia el
+ * `plan_month_id` del que cuelgan las consultas dependientes, asi que
+ * invalidar por prefijo es lo unico que garantiza que ninguna se quede
+ * colgando de un identificador viejo.
+ */
+
+/**
+ * Crea el plan del mes, o recupera el que ya existia.
+ *
+ * El 23505 no es un fallo que mostrar: significa que otra pestana se adelanto.
+ * Se relee el mes y se sigue con el existente, que es lo que el usuario queria.
+ * Solo si la relectura tampoco encuentra nada se informa del problema, porque
+ * entonces no hay plan con el que continuar.
+ */
+export function useCreatePlanMonth() {
+  const { user } = useAuth()
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (monthKey: string) => {
+      try {
+        return await createPlanMonth(user!.id, monthKey)
+      } catch (error) {
+        if (error instanceof PlanError && error.code === 'month_conflict') {
+          const existing = await fetchPlanMonth(user!.id, monthKey)
+          if (existing) return existing
+
+          throw new PlanError('month_missing_after_conflict')
+        }
+        throw error
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['plan', user?.id] })
+    },
+  })
+}
+
+export interface SaveIncomeSourceInput {
+  planMonthId: string
+  /** `undefined` al crear; el identificador de la fuente al editar. */
+  sourceId?: string
+  name: string
+  plannedMinor: number
+  /** Conjunto completo de categorias que debe quedar vinculado. */
+  categoryIds: string[]
+  /** Categorias vinculadas ahora mismo, para calcular solo las diferencias. */
+  currentCategoryIds: string[]
+  /** Fuentes ya cargadas, para elegir la siguiente posicion al crear. */
+  sources: PositionedRow[]
+}
+
+/**
+ * Crea o edita una fuente y ajusta sus vinculos de categoria.
+ *
+ * Son hasta tres sentencias y **no hay transaccion**: PostgREST no las ofrece.
+ * Si falla la de vinculos, la fuente queda guardada y el error se muestra tal
+ * cual; la invalidacion del `onSettled` hace que la pantalla enseñe lo que de
+ * verdad quedo persistido, en vez de afirmar un exito que no fue completo.
+ */
+export function useSaveIncomeSource() {
+  const { user } = useAuth()
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (input: SaveIncomeSourceInput) => {
+      const source = input.sourceId
+        ? await updatePlanIncomeSource(input.sourceId, {
+            name: input.name,
+            planned_minor: input.plannedMinor,
+          })
+        : await insertPlanIncomeSource({
+            user_id: user!.id,
+            plan_month_id: input.planMonthId,
+            name: input.name,
+            planned_minor: input.plannedMinor,
+            position: nextIncomeSourcePosition(input.sources),
+          })
+
+      const { toAdd, toRemove } = diffIncomeSourceCategories(
+        input.currentCategoryIds,
+        input.categoryIds,
+      )
+
+      await deletePlanIncomeSourceCategories(source.id, toRemove)
+      await insertPlanIncomeSourceCategories(
+        toAdd.map((categoryId) => ({
+          user_id: user!.id,
+          plan_month_id: input.planMonthId,
+          plan_income_source_id: source.id,
+          category_id: categoryId,
+        })),
+      )
+
+      return source
+    },
+    // `onSettled` y no `onSuccess`: tras un fallo parcial la pantalla tiene que
+    // refrescarse igual, porque parte de la escritura si se guardo.
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['plan', user?.id] })
+    },
+  })
+}
+
+/** Borra una fuente. Sus vinculos caen por cascada (F4). */
+export function useDeleteIncomeSource() {
+  const { user } = useAuth()
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (sourceId: string) => deletePlanIncomeSource(sourceId),
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['plan', user?.id] })
+    },
+  })
 }

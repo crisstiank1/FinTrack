@@ -1,16 +1,17 @@
 import { monthRange } from '@/lib/dates'
 import { supabase } from '@/lib/supabase'
-import type { Tables } from '@/types/database.types'
+import type { Tables, TablesInsert, TablesUpdate } from '@/types/database.types'
 
+import { toPlanError } from './errors'
 import type { PlanBalanceTransaction } from './read-model'
 
 /**
- * Capa de datos del Plan mensual. **Solo lectura.**
+ * Capa de datos del Plan mensual.
  *
  * Adaptador fino sobre Supabase, como `categories/api.ts`: aquí no hay reglas
  * de negocio, ni fórmulas, ni estrechamiento de tipos. Las filas salen tal
  * como llegan; interpretarlas es trabajo de `read-model.ts` y de
- * `calculations/`.
+ * `calculations/`, y decidir qué escribir lo hace `mutations.ts`.
  *
  * Sobre `userId`: llega siempre desde la sesión autenticada (`useAuth`), nunca
  * de la URL ni de props. Es un **filtro de alcance y rendimiento** —evita
@@ -18,10 +19,11 @@ import type { PlanBalanceTransaction } from './read-model'
  * La frontera de seguridad son las políticas RLS de las seis tablas, que el
  * servidor aplica aunque este filtro faltase o fuese otro.
  *
- * Los errores se propagan crudos, como en `categories`, `accounts` y
- * `transactions`. `/budgets` los traduce porque distingue conflictos de
- * escritura contra su índice único; una capa de solo lectura no tiene ese
- * vocabulario que construir.
+ * **Las lecturas propagan el error crudo**, como en `categories`, `accounts` y
+ * `transactions`: quien consulta solo necesita saber que falló. **Las
+ * escrituras lo traducen** con `toPlanError`, porque ahí el usuario acaba de
+ * hacer algo y necesita saber qué hacer ahora, y porque un mismo SQLSTATE
+ * significa cosas distintas según la operación.
  *
  * Sin RPC, sin SQL arbitrario y sin recursos embebidos: `plan_lines` tiene
  * cuatro claves foráneas hacia `plan_months` y el puente tres hacia
@@ -235,4 +237,95 @@ export async function fetchTransactionsByAccounts(
   }
 
   return all
+}
+
+/* -------------------------------------------------------------------------- */
+/* Escrituras                                                                 */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * A diferencia de las lecturas, las escrituras no propagan el error crudo:
+ * cada una sabe qué estaba haciendo y traduce con `toPlanError`, porque el
+ * mismo SQLSTATE significa cosas distintas segun la operacion. Ver `errors.ts`.
+ */
+
+/**
+ * Crea la cabecera del plan de un mes.
+ *
+ * No usa `upsert`: con `DO UPDATE` tocaria el `updated_at` de un mes existente
+ * para fingir un cambio que no ocurrio, y con `DO NOTHING` no devolveria fila.
+ * Si el mes ya existia, el 23505 sale de aqui como `month_conflict` y quien
+ * llama lo resuelve releyendo.
+ */
+export async function createPlanMonth(
+  userId: string,
+  monthKey: string,
+): Promise<Tables<'plan_months'>> {
+  const { data, error } = await supabase
+    .from('plan_months')
+    .insert({ user_id: userId, period_month: monthRange(monthKey).start })
+    .select()
+    .single()
+
+  if (error) throw toPlanError(error, 'create_plan_month')
+  return data
+}
+
+export async function insertPlanIncomeSource(
+  row: TablesInsert<'plan_income_sources'>,
+): Promise<Tables<'plan_income_sources'>> {
+  const { data, error } = await supabase.from('plan_income_sources').insert(row).select().single()
+
+  if (error) throw toPlanError(error, 'save_income_source')
+  return data
+}
+
+/**
+ * Solo `name` y `planned_minor`. Ni `position` —reordenar necesita diferir U8,
+ * que no se puede desde PostgREST— ni `plan_month_id`, que convertiria la fila
+ * en otra distinta.
+ */
+export async function updatePlanIncomeSource(
+  id: string,
+  patch: Pick<TablesUpdate<'plan_income_sources'>, 'name' | 'planned_minor'>,
+): Promise<Tables<'plan_income_sources'>> {
+  const { data, error } = await supabase
+    .from('plan_income_sources')
+    .update(patch)
+    .eq('id', id)
+    .select()
+    .single()
+
+  if (error) throw toPlanError(error, 'save_income_source')
+  return data
+}
+
+/** Los vinculos de la fuente caen por cascada (F4); no hay que borrarlos antes. */
+export async function deletePlanIncomeSource(id: string): Promise<void> {
+  const { error } = await supabase.from('plan_income_sources').delete().eq('id', id)
+  if (error) throw toPlanError(error, 'delete_income_source')
+}
+
+export async function insertPlanIncomeSourceCategories(
+  rows: TablesInsert<'plan_income_source_categories'>[],
+): Promise<void> {
+  if (rows.length === 0) return
+
+  const { error } = await supabase.from('plan_income_source_categories').insert(rows)
+  if (error) throw toPlanError(error, 'save_income_source_categories')
+}
+
+export async function deletePlanIncomeSourceCategories(
+  planIncomeSourceId: string,
+  categoryIds: readonly string[],
+): Promise<void> {
+  if (categoryIds.length === 0) return
+
+  const { error } = await supabase
+    .from('plan_income_source_categories')
+    .delete()
+    .eq('plan_income_source_id', planIncomeSourceId)
+    .in('category_id', [...categoryIds])
+
+  if (error) throw toPlanError(error, 'save_income_source_categories')
 }
