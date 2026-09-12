@@ -9,6 +9,7 @@ import { buildBudgetProgressList, type BudgetProgress } from '@/features/budgets
 import { resolveBudget } from '@/features/budgets/resolution'
 import { useTransactions } from '@/features/transactions/hooks'
 import { calculateMonthlyIncome } from '@/lib/calculations'
+import { monthRange } from '@/lib/dates'
 
 import {
   createPlanMonth,
@@ -20,10 +21,13 @@ import {
   fetchPlanLines,
   fetchPlanMonth,
   fetchTransactionsByAccounts,
+  deletePlanLine,
   insertPlanAllocations,
   insertPlanIncomeSource,
   insertPlanIncomeSourceCategories,
+  insertPlanLine,
   updatePlanIncomeSource,
+  updatePlanLine,
   upsertPlanAllocations,
 } from './api'
 import {
@@ -40,9 +44,11 @@ import {
 import { PlanError } from './errors'
 import {
   buildAllocationRows,
+  buildPlanLineRow,
   diffIncomeSourceCategories,
-  nextIncomeSourcePosition,
+  nextPosition,
   type AllocationPercentInput,
+  type CategoryLineKind,
   type PositionedRow,
 } from './mutations'
 import {
@@ -600,7 +606,7 @@ export function useSaveIncomeSource() {
             plan_month_id: input.planMonthId,
             name: input.name,
             planned_minor: input.plannedMinor,
-            position: nextIncomeSourcePosition(input.sources),
+            position: nextPosition(input.sources),
           })
 
       const { toAdd, toRemove } = diffIncomeSourceCategories(
@@ -680,6 +686,80 @@ export function useSaveAllocations() {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['plan', user?.id] })
+    },
+  })
+}
+
+export interface SavePlanLineInput {
+  planMonthId: string
+  monthKey: string
+  /** `undefined` al crear; el identificador de la línea al editar. */
+  lineId?: string
+  kind: CategoryLineKind
+  name: string
+  categoryId: string
+  dueDate: string | null
+  /** Todas las líneas del mes ya cargadas, para elegir la siguiente posición. */
+  lines: PositionedRow[]
+}
+
+/**
+ * Crea o edita una línea de factura o gasto variable.
+ *
+ * Al editar se manda **solo** lo editable —nombre y fecha—; ni la categoría ni
+ * el tipo viajan, por las razones que documenta `updatePlanLine`. Por eso la
+ * rama de edición ignora `kind` y `categoryId` de la entrada en vez de
+ * reenviarlos.
+ *
+ * Invalida **solo** la consulta de líneas del mes, no la raíz `['plan',
+ * userId]`. Crear, editar o borrar una línea no cambia la cabecera del mes, ni
+ * las fuentes, ni los vínculos, ni el reparto: pedir todo eso otra vez sería
+ * trabajo sin motivo. El desglose de Facturas, Variables y No planeado se
+ * recalcula solo, porque `usePlanActuals` deriva de esta misma consulta.
+ */
+export function useSavePlanLine() {
+  const { user } = useAuth()
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (input: SavePlanLineInput) => {
+      if (input.lineId) {
+        return updatePlanLine(input.lineId, { name: input.name, due_date: input.dueDate })
+      }
+
+      return insertPlanLine(
+        buildPlanLineRow({
+          userId: user!.id,
+          planMonthId: input.planMonthId,
+          periodMonth: monthRange(input.monthKey).start,
+          kind: input.kind,
+          name: input.name,
+          categoryId: input.categoryId,
+          dueDate: input.dueDate,
+          lines: input.lines,
+        }),
+      )
+    },
+    onSuccess: (_data, input) => {
+      queryClient.invalidateQueries({ queryKey: planLinesQueryKey(user?.id, input.monthKey) })
+    },
+  })
+}
+
+export interface DeletePlanLineInput {
+  lineId: string
+  monthKey: string
+}
+
+/** Borra una línea. Su gasto vuelve a «No planeado»; nada más se toca. */
+export function useDeletePlanLine() {
+  const { user } = useAuth()
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (input: DeletePlanLineInput) => deletePlanLine(input.lineId),
+    onSuccess: (_data, input) => {
+      queryClient.invalidateQueries({ queryKey: planLinesQueryKey(user?.id, input.monthKey) })
     },
   })
 }

@@ -21,6 +21,9 @@ const createPlanMonth = vi.fn()
 const saveIncomeSource = vi.fn()
 const deleteIncomeSource = vi.fn()
 const saveAllocations = vi.fn()
+const usePlanLineProgress = vi.fn()
+const savePlanLine = vi.fn()
+const deletePlanLine = vi.fn()
 
 vi.mock('@/features/plan/hooks', () => ({
   usePlanMonth: () => usePlanMonth(),
@@ -35,6 +38,9 @@ vi.mock('@/features/plan/hooks', () => ({
   useSaveIncomeSource: () => ({ mutateAsync: saveIncomeSource, isPending: false }),
   useDeleteIncomeSource: () => ({ mutateAsync: deleteIncomeSource, isPending: false }),
   useSaveAllocations: () => ({ mutateAsync: saveAllocations, isPending: false }),
+  usePlanLineProgress: (options: unknown) => usePlanLineProgress(options),
+  useSavePlanLine: () => ({ mutateAsync: savePlanLine, isPending: false }),
+  useDeletePlanLine: () => ({ mutateAsync: deletePlanLine, isPending: false }),
 }))
 
 vi.mock('@/features/categories/hooks', () => ({
@@ -73,9 +79,33 @@ function resolved<T>(data: T) {
 const planMonth = { id: 'plan-month-1', period_month: '2026-04-01' } as Tables<'plan_months'>
 
 const lines = [
-  { id: 'l1', kind: 'bill', category_id: CAT_RENT, planned_minor: null },
-  { id: 'l2', kind: 'variable', category_id: CAT_FOOD, planned_minor: null },
-  { id: 'l3', kind: 'savings', category_id: null, planned_minor: 400_000 },
+  {
+    id: 'l1',
+    kind: 'bill',
+    category_id: CAT_RENT,
+    planned_minor: null,
+    name: 'Arriendo',
+    due_date: null,
+    position: 0,
+  },
+  {
+    id: 'l2',
+    kind: 'variable',
+    category_id: CAT_FOOD,
+    planned_minor: null,
+    name: 'Mercado',
+    due_date: null,
+    position: 1,
+  },
+  {
+    id: 'l3',
+    kind: 'savings',
+    category_id: null,
+    planned_minor: 400_000,
+    name: 'Ahorro',
+    due_date: null,
+    position: 2,
+  },
 ] as Tables<'plan_lines'>[]
 
 const classifications = [
@@ -93,6 +123,8 @@ const categories = [
   { id: 'cat-bono', name: 'Bono', type: 'income', is_archived: false },
   { id: 'cat-viejo', name: 'Antiguo', type: 'income', is_archived: true },
   { id: CAT_RENT, name: 'Arriendo', type: 'expense', is_archived: false },
+  { id: CAT_FOOD, name: 'Alimentación', type: 'expense', is_archived: false },
+  { id: 'cat-salud', name: 'Salud', type: 'expense', is_archived: false },
 ] as Tables<'categories'>[]
 
 const incomeSourceLinks = [
@@ -104,6 +136,28 @@ const allocations = [
   { id: 'a2', budget_group: 'wants', percent_bp: 3_000 },
   { id: 'a3', budget_group: 'savings', percent_bp: 2_000 },
 ] as Tables<'plan_allocations'>[]
+
+/** Progreso por categoría de las líneas del fixture, como lo da /budgets. */
+const lineProgress = [
+  {
+    categoryId: CAT_RENT,
+    budgetMinor: 400_000,
+    spentMinor: 400_000,
+    remainingMinor: 0,
+    ratio: 1,
+    status: 'warning_90',
+    source: 'template',
+  },
+  {
+    categoryId: CAT_FOOD,
+    budgetMinor: 350_000,
+    spentMinor: 300_000,
+    remainingMinor: 50_000,
+    ratio: 300_000 / 350_000,
+    status: 'warning_70',
+    source: 'template',
+  },
+]
 
 const actuals = {
   incomeActualMinor: 1_400_000,
@@ -169,6 +223,11 @@ beforeEach(() => {
   deleteIncomeSource.mockResolvedValue(undefined)
   saveAllocations.mockReset()
   saveAllocations.mockResolvedValue(undefined)
+  usePlanLineProgress.mockReturnValue(resolved(lineProgress))
+  savePlanLine.mockReset()
+  savePlanLine.mockResolvedValue(undefined)
+  deletePlanLine.mockReset()
+  deletePlanLine.mockResolvedValue(undefined)
   toastError.mockClear()
   toastSuccess.mockClear()
 })
@@ -1146,6 +1205,170 @@ describe('Plan', () => {
       expect(
         screen.getByText(/se elige en Ajustes y vale para todos los meses/),
       ).toBeInTheDocument()
+    })
+  })
+  describe('facturas y gastos variables', () => {
+    /** El panel de líneas, para no confundirlo con el cuadro comparativo. */
+    function linesPanel(): HTMLElement {
+      return screen.getByRole('region', { name: 'Facturas y gastos variables' })
+    }
+
+    it('lista las líneas del mes repartidas por tipo', () => {
+      renderPlan()
+
+      const panel = linesPanel()
+
+      // El fixture trae una factura de Arriendo y una variable de Alimentación.
+      expect(within(panel).getByRole('list', { name: 'Facturas' })).toBeInTheDocument()
+      expect(within(panel).getByRole('list', { name: 'Gastos variables' })).toBeInTheDocument()
+    })
+
+    it('muestra el progreso de cada línea sin volverlo editable', () => {
+      renderPlan()
+
+      const panel = linesPanel()
+
+      expect(within(panel).getByText(/Presupuesto COP 400.000/)).toBeInTheDocument()
+      expect(panel.querySelectorAll('input, textarea, select')).toHaveLength(0)
+    })
+
+    it('pide el progreso solo de las categorías que tienen línea', () => {
+      renderPlan()
+
+      const calls = usePlanLineProgress.mock.calls
+      const options = calls[calls.length - 1][0] as {
+        monthKey: string
+        categoryIds: string[]
+      }
+
+      expect(options.monthKey).toBe('2026-09')
+      expect(options.categoryIds.sort()).toEqual([CAT_FOOD, CAT_RENT].sort())
+    })
+
+    it('el panel no aparece mientras el mes no tenga plan', () => {
+      usePlanMonth.mockReturnValue(resolved(null))
+      usePlanIncomeSources.mockReturnValue({
+        data: undefined,
+        isPending: true,
+        isError: false,
+        error: null,
+      })
+      usePlanIncomeSourceCategories.mockReturnValue({
+        data: undefined,
+        isPending: true,
+        isError: false,
+        error: null,
+      })
+      renderPlan()
+
+      expect(
+        screen.queryByRole('region', { name: 'Facturas y gastos variables' }),
+      ).not.toBeInTheDocument()
+    })
+
+    it('guarda una línea nueva con el mes, el plan y las líneas ya cargadas', async () => {
+      const user = userEvent.setup()
+      renderPlan()
+
+      await user.click(within(linesPanel()).getByRole('button', { name: 'Añadir línea' }))
+
+      const dialog = await screen.findByRole('dialog')
+      await user.type(within(dialog).getByLabelText('Nombre'), 'Internet')
+      await user.selectOptions(within(dialog).getByLabelText('Categoría'), 'cat-salud')
+      await user.click(within(dialog).getByRole('button', { name: 'Añadir línea' }))
+
+      await waitFor(() => expect(savePlanLine).toHaveBeenCalled())
+      expect(savePlanLine.mock.calls[0][0]).toMatchObject({
+        planMonthId: 'plan-month-1',
+        monthKey: '2026-09',
+        lineId: undefined,
+        kind: 'bill',
+        name: 'Internet',
+        categoryId: 'cat-salud',
+        dueDate: null,
+        lines,
+      })
+    })
+
+    it('el selector no ofrece categorías que ya tienen línea', async () => {
+      const user = userEvent.setup()
+      renderPlan()
+
+      await user.click(within(linesPanel()).getByRole('button', { name: 'Añadir línea' }))
+
+      const dialog = await screen.findByRole('dialog')
+      const selector = within(dialog).getByLabelText('Categoría')
+
+      // Arriendo y Alimentación ya tienen línea; Salud está libre.
+      expect(within(selector).getByRole('option', { name: 'Salud' })).toBeInTheDocument()
+      expect(within(selector).queryByRole('option', { name: 'Arriendo' })).not.toBeInTheDocument()
+    })
+
+    it('al editar manda solo el nombre y la fecha, nunca la categoría', async () => {
+      const user = userEvent.setup()
+      renderPlan()
+
+      await user.click(within(linesPanel()).getByRole('button', { name: 'Editar Arriendo' }))
+
+      const dialog = await screen.findByRole('dialog')
+      expect(within(dialog).queryByLabelText('Categoría')).not.toBeInTheDocument()
+
+      await user.clear(within(dialog).getByLabelText('Nombre'))
+      await user.type(within(dialog).getByLabelText('Nombre'), 'Arriendo apartamento')
+      await user.click(within(dialog).getByRole('button', { name: 'Guardar cambios' }))
+
+      await waitFor(() => expect(savePlanLine).toHaveBeenCalled())
+      expect(savePlanLine.mock.calls[0][0]).toMatchObject({
+        lineId: 'l1',
+        name: 'Arriendo apartamento',
+      })
+    })
+
+    it('borrar pide confirmación antes de tocar nada', async () => {
+      const user = userEvent.setup()
+      renderPlan()
+
+      await user.click(within(linesPanel()).getByRole('button', { name: 'Eliminar Arriendo' }))
+      expect(deletePlanLine).not.toHaveBeenCalled()
+
+      await user.click(screen.getByRole('button', { name: 'Eliminar' }))
+
+      await waitFor(() =>
+        expect(deletePlanLine).toHaveBeenCalledWith({ lineId: 'l1', monthKey: '2026-09' }),
+      )
+    })
+
+    it('un fallo se muestra y el diálogo no miente diciendo que todo fue bien', async () => {
+      const user = userEvent.setup()
+      savePlanLine.mockRejectedValue(new PlanError('line_category_taken'))
+      renderPlan()
+
+      await user.click(within(linesPanel()).getByRole('button', { name: 'Editar Arriendo' }))
+
+      const dialog = await screen.findByRole('dialog')
+      await user.click(within(dialog).getByRole('button', { name: 'Guardar cambios' }))
+
+      await waitFor(() => expect(toastError).toHaveBeenCalled())
+      expect(toastSuccess).not.toHaveBeenCalled()
+      expect(screen.getByRole('dialog')).toBeInTheDocument()
+
+      const [fallback, options] = toastError.mock.calls[0] as [string, { description?: string }]
+      expect(`${fallback} ${options.description ?? ''}`).not.toMatch(
+        /23505|P0001|PGRST|constraint|_key|_fkey|uuid/i,
+      )
+    })
+
+    it('las dos particiones del gasto siguen siendo independientes', () => {
+      renderPlan()
+
+      // El desglose por línea y el reparto por clasificación cuadran cada uno
+      // contra el mismo total, sin cruzarse entre sí.
+      const desglose =
+        amountOf(rowCells('Facturas')[1]) +
+        amountOf(rowCells('Gastos variables')[1]) +
+        amountOf(rowCells('No planeado')[1])
+
+      expect(desglose).toBe(amountOf(rowCells('Gastos totales')[1]))
     })
   })
 })

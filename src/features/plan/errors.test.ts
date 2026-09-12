@@ -97,6 +97,124 @@ describe('toPlanError', () => {
     expect(message).not.toMatch(/guardado con éxito|se guardó/i)
   })
 
+  describe('líneas de plan', () => {
+    it('distingue los dos índices únicos que comparten 23505', () => {
+      // U10 y U12 llegan con el mismo SQLSTATE en la misma operación, así que
+      // aquí la operación no basta y hay que mirar qué índice nombra el texto.
+      const categoria = {
+        code: '23505',
+        message:
+          'duplicate key value violates unique constraint "plan_lines_plan_month_id_category_id_key"',
+      }
+      const posicion = {
+        code: '23505',
+        message:
+          'duplicate key value violates unique constraint "plan_lines_plan_month_id_position_key"',
+      }
+
+      expect(toPlanError(categoria, 'save_plan_line').code).toBe('line_category_taken')
+      expect(toPlanError(posicion, 'save_plan_line').code).toBe('conflict')
+    })
+
+    it('un 23505 que no nombra ningún índice cae en el conflicto seguro', () => {
+      const opaco = { code: '23505', message: 'duplicate key value' }
+
+      expect(toPlanError(opaco, 'save_plan_line').code).toBe('conflict')
+    })
+
+    it('el trigger de líneas habla de categorías de gasto, no de ingreso', () => {
+      const tipo = {
+        code: 'P0001',
+        message:
+          'Una línea de plan solo puede apuntar a categorías de gasto; la indicada es de tipo income.',
+      }
+      const archivada = {
+        code: 'P0001',
+        message: 'No se puede planificar sobre una categoría archivada.',
+      }
+
+      expect(toPlanError(tipo, 'save_plan_line').code).toBe('category_not_expense')
+      expect(toPlanError(archivada, 'save_plan_line').code).toBe('category_archived')
+    })
+
+    it('el CHECK de una línea nombra la fecha, no un monto que no tiene', () => {
+      expect(toPlanError({ code: '23514' }, 'save_plan_line').code).toBe('invalid_line')
+      expect(new PlanError('invalid_line').message).toMatch(/fecha/i)
+      expect(new PlanError('invalid_line').message).not.toMatch(/monto/i)
+    })
+
+    it('las demás operaciones siguen mapeando el 23514 a su propio mensaje', () => {
+      expect(toPlanError({ code: '23514' }, 'save_income_source').code).toBe('invalid_input')
+    })
+
+    it('borrar una línea que ya no está no es un error desconocido', () => {
+      expect(toPlanError({ code: 'PGRST116' }, 'delete_plan_line').code).toBe('row_missing')
+    })
+  })
+
+  describe('servicio no disponible', () => {
+    it('un 503 explícito se distingue de un error desconocido', () => {
+      expect(
+        toPlanError({ status: 503, message: 'Service Unavailable' }, 'save_plan_line').code,
+      ).toBe('service_unavailable')
+      expect(
+        toPlanError({ statusCode: 503, message: 'Service Unavailable' }, 'save_income_source').code,
+      ).toBe('service_unavailable')
+    })
+
+    it('los SQLSTATE de indisponibilidad también, vengan de donde vengan', () => {
+      // 53300 sin conexiones libres, 57P03 arrancando, 08006 conexión caída.
+      expect(toPlanError({ code: '53300' }, 'save_plan_line').code).toBe('service_unavailable')
+      expect(toPlanError({ code: '57P03' }, 'save_plan_line').code).toBe('service_unavailable')
+      expect(toPlanError({ code: '08006' }, 'delete_plan_line').code).toBe('service_unavailable')
+    })
+
+    it('no depende de la operación: un servicio caído no sabe qué guardabas', () => {
+      for (const operation of [
+        'create_plan_month',
+        'save_allocations',
+        'delete_income_source',
+      ] as const) {
+        expect(toPlanError({ status: 503 }, operation).code).toBe('service_unavailable')
+      }
+    })
+
+    it('un 500 sigue siendo unknown: no todo 5xx es indisponibilidad', () => {
+      expect(
+        toPlanError({ status: 500, message: 'Internal Server Error' }, 'save_plan_line').code,
+      ).toBe('unknown')
+      expect(toPlanError({ status: 502 }, 'save_plan_line').code).toBe('unknown')
+    })
+
+    it('un TypeError sigue siendo network, no indisponibilidad', () => {
+      // Son cosas distintas: aquí el navegador no llegó a hablar con nadie.
+      expect(toPlanError(new TypeError('Failed to fetch'), 'save_plan_line').code).toBe('network')
+    })
+
+    it('los dos mensajes no se confunden entre sí', () => {
+      const red = new PlanError('network').message
+      const servicio = new PlanError('service_unavailable').message
+
+      expect(red).toMatch(/conexión/i)
+      expect(servicio).toMatch(/no está disponible temporalmente/i)
+      expect(servicio).not.toMatch(/sin conexión|revisa tu conexión/i)
+    })
+
+    it('el mensaje no expone el estado HTTP ni detalles del servidor', () => {
+      const { message } = new PlanError('service_unavailable')
+
+      expect(message).not.toMatch(/503|5xx|HTTP|PostgREST|postgres|SQLSTATE|53300|57P03/i)
+    })
+
+    it('sin señal estructural cae al fallback seguro, no se adivina por texto', () => {
+      // Un 503 de pasarela sin cuerpo de PostgREST llega sin status ni código:
+      // se prefiere `unknown` antes que deducirlo del HTML de la respuesta.
+      const opaco = { message: '<html><body>503 Service Unavailable</body></html>' }
+
+      expect(toPlanError(opaco, 'save_plan_line').code).toBe('unknown')
+    })
+  })
+
   it('ningún mensaje filtra SQL, constraints ni identificadores', () => {
     const codes = [
       'month_conflict',
@@ -109,8 +227,12 @@ describe('toPlanError', () => {
       'row_missing',
       'invalid_input',
       'allocation_sum',
+      'line_category_taken',
+      'category_not_expense',
+      'invalid_line',
       'forbidden',
       'network',
+      'service_unavailable',
       'unknown',
     ] as const
 

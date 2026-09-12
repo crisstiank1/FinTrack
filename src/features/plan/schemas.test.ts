@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { ALLOCATION_GROUPS } from './calculations/allocation'
 import {
   allocationFormSchema,
+  buildPlanLineSchema,
   planIncomeSourceSchema,
   ALLOCATION_PRESET,
   ALLOCATION_SUM_ERROR,
@@ -151,5 +152,130 @@ describe('allocationFormSchema', () => {
 
   it('recorta los espacios antes de medir', () => {
     expect(parseAllocation({ needs: ' 50 ' }).success).toBe(true)
+  })
+})
+
+describe('buildPlanLineSchema', () => {
+  const schema = buildPlanLineSchema('2026-09')
+
+  function parseLine(values: Record<string, string> = {}) {
+    return schema.safeParse({
+      name: 'Arriendo',
+      kind: 'bill',
+      categoryId: 'cat-vivienda',
+      dueDate: '',
+      ...values,
+    })
+  }
+
+  it('acepta una factura completa y normaliza la fecha', () => {
+    const result = parseLine({ dueDate: '2026-09-05' })
+
+    expect(result.success).toBe(true)
+    expect(result.success && result.data).toEqual({
+      name: 'Arriendo',
+      kind: 'bill',
+      categoryId: 'cat-vivienda',
+      dueDate: '2026-09-05',
+    })
+  })
+
+  it('una factura sin fecha esperada es válida y sale como null', () => {
+    const result = parseLine()
+
+    expect(result.success).toBe(true)
+    expect(result.success && result.data.dueDate).toBeNull()
+  })
+
+  it('rechaza una fecha fuera del mes del plan', () => {
+    expect(parseLine({ dueDate: '2026-08-31' }).success).toBe(false)
+    expect(parseLine({ dueDate: '2026-10-01' }).success).toBe(false)
+  })
+
+  it('acepta el primer y el último día del mes', () => {
+    expect(parseLine({ dueDate: '2026-09-01' }).success).toBe(true)
+    expect(parseLine({ dueDate: '2026-09-30' }).success).toBe(true)
+  })
+
+  it('el error de la fecha se atribuye a su propio campo', () => {
+    const result = parseLine({ dueDate: '2026-10-01' })
+    const issue = !result.success && result.error.issues[0]
+
+    expect(issue && issue.path).toEqual(['dueDate'])
+  })
+
+  it('un gasto variable nunca conserva fecha', () => {
+    const result = schema.safeParse({
+      name: 'Mercado',
+      kind: 'variable',
+      categoryId: 'cat-mercado',
+      dueDate: '',
+    })
+
+    expect(result.success).toBe(true)
+    expect(result.success && result.data.dueDate).toBeNull()
+  })
+
+  it('rechaza una fecha en un gasto variable en vez de descartarla en silencio', () => {
+    const result = schema.safeParse({
+      name: 'Mercado',
+      kind: 'variable',
+      categoryId: 'cat-mercado',
+      dueDate: '2026-09-05',
+    })
+
+    expect(result.success).toBe(false)
+  })
+
+  it('la categoría es obligatoria: C5 no admite una línea sin ella', () => {
+    expect(parseLine({ categoryId: '' }).success).toBe(false)
+  })
+
+  it('exige un nombre con contenido y respeta el límite de 80', () => {
+    expect(parseLine({ name: '   ' }).success).toBe(false)
+    expect(parseLine({ name: 'a'.repeat(80) }).success).toBe(true)
+    expect(parseLine({ name: 'a'.repeat(81) }).success).toBe(false)
+  })
+
+  it('recorta el nombre antes de guardarlo', () => {
+    const result = parseLine({ name: '  Arriendo  ' })
+
+    expect(result.success && result.data.name).toBe('Arriendo')
+  })
+
+  it('rechaza un kind que no se mide por categoría', () => {
+    expect(parseLine({ kind: 'savings' }).success).toBe(false)
+  })
+
+  it('el mes lo fija quien construye el esquema, no el reloj', () => {
+    const octubre = buildPlanLineSchema('2026-10')
+
+    expect(
+      octubre.safeParse({
+        name: 'Arriendo',
+        kind: 'bill',
+        categoryId: 'cat-vivienda',
+        dueDate: '2026-10-05',
+      }).success,
+    ).toBe(true)
+    expect(
+      octubre.safeParse({
+        name: 'Arriendo',
+        kind: 'bill',
+        categoryId: 'cat-vivienda',
+        dueDate: '2026-09-05',
+      }).success,
+    ).toBe(false)
+  })
+
+  it('no existe ningún campo de importe en el contrato', () => {
+    const result = parseLine()
+
+    expect(result.success && Object.keys(result.data).sort()).toEqual([
+      'categoryId',
+      'dueDate',
+      'kind',
+      'name',
+    ])
   })
 })

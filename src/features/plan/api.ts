@@ -365,3 +365,58 @@ export async function upsertPlanAllocations(
 
   if (error) throw toPlanError(error, 'save_allocations')
 }
+
+/* -------------------------------------------------------------------------- */
+/* Líneas de facturas y gastos variables                                      */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Crea una línea medida por categoría.
+ *
+ * La fila llega ya construida por `buildPlanLineRow`, que decide la posición y
+ * omite `planned_minor`. Esta capa no la completa ni la corrige: si faltara
+ * algo, el CHECK correspondiente lo rechazaría, que es justo lo que debe pasar.
+ */
+export async function insertPlanLine(
+  row: TablesInsert<'plan_lines'>,
+): Promise<Tables<'plan_lines'>> {
+  const { data, error } = await supabase.from('plan_lines').insert(row).select().single()
+
+  if (error) throw toPlanError(error, 'save_plan_line')
+  return data
+}
+
+/**
+ * Solo `name` y `due_date`, y el tipo del parámetro lo impone.
+ *
+ * Ni `category_id` ni `kind`: el trigger T3 considera que cambiarlos es
+ * **estrenar** el destino, así que volvería a exigir una categoría activa y de
+ * gasto, y una línea histórica dejaría de poder corregirse. Además, mover la
+ * línea a otra categoría cambia en silencio qué movimientos describe —el
+ * emparejamiento es por categoría, no hay columna en `transactions`— y su
+ * «Actual» saltaría sin que nada lo avise. Corregir un tipo o una categoría es
+ * borrar la línea y crear otra.
+ *
+ * Tampoco `position`, que reordenar exigiría diferir U12, ni `plan_month_id` o
+ * `period_month`, que convertirían la fila en otra distinta.
+ */
+export async function updatePlanLine(
+  id: string,
+  patch: Pick<TablesUpdate<'plan_lines'>, 'name' | 'due_date'>,
+): Promise<Tables<'plan_lines'>> {
+  const { data, error } = await supabase
+    .from('plan_lines')
+    .update(patch)
+    .eq('id', id)
+    .select()
+    .single()
+
+  if (error) throw toPlanError(error, 'save_plan_line')
+  return data
+}
+
+/** Borra una línea. No toca la categoría, su presupuesto ni sus movimientos. */
+export async function deletePlanLine(id: string): Promise<void> {
+  const { error } = await supabase.from('plan_lines').delete().eq('id', id)
+  if (error) throw toPlanError(error, 'delete_plan_line')
+}

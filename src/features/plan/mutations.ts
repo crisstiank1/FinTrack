@@ -17,21 +17,31 @@ export interface PositionedRow {
 }
 
 /**
- * Posición de la siguiente fuente de ingreso.
+ * Posición de la siguiente fila de una secuencia por mes.
  *
- * `max(position) + 1`, **nunca `length`**: borrar una fuente del medio deja
+ * La comparten las fuentes de ingreso —U8, único `(plan_month_id, position)`—
+ * y las líneas de plan —U12, la misma forma—. Genérica sobre `{ position }` a
+ * propósito: la regla no depende de qué describa la fila, y dos copias con
+ * nombres distintos acabarían divergiendo.
+ *
+ * `max(position) + 1`, **nunca `length`**: borrar una fila del medio deja
  * huecos, y contar filas reutilizaría una posición ya ocupada, que es
- * exactamente lo que U8 —único `(plan_month_id, position)`— rechaza.
+ * exactamente lo que esos índices rechazan.
+ *
+ * Quien llama debe pasar **todas** las filas de la secuencia. En `plan_lines`
+ * eso incluye las de ahorro e inversión: U12 no distingue `kind`, así que la
+ * secuencia es una sola por mes y calcularla sobre un subconjunto produciría
+ * una posición ya ocupada.
  *
  * Se calcula sobre las filas ya cargadas, así que puede estar obsoleta si otra
  * pestaña insertó mientras tanto. En ese caso el INSERT choca con un 23505 y la
  * mutación lo convierte en conflicto y refresca, en lugar de reintentar a
  * ciegas con la siguiente posición y arriesgarse a pisar otro cambio.
  */
-export function nextIncomeSourcePosition(sources: readonly PositionedRow[]): number {
-  if (sources.length === 0) return 0
+export function nextPosition(rows: readonly PositionedRow[]): number {
+  if (rows.length === 0) return 0
 
-  return sources.reduce((max, source) => Math.max(max, source.position), 0) + 1
+  return rows.reduce((max, row) => Math.max(max, row.position), 0) + 1
 }
 
 export interface CategoryLinkDiff {
@@ -203,4 +213,125 @@ export function buildAllocationRows({
     budget_group: group,
     percent_bp: basisPoints[group],
   }))
+}
+
+/* -------------------------------------------------------------------------- */
+/* Líneas de facturas y gastos variables                                      */
+/* -------------------------------------------------------------------------- */
+
+/** Los dos tipos de línea medidos por categoría. Espejo de C5. */
+export const CATEGORY_LINE_KINDS = ['bill', 'variable'] as const
+
+export type CategoryLineKind = (typeof CATEGORY_LINE_KINDS)[number]
+
+/** Línea vista desde el selector de categorías. */
+export interface LineCategoryRow {
+  category_id: string | null
+  id: string
+}
+
+/**
+ * Categorías ya ocupadas por una línea del mes.
+ *
+ * U10 —único parcial `(plan_month_id, category_id)`— hace que una categoría
+ * alimente una sola línea, y esa regla es la que mantiene disjuntos Facturas,
+ * Variables y No planeado: sin ella, un mismo gasto podría contarse en dos
+ * bloques del desglose.
+ *
+ * `exceptLineId` existe para editar sin que la línea se excluya a sí misma.
+ * En esta entrega no se usa —la categoría no es editable—, pero la exclusión
+ * pertenece a la regla, no al formulario que la consulta.
+ */
+export function usedLineCategoryIds(
+  lines: readonly LineCategoryRow[],
+  exceptLineId?: string,
+): Set<string> {
+  const used = new Set<string>()
+
+  for (const line of lines) {
+    if (line.category_id === null) continue
+    if (exceptLineId !== undefined && line.id === exceptLineId) continue
+    used.add(line.category_id)
+  }
+
+  return used
+}
+
+/** Categoría vista desde el formulario de líneas. */
+export interface LinkableLineCategory {
+  id: string
+  type: string
+  is_archived: boolean
+}
+
+/**
+ * Categorías que se pueden ofrecer para una línea nueva.
+ *
+ * Tres filtros, y los tres evitan ofrecer algo que el servidor rechazaría:
+ *
+ * 1. **Solo de gasto.** T3 rechaza cualquier otro tipo.
+ * 2. **No archivadas.** T3 prohíbe *estrenar* una línea sobre una archivada.
+ *    Las líneas que ya apuntan a una archivada siguen existiendo y editándose;
+ *    lo que no se puede es crear una nueva.
+ * 3. **Libres este mes.** U10.
+ */
+export function selectAvailableLineCategories<T extends LinkableLineCategory>(
+  categories: readonly T[],
+  usedCategoryIds: ReadonlySet<string>,
+): T[] {
+  return categories.filter(
+    (category) =>
+      category.type === 'expense' && !category.is_archived && !usedCategoryIds.has(category.id),
+  )
+}
+
+export interface PlanLineRowInput {
+  userId: string
+  planMonthId: string
+  /** Primer día del mes activo, derivado con `monthRange`. */
+  periodMonth: string
+  kind: CategoryLineKind
+  name: string
+  categoryId: string
+  /** Solo en facturas, y solo si el usuario la escribió. */
+  dueDate?: string | null
+  /** Todas las líneas del mes ya cargadas, para elegir la siguiente posición. */
+  lines: readonly PositionedRow[]
+}
+
+/**
+ * Fila de una línea medida por categoría.
+ *
+ * **`planned_minor` no se envía nunca.** C7 exige que sea nulo cuando hay
+ * categoría, y omitirlo deja ese nulo sin que nadie pueda teclear una cifra
+ * que competiría con la de `budgets`. Mandarlo explícitamente —aunque fuera
+ * `null`— invitaría a que alguien lo rellenase algún día.
+ *
+ * `due_date` solo viaja en una factura. C3 la rechaza en una variable, y
+ * enviarla como `null` sería inocuo pero dejaría en el payload un campo que ese
+ * tipo de línea no tiene.
+ */
+export function buildPlanLineRow({
+  userId,
+  planMonthId,
+  periodMonth,
+  kind,
+  name,
+  categoryId,
+  dueDate,
+  lines,
+}: PlanLineRowInput): TablesInsert<'plan_lines'> {
+  const row: TablesInsert<'plan_lines'> = {
+    user_id: userId,
+    plan_month_id: planMonthId,
+    period_month: periodMonth,
+    kind,
+    name,
+    category_id: categoryId,
+    position: nextPosition(lines),
+  }
+
+  if (kind === 'bill' && dueDate) row.due_date = dueDate
+
+  return row
 }

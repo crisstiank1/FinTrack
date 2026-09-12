@@ -47,8 +47,11 @@ import {
   IncomeSourcesPanel,
   type IncomeSourceItem,
 } from '@/features/plan/components/income-sources-panel'
+import { PlanLineForm, type PlanLineFormSubmit } from '@/features/plan/components/plan-line-form'
+import { PlanLinesPanel, type PlanLineItem } from '@/features/plan/components/plan-lines-panel'
 import { PlanHeader } from '@/features/plan/components/plan-header'
 import { PlanSummary } from '@/features/plan/components/plan-summary'
+import type { BudgetProgress } from '@/features/budgets/progress'
 import { PlanError } from '@/features/plan/errors'
 import {
   useCreatePlanMonth,
@@ -59,15 +62,21 @@ import {
   usePlanIncomeSourceCategories,
   usePlanIncomeSources,
   usePlanLines,
+  usePlanLineProgress,
   usePlanMonth,
+  useDeletePlanLine,
   useSaveAllocations,
   useSaveIncomeSource,
+  useSavePlanLine,
 } from '@/features/plan/hooks'
 import { allocationGroupDiffKind, planRowDiffKind, type PlanRowId } from '@/features/plan/labels'
 import {
   categoriesLinkedElsewhere,
   categoriesOfSource,
+  selectAvailableLineCategories,
   selectLinkableIncomeCategories,
+  usedLineCategoryIds,
+  type CategoryLineKind,
 } from '@/features/plan/mutations'
 import {
   buildAllocationPercentages,
@@ -99,6 +108,7 @@ import type { Tables } from '@/types/database.types'
 const NO_INCOME_SOURCES: Tables<'plan_income_sources'>[] = []
 const NO_ALLOCATIONS: Tables<'plan_allocations'>[] = []
 const NO_LINKS: Tables<'plan_income_source_categories'>[] = []
+const NO_PLAN_LINES: Tables<'plan_lines'>[] = []
 
 /**
  * Plan de un grupo de categorías.
@@ -115,6 +125,31 @@ function plannedForCategories(
   if (budgeted.length === 0) return null
 
   return sumBudgetsForCategories(budgetsByCategory, budgeted)
+}
+
+/**
+ * Línea tal como la pinta el panel, con su categoría ya resuelta.
+ *
+ * Una categoría que ya no esté visible deja la fila con su nombre en blanco en
+ * vez de romper: la clave foránea `on delete no action` hace que ese caso no
+ * pueda darse con datos válidos, pero la fila no debe depender de ello.
+ */
+function toLineItem(
+  line: Tables<'plan_lines'>,
+  kind: CategoryLineKind,
+  categoryById: Map<string, Tables<'categories'>>,
+): PlanLineItem {
+  const category = line.category_id ? categoryById.get(line.category_id) : undefined
+
+  return {
+    id: line.id,
+    name: line.name,
+    kind,
+    categoryId: line.category_id ?? '',
+    categoryName: category?.name ?? 'Categoría no disponible',
+    isCategoryArchived: category?.is_archived ?? false,
+    dueDate: line.due_date,
+  }
 }
 
 /** Suma dos planes que pueden no existir. Solo es `null` si falta cada uno. */
@@ -157,6 +192,9 @@ export default function Plan() {
   const [editingSourceId, setEditingSourceId] = useState<string | null>(null)
   const [deletingSourceId, setDeletingSourceId] = useState<string | null>(null)
   const [isAllocationOpen, setIsAllocationOpen] = useState(false)
+  // `null` = ninguno abierto; `'new'` = alta; un id = edicion de esa linea.
+  const [editingLineId, setEditingLineId] = useState<string | null>(null)
+  const [deletingLineId, setDeletingLineId] = useState<string | null>(null)
   const queryClient = useQueryClient()
 
   const { data: accounts = [] } = useAccounts()
@@ -177,6 +215,8 @@ export default function Plan() {
   const saveIncomeSource = useSaveIncomeSource()
   const deleteIncomeSource = useDeleteIncomeSource()
   const saveAllocations = useSaveAllocations()
+  const savePlanLine = useSavePlanLine()
+  const deletePlanLine = useDeletePlanLine()
 
   // Sin `plan_month_id` la consulta de fuentes queda deshabilitada, y una
   // consulta deshabilitada se queda en `pending` para siempre. Un mes sin plan
@@ -386,6 +426,16 @@ export default function Plan() {
     [categories],
   )
 
+  /**
+   * Categoría completa por identificador. El mapa de arriba solo guarda
+   * nombres; las líneas necesitan además saber si está archivada, que es lo que
+   * distingue una referencia histórica de una corriente.
+   */
+  const categoryById = useMemo(
+    () => new Map(categories.map((category) => [category.id, category])),
+    [categories],
+  )
+
   const sources = incomeSources ?? NO_INCOME_SOURCES
   const links = incomeSourceCategories ?? NO_LINKS
 
@@ -427,6 +477,71 @@ export default function Plan() {
     () => (editingSource ? categoriesOfSource(links, editingSource.id) : []),
     [links, editingSource],
   )
+
+  /* ---------------------------------------------------------------------- */
+  /* Líneas de facturas y gastos variables                                   */
+  /* ---------------------------------------------------------------------- */
+
+  const planLines = lines ?? NO_PLAN_LINES
+
+  /**
+   * Las dos listas que pinta el panel. Se reparten con `partitionPlanLines`,
+   * la misma función que alimenta el desglose del cuadro, así que un `kind`
+   * desconocido no acaba en ninguna de las dos en vez de colarse como factura.
+   */
+  const linePartition = useMemo(() => partitionPlanLines(planLines), [planLines])
+
+  /**
+   * Categorías descritas por una línea. `usePlanLineProgress` recibe esta
+   * lista y devuelve, para cada una, el presupuesto efectivo y el gasto del
+   * mes con las mismas funciones que usa `/budgets`.
+   */
+  const lineCategoryIds = useMemo(
+    () => [
+      ...planLineCategoryIds(linePartition.bills),
+      ...planLineCategoryIds(linePartition.variables),
+    ],
+    [linePartition],
+  )
+
+  const lineProgressQuery = usePlanLineProgress({ monthKey, categoryIds: lineCategoryIds })
+
+  /** Progreso por categoría, para que el panel no tenga que buscar en la lista. */
+  const progressByCategory = useMemo(() => {
+    const byCategory: Record<string, BudgetProgress> = {}
+    for (const progress of lineProgressQuery.data ?? []) {
+      byCategory[progress.categoryId] = progress
+    }
+    return byCategory
+  }, [lineProgressQuery.data])
+
+  const billItems = useMemo(
+    () => linePartition.bills.map((line) => toLineItem(line, 'bill', categoryById)),
+    [linePartition, categoryById],
+  )
+  const variableItems = useMemo(
+    () => linePartition.variables.map((line) => toLineItem(line, 'variable', categoryById)),
+    [linePartition, categoryById],
+  )
+
+  const editingLine =
+    editingLineId && editingLineId !== 'new'
+      ? planLines.find((line) => line.id === editingLineId)
+      : undefined
+
+  /**
+   * Categorías que el formulario puede ofrecer: de gasto, activas y sin línea
+   * este mes. Al editar no se ofrece ninguna, porque la categoría no cambia.
+   */
+  const availableLineCategories = useMemo(
+    () => selectAvailableLineCategories(categories, usedLineCategoryIds(planLines)),
+    [categories, planLines],
+  )
+
+  /** Presupuesto efectivo de una categoría, para la nota del formulario. */
+  function budgetForCategory(categoryId: string): number | null {
+    return budgetsByCategory?.[categoryId] ?? null
+  }
 
   const hasAllocation = model?.allocation.hasAllocation ?? false
 
@@ -510,6 +625,40 @@ export default function Plan() {
       // está refrescando con el reparto que de verdad quedó guardado, y cerrar
       // aquí daría a entender que el envío salió bien.
       reportPlanError(error, 'No se pudo guardar el reparto')
+    }
+  }
+
+  async function handleSavePlanLine(values: PlanLineFormSubmit) {
+    if (!planMonthId) return
+
+    try {
+      await savePlanLine.mutateAsync({
+        planMonthId,
+        monthKey,
+        lineId: editingLine?.id,
+        kind: values.kind,
+        name: values.name,
+        categoryId: values.categoryId,
+        dueDate: values.dueDate,
+        lines: planLines,
+      })
+      toast.success(editingLine ? 'Línea actualizada' : 'Línea añadida')
+      setEditingLineId(null)
+    } catch (error) {
+      // El diálogo sigue abierto: si la categoría se ocupó entre medias, el
+      // usuario tiene que poder elegir otra sin volver a escribirlo todo.
+      reportPlanError(error, 'No se pudo guardar la línea')
+    }
+  }
+
+  async function handleDeletePlanLine(lineId: string) {
+    try {
+      await deletePlanLine.mutateAsync({ lineId, monthKey })
+      toast.success('Línea eliminada')
+    } catch (error) {
+      reportPlanError(error, 'No se pudo eliminar la línea')
+    } finally {
+      setDeletingLineId(null)
     }
   }
 
@@ -638,6 +787,20 @@ export default function Plan() {
                   </Link>
                 </p>
               )}
+              {hasPlan && (
+                <PlanLinesPanel
+                  bills={billItems}
+                  variables={variableItems}
+                  progressByCategory={progressByCategory}
+                  currencyCode={currencyCode}
+                  monthLabel={monthLabel}
+                  isBusy={savePlanLine.isPending || deletePlanLine.isPending}
+                  onAdd={() => setEditingLineId('new')}
+                  onEdit={setEditingLineId}
+                  onDelete={setDeletingLineId}
+                />
+              )}
+
               <BudgetVsActualTable
                 groups={model.groups}
                 currencyCode={currencyCode}
@@ -690,6 +853,51 @@ export default function Plan() {
           )}
         </DialogContent>
       </Dialog>
+
+      <Dialog
+        open={editingLineId !== null}
+        onOpenChange={(open) => !open && setEditingLineId(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingLine ? `Editar ${editingLine.name}` : 'Nueva línea'}</DialogTitle>
+          </DialogHeader>
+          {editingLineId !== null && (
+            <PlanLineForm
+              key={editingLineId}
+              monthKey={monthKey}
+              categories={editingLine ? [] : availableLineCategories}
+              budgetForCategory={budgetForCategory}
+              currencyCode={currencyCode}
+              defaultValues={
+                editingLine
+                  ? {
+                      name: editingLine.name,
+                      kind: editingLine.kind as CategoryLineKind,
+                      categoryId: editingLine.category_id ?? '',
+                      dueDate: editingLine.due_date,
+                    }
+                  : undefined
+              }
+              lockedCategoryName={
+                editingLine ? (categoriesById.get(editingLine.category_id ?? '') ?? '') : undefined
+              }
+              submitLabel={editingLine ? 'Guardar cambios' : 'Añadir línea'}
+              isSubmitting={savePlanLine.isPending}
+              onSubmit={handleSavePlanLine}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <ConfirmDialog
+        open={deletingLineId !== null}
+        onOpenChange={(open) => !open && setDeletingLineId(null)}
+        title="Eliminar línea"
+        description="El gasto de su categoría volverá a contar como «No planeado». El presupuesto de la categoría y sus movimientos no se tocan."
+        confirmLabel="Eliminar"
+        onConfirm={() => deletingLineId && handleDeletePlanLine(deletingLineId)}
+      />
 
       <ConfirmDialog
         open={deletingSourceId !== null}

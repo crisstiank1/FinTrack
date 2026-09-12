@@ -1,8 +1,10 @@
 import { z } from 'zod'
 
 import { budgetAmountSchema } from '@/features/budgets/schemas'
+import { monthOfIsoDate } from '@/lib/dates'
 
 import type { AllocationGroup } from './calculations/allocation'
+import { CATEGORY_LINE_KINDS } from './mutations'
 
 /**
  * Contratos del formulario de fuentes de ingreso.
@@ -169,3 +171,89 @@ export const ALLOCATION_PRESET: Record<AllocationGroup, number> = {
   investment: 0,
   debt: 0,
 }
+
+/* -------------------------------------------------------------------------- */
+/* Líneas de facturas y gastos variables                                      */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Contrato del formulario de líneas medidas por categoría.
+ *
+ * **No hay campo de importe, y no es un olvido.** C7 —`(planned_minor is null)
+ * = (category_id is not null)`— prohíbe que una línea por categoría lleve
+ * cifra: la suya está en `budgets` y solo ahí. Un campo de monto aquí crearía
+ * un segundo presupuesto por categoría, que es exactamente lo que el esquema
+ * hace imposible de escribir.
+ *
+ * Tampoco hay campo «Actual»: ese valor no se guarda en ninguna tabla, se
+ * calcula desde `transactions` al consultar.
+ */
+
+/** Nombre de la línea. Espejo del CHECK `length(btrim(name)) between 1 and 80`. */
+export const planLineNameSchema = z
+  .string()
+  .trim()
+  .min(1, 'Escribe un nombre para la línea')
+  .max(80, 'El nombre no puede pasar de 80 caracteres')
+
+/**
+ * Esquema de una línea, parametrizado por el mes activo.
+ *
+ * El mes entra como argumento en vez de leerse de un reloj: la fecha esperada
+ * se valida contra el mes que el usuario está planificando, no contra el mes en
+ * curso, y así un plan de octubre editado en septiembre sigue aceptando fechas
+ * de octubre.
+ *
+ * Dos reglas cruzadas, ambas espejo del esquema:
+ *
+ * - **C3** — `due_date` solo existe en una factura. En una variable el campo ni
+ *   siquiera se registra; si llegara un valor, se rechaza aquí en vez de dejar
+ *   que el CHECK lo devuelva como un error que nadie puede interpretar.
+ * - **C4** — si existe, cae dentro del mes del plan.
+ *
+ * La fecha es **opcional en una factura**: C3 solo dice que no puede existir en
+ * otro `kind`. Una factura sin fecha esperada es válida y significa «sé que
+ * llega, todavía no sé cuándo».
+ */
+export function buildPlanLineSchema(monthKey: string) {
+  return z
+    .object({
+      name: planLineNameSchema,
+      kind: z.enum(CATEGORY_LINE_KINDS),
+      categoryId: z.string().min(1, 'Elige una categoría'),
+      /** Cadena vacía cuando no se escribió; se normaliza a `null` al salir. */
+      dueDate: z.string().default(''),
+    })
+    .superRefine((values, ctx) => {
+      if (values.dueDate === '') return
+
+      if (values.kind !== 'bill') {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['dueDate'],
+          message: 'Solo una factura puede tener fecha esperada.',
+        })
+        return
+      }
+
+      if (monthOfIsoDate(values.dueDate) !== monthKey) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['dueDate'],
+          message: 'La fecha esperada tiene que caer dentro del mes del plan.',
+        })
+      }
+    })
+    .transform((values) => ({
+      name: values.name,
+      kind: values.kind,
+      categoryId: values.categoryId,
+      dueDate: values.kind === 'bill' && values.dueDate !== '' ? values.dueDate : null,
+    }))
+}
+
+/** Valores ya validados: `dueDate` es una fecha del mes o `null`. */
+export type PlanLineFormValues = z.output<ReturnType<typeof buildPlanLineSchema>>
+
+/** Lo que maneja el formulario mientras se escribe. */
+export type PlanLineFormInput = z.input<ReturnType<typeof buildPlanLineSchema>>

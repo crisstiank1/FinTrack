@@ -22,6 +22,8 @@ export type PlanOperation =
   | 'save_income_source_categories'
   | 'delete_income_source'
   | 'save_allocations'
+  | 'save_plan_line'
+  | 'delete_plan_line'
 
 export type PlanErrorCode =
   /** El mes ya existía: otra pestaña se adelantó. Se resuelve releyendo. */
@@ -32,6 +34,10 @@ export type PlanErrorCode =
   | 'conflict'
   /** U9: esa categoría de ingreso ya alimenta otra fuente del mes. */
   | 'category_already_linked'
+  /** U10: esa categoría de gasto ya tiene una línea en este mes. */
+  | 'line_category_taken'
+  /** T3: la categoría de una línea no es de tipo `expense`. */
+  | 'category_not_expense'
   /** T2: la categoría no es de tipo `income`. */
   | 'category_not_income'
   /** T2: la categoría está archivada. */
@@ -44,10 +50,14 @@ export type PlanErrorCode =
   | 'invalid_input'
   /** T4: los porcentajes del reparto no suman 100 %. */
   | 'allocation_sum'
+  /** CHECK de `plan_lines`: nombre fuera de rango o fecha fuera del mes. */
+  | 'invalid_line'
   /** RLS, permisos o sesión caducada. */
   | 'forbidden'
-  /** No se pudo hablar con el servidor. */
+  /** No se pudo hablar con el servidor desde este navegador. */
   | 'network'
+  /** El servicio respondió que no está disponible ahora mismo. */
+  | 'service_unavailable'
   | 'unknown'
 
 const MESSAGES: Record<PlanErrorCode, string> = {
@@ -58,15 +68,22 @@ const MESSAGES: Record<PlanErrorCode, string> = {
     'Esta pantalla cambió desde otra pestaña o dispositivo. Revisa lo que hay ahora y vuelve a guardar.',
   category_already_linked:
     'Esa categoría de ingreso ya alimenta otra fuente de este mes. Quítala de allí antes de usarla aquí.',
+  line_category_taken:
+    'Esa categoría ya tiene una línea en este mes. Edita la que existe o elige otra categoría.',
+  category_not_expense: 'Una línea del plan solo puede apuntar a categorías de gasto.',
   category_not_income: 'Solo puedes vincular categorías de ingreso.',
   category_archived: 'No se puede vincular una categoría archivada.',
   category_missing: 'Esa categoría ya no está disponible.',
   row_missing: 'Lo que intentas modificar ya no existe. Refresca la pantalla.',
   invalid_input: 'Revisa el nombre y el monto: el monto debe ser un entero de cero o más.',
   allocation_sum: 'Los porcentajes deben sumar exactamente 100 %.',
+  invalid_line:
+    'Revisa el nombre y la fecha: la fecha esperada tiene que caer dentro del mes del plan.',
   forbidden:
     'Tu sesión no tiene permiso para esta operación. Vuelve a iniciar sesión e inténtalo de nuevo.',
   network: 'No se pudo conectar con el servidor. Revisa tu conexión e inténtalo de nuevo.',
+  service_unavailable:
+    'El servidor no está disponible temporalmente. Inténtalo de nuevo en unos momentos.',
   unknown: 'Ocurrió un error inesperado al guardar el plan. Inténtalo de nuevo.',
 }
 
@@ -87,10 +104,27 @@ export class PlanError extends Error {
 interface PostgrestLikeError {
   code?: string | null
   message?: string | null
+  /**
+   * Estado HTTP, **si el cliente llega a exponerlo**. `postgrest-js` lo
+   * devuelve como hermano del error —`{ data, error, status, statusText }`— y
+   * `api.ts` solo desestructura `{ data, error }`, así que hoy no llega aquí.
+   * Se leen las dos grafías porque son las que usan los clientes que sí lo
+   * adjuntan, y porque es la vía estructural: cuando exista, manda sobre
+   * cualquier otra pista.
+   */
+  status?: number | null
+  statusCode?: number | null
 }
 
+/**
+ * Se aceptan también `status` y `statusCode`: un fallo de transporte puede
+ * llegar con el estado HTTP y sin cuerpo, y descartarlo aquí lo dejaría fuera
+ * del mapeo antes de poder mirarlo.
+ */
 function isPostgrestLike(error: unknown): error is PostgrestLikeError {
-  return typeof error === 'object' && error !== null && ('code' in error || 'message' in error)
+  if (typeof error !== 'object' || error === null) return false
+
+  return 'code' in error || 'message' in error || 'status' in error || 'statusCode' in error
 }
 
 /**
@@ -105,6 +139,35 @@ const UNIQUE_VIOLATION: Record<PlanOperation, PlanErrorCode> = {
   // Las cinco filas se envían juntas, así que un grupo repetido solo puede
   // venir de que otra sesión configurara el reparto entre medias.
   save_allocations: 'conflict',
+  // `plan_lines` es el único caso donde la operación **no** basta: U10 y U12
+  // comparten SQLSTATE, así que lo resuelve `mapLineUniqueViolation` mirando el
+  // texto, y este valor es su respaldo.
+  save_plan_line: 'conflict',
+  delete_plan_line: 'unknown',
+}
+
+/**
+ * Cuál de los dos índices únicos de `plan_lines` acaba de saltar.
+ *
+ * Es el único punto del mapeo donde la operación no alcanza: U10
+ * —`(plan_month_id, category_id)`, la categoría ya tiene línea este mes— y U12
+ * —`(plan_month_id, position)`, otra pestaña insertó antes— llegan las dos como
+ * `23505` durante la misma operación, y significan cosas distintas: la primera
+ * la arregla el usuario eligiendo otra categoría, la segunda se resuelve
+ * refrescando.
+ *
+ * Distinguirlas exige mirar el texto, que trae el nombre del índice. Es tan
+ * frágil como `mapTriggerMessage` y por el mismo motivo —separarlas de verdad
+ * pediría una migración—, así que cuando el texto no dice nada reconocible cae
+ * a `conflict`, que es el mensaje seguro: pide releer y volver a intentarlo.
+ */
+function mapLineUniqueViolation(message: string): PlanErrorCode {
+  const text = message.toLowerCase()
+
+  if (text.includes('category')) return 'line_category_taken'
+  if (text.includes('position')) return 'conflict'
+
+  return 'conflict'
 }
 
 /**
@@ -122,9 +185,54 @@ function mapTriggerMessage(message: string): PlanErrorCode {
 
   if (text.includes('archivada')) return 'category_archived'
   if (text.includes('de ingreso')) return 'category_not_income'
+  // T3 sobre `plan_lines`: «solo puede apuntar a categorías de gasto».
+  if (text.includes('de gasto')) return 'category_not_expense'
   if (text.includes('no existe')) return 'category_missing'
 
   return 'unknown'
+}
+
+const SERVICE_UNAVAILABLE_STATUS = 503
+
+/**
+ * SQLSTATE con los que PostgreSQL dice que **no puede atender ahora**, y que
+ * PostgREST devuelve como 503.
+ *
+ * - Clase `08` — fallo de conexión con la base.
+ * - Clase `53` — recursos insuficientes: sin conexiones libres, sin memoria,
+ *   disco lleno.
+ * - `57P03` — el servidor está arrancando y todavía no acepta conexiones.
+ *
+ * Los tres significan lo mismo para quien acaba de pulsar «Guardar»: no es
+ * culpa de lo que escribió, y volver a intentarlo en un momento puede
+ * funcionar. Se comparan por prefijo de clase porque los códigos concretos de
+ * cada familia se añaden con el tiempo y todos comparten esa semántica.
+ */
+function isServiceUnavailableSqlState(code: string): boolean {
+  return code.startsWith('08') || code.startsWith('53') || code === '57P03'
+}
+
+/**
+ * Si el fallo es «el servicio no está disponible ahora mismo».
+ *
+ * Se mira **solo lo estructural**: el estado HTTP cuando el cliente lo expone,
+ * y el SQLSTATE cuando el cuerpo del 503 viene de PostgREST. No se adivina por
+ * el texto del mensaje, que en un 503 suele ser HTML de un proxy y cambiaría
+ * sin aviso.
+ *
+ * **Límite conocido y aceptado:** `postgrest-js` devuelve el estado HTTP como
+ * hermano del error y `api.ts` no lo propaga, así que un 503 emitido por la
+ * pasarela —sin cuerpo de PostgREST y por tanto sin SQLSTATE— llega aquí sin
+ * ninguna de las dos señales y termina en `unknown`. Es el fallback seguro: el
+ * mensaje sigue sin filtrar nada y sigue invitando a reintentar. Cubrir ese
+ * caso exige propagar el `status` desde la capa de datos.
+ */
+function isServiceUnavailable(error: PostgrestLikeError): boolean {
+  const status = error.status ?? error.statusCode
+  if (status === SERVICE_UNAVAILABLE_STATUS) return true
+
+  const code = error.code ?? ''
+  return code !== '' && isServiceUnavailableSqlState(code)
 }
 
 /** Traduce cualquier fallo de escritura a un error de dominio. */
@@ -136,6 +244,10 @@ export function toPlanError(error: unknown, operation: PlanOperation): PlanError
   if (error instanceof TypeError) return new PlanError('network')
 
   if (!isPostgrestLike(error)) return new PlanError('unknown')
+
+  // Antes del switch: un servicio caído no depende de qué se estaba guardando,
+  // y su señal puede venir por estado HTTP o por SQLSTATE.
+  if (isServiceUnavailable(error)) return new PlanError('service_unavailable')
 
   switch (error.code ?? '') {
     // Excepción del trigger de reglas de negocio.
@@ -149,6 +261,9 @@ export function toPlanError(error: unknown, operation: PlanOperation): PlanError
       return new PlanError(mapTriggerMessage(error.message ?? ''))
 
     case '23505':
+      if (operation === 'save_plan_line') {
+        return new PlanError(mapLineUniqueViolation(error.message ?? ''))
+      }
       return new PlanError(UNIQUE_VIOLATION[operation])
 
     // Clave foránea compuesta. Al ser diferida puede llegar en el commit y no
@@ -156,9 +271,11 @@ export function toPlanError(error: unknown, operation: PlanOperation): PlanError
     case '23503':
       return new PlanError('category_missing')
 
-    // CHECK del esquema: `planned_minor >= 0`, `position >= 0` o el largo del
-    // nombre. Zod debería haberlos atajado antes.
+    // CHECK del esquema. Zod debería haberlos atajado antes; lo que cambia es
+    // qué campos nombra el mensaje, y eso sí depende de qué se estaba
+    // guardando: una línea no tiene monto, y una fuente no tiene fecha.
     case '23514':
+      if (operation === 'save_plan_line') return new PlanError('invalid_line')
       return new PlanError('invalid_input')
 
     case '42501':

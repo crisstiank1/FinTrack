@@ -3,24 +3,27 @@ import { describe, expect, it } from 'vitest'
 import { ALLOCATION_GROUPS } from './calculations/allocation'
 import {
   buildAllocationRows,
+  buildPlanLineRow,
   categoriesLinkedElsewhere,
   categoriesOfSource,
   diffIncomeSourceCategories,
-  nextIncomeSourcePosition,
+  nextPosition,
+  selectAvailableLineCategories,
   selectLinkableIncomeCategories,
   toAllocationBasisPoints,
+  usedLineCategoryIds,
   ALLOCATION_CONFLICT_TARGET,
   type IncomeSourceCategoryRow,
   type LinkableCategory,
 } from './mutations'
 
-describe('nextIncomeSourcePosition', () => {
+describe('nextPosition', () => {
   it('la primera fuente ocupa la posición cero', () => {
-    expect(nextIncomeSourcePosition([])).toBe(0)
+    expect(nextPosition([])).toBe(0)
   })
 
   it('continúa después de la última posición', () => {
-    expect(nextIncomeSourcePosition([{ position: 0 }, { position: 1 }])).toBe(2)
+    expect(nextPosition([{ position: 0 }, { position: 1 }])).toBe(2)
   })
 
   it('no reutiliza una posición libre cuando hay huecos', () => {
@@ -28,12 +31,12 @@ describe('nextIncomeSourcePosition', () => {
     // Contar filas daría 2, que ya está ocupada y chocaría con U8.
     const conHuecos = [{ position: 0 }, { position: 2 }]
 
-    expect(nextIncomeSourcePosition(conHuecos)).toBe(3)
-    expect(nextIncomeSourcePosition(conHuecos)).not.toBe(conHuecos.length)
+    expect(nextPosition(conHuecos)).toBe(3)
+    expect(nextPosition(conHuecos)).not.toBe(conHuecos.length)
   })
 
   it('no depende del orden de llegada', () => {
-    expect(nextIncomeSourcePosition([{ position: 5 }, { position: 1 }])).toBe(6)
+    expect(nextPosition([{ position: 5 }, { position: 1 }])).toBe(6)
   })
 })
 
@@ -277,5 +280,151 @@ describe('ALLOCATION_CONFLICT_TARGET', () => {
     // no existe y PostgREST rechazaría el upsert.
     expect(ALLOCATION_CONFLICT_TARGET).toBe('plan_month_id,budget_group')
     expect(ALLOCATION_CONFLICT_TARGET).not.toContain('user_id')
+  })
+})
+describe('usedLineCategoryIds', () => {
+  const lines = [
+    { id: 'l1', category_id: 'cat-vivienda' },
+    { id: 'l2', category_id: 'cat-mercado' },
+    { id: 'l3', category_id: null },
+  ]
+
+  it('recoge las categorías ya descritas por una línea', () => {
+    expect(usedLineCategoryIds(lines)).toEqual(new Set(['cat-vivienda', 'cat-mercado']))
+  })
+
+  it('ignora las líneas sin categoría: ahorro e inversión se miden por cuenta', () => {
+    expect(usedLineCategoryIds(lines).has('null')).toBe(false)
+    expect(usedLineCategoryIds(lines).size).toBe(2)
+  })
+
+  it('excluye la propia línea cuando se pide', () => {
+    const used = usedLineCategoryIds(lines, 'l1')
+
+    expect(used.has('cat-vivienda')).toBe(false)
+    expect(used.has('cat-mercado')).toBe(true)
+  })
+
+  it('sin líneas no hay nada ocupado', () => {
+    expect(usedLineCategoryIds([])).toEqual(new Set())
+  })
+})
+
+describe('selectAvailableLineCategories', () => {
+  const categories = [
+    { id: 'vivienda', type: 'expense', is_archived: false },
+    { id: 'mercado', type: 'expense', is_archived: false },
+    { id: 'gimnasio', type: 'expense', is_archived: true },
+    { id: 'salario', type: 'income', is_archived: false },
+  ]
+
+  it('solo ofrece categorías de gasto activas', () => {
+    const result = selectAvailableLineCategories(categories, new Set())
+
+    expect(result.map((category) => category.id)).toEqual(['vivienda', 'mercado'])
+  })
+
+  it('no ofrece una categoría que ya tiene línea este mes', () => {
+    const result = selectAvailableLineCategories(categories, new Set(['mercado']))
+
+    expect(result.map((category) => category.id)).toEqual(['vivienda'])
+  })
+
+  it('no ofrece archivadas ni de ingreso aunque estén libres', () => {
+    const result = selectAvailableLineCategories(categories, new Set())
+
+    expect(result.some((category) => category.id === 'gimnasio')).toBe(false)
+    expect(result.some((category) => category.id === 'salario')).toBe(false)
+  })
+
+  it('sin categorías libres devuelve la lista vacía', () => {
+    const result = selectAvailableLineCategories(categories, new Set(['vivienda', 'mercado']))
+
+    expect(result).toEqual([])
+  })
+})
+
+describe('buildPlanLineRow', () => {
+  const base = {
+    userId: 'user-1',
+    planMonthId: 'plan-month-1',
+    periodMonth: '2026-09-01',
+    categoryId: 'cat-vivienda',
+    lines: [],
+  }
+
+  it('construye una factura con todas las columnas obligatorias', () => {
+    const row = buildPlanLineRow({ ...base, kind: 'bill', name: 'Arriendo' })
+
+    expect(row).toEqual({
+      user_id: 'user-1',
+      plan_month_id: 'plan-month-1',
+      period_month: '2026-09-01',
+      kind: 'bill',
+      name: 'Arriendo',
+      category_id: 'cat-vivienda',
+      position: 0,
+    })
+  })
+
+  it('nunca envía planned_minor: C7 lo exige nulo cuando hay categoría', () => {
+    const bill = buildPlanLineRow({ ...base, kind: 'bill', name: 'Arriendo' })
+    const variable = buildPlanLineRow({ ...base, kind: 'variable', name: 'Mercado' })
+
+    expect(bill).not.toHaveProperty('planned_minor')
+    expect(variable).not.toHaveProperty('planned_minor')
+  })
+
+  it('añade due_date solo en una factura y solo si se escribió', () => {
+    const conFecha = buildPlanLineRow({
+      ...base,
+      kind: 'bill',
+      name: 'Arriendo',
+      dueDate: '2026-09-05',
+    })
+    const sinFecha = buildPlanLineRow({ ...base, kind: 'bill', name: 'Arriendo', dueDate: null })
+
+    expect(conFecha.due_date).toBe('2026-09-05')
+    expect(sinFecha).not.toHaveProperty('due_date')
+  })
+
+  it('una variable nunca lleva due_date, aunque llegue una', () => {
+    const row = buildPlanLineRow({
+      ...base,
+      kind: 'variable',
+      name: 'Mercado',
+      dueDate: '2026-09-05',
+    })
+
+    expect(row).not.toHaveProperty('due_date')
+  })
+
+  it('la posición continúa la secuencia del mes, no la del tipo', () => {
+    // U12 no distingue `kind`: ahorro e inversión comparten la secuencia.
+    const row = buildPlanLineRow({
+      ...base,
+      kind: 'bill',
+      name: 'Arriendo',
+      lines: [{ position: 0 }, { position: 1 }, { position: 2 }],
+    })
+
+    expect(row.position).toBe(3)
+  })
+
+  it('no reutiliza una posición libre cuando hay huecos', () => {
+    const row = buildPlanLineRow({
+      ...base,
+      kind: 'variable',
+      name: 'Mercado',
+      lines: [{ position: 0 }, { position: 2 }],
+    })
+
+    expect(row.position).toBe(3)
+  })
+
+  it('nunca envía account_id: el eje de estas líneas es la categoría', () => {
+    const row = buildPlanLineRow({ ...base, kind: 'bill', name: 'Arriendo' })
+
+    expect(row).not.toHaveProperty('account_id')
   })
 })
