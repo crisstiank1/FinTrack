@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils'
 import type { Diff } from '../calculations/diff'
 import {
   diffStatusTone,
-  formatDiff,
+  formatRowDiff,
   formatRowPlannedAmount,
   planRowGroupLabel,
   planRowGroupNote,
@@ -157,7 +157,7 @@ export function BudgetVsActualTable({
                       TONE_STYLES[diffStatusTone[row.diff.status]],
                     )}
                   >
-                    {formatDiff(row.diff, currencyCode)}
+                    {formatRowDiff(row.id, row.diff, currencyCode)}
                   </td>
                 </tr>
               ))}
@@ -209,7 +209,7 @@ export function BudgetVsActualTable({
 
                     <dt className="text-muted-foreground">Diferencia</dt>
                     <dd className={cn('text-right', TONE_STYLES[diffStatusTone[row.diff.status]])}>
-                      {formatDiff(row.diff, currencyCode)}
+                      {formatRowDiff(row.id, row.diff, currencyCode)}
                     </dd>
                   </dl>
                 </li>

@@ -1,10 +1,26 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Plus } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { ConfirmDialog } from '@/components/shared/confirm-dialog'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import {
+  ClassificationPanel,
+  type PanelCategory,
+} from '@/features/categories/classifications/components/classification-panel'
+import { ClassificationError } from '@/features/categories/classifications/errors'
+import {
+  useCategoryClassifications,
+  useCreateCategoryClassification,
+  useDeleteCategoryClassification,
+  useUpdateCategoryClassification,
+} from '@/features/categories/classifications/hooks'
+import {
+  partitionCategoriesForClassification,
+  type ClassifiedCategory,
+} from '@/features/categories/classifications/mutations'
+import type { ClassificationGroup } from '@/features/categories/classifications/schemas'
 import { CategoryForm } from '@/features/categories/components/category-form'
 import { CategoryList } from '@/features/categories/components/category-list'
 import {
@@ -16,15 +32,39 @@ import {
 import type { CategoryFormValues } from '@/features/categories/schemas'
 import type { Tables } from '@/types/database.types'
 
+/** Colección vacía con identidad estable, para no invalidar el `useMemo`. */
+const NO_CLASSIFICATIONS: Tables<'category_classifications'>[] = []
+
 export default function Settings() {
   const { data: categories, isLoading } = useCategories()
   const createCategory = useCreateCategory()
   const updateCategory = useUpdateCategory()
   const archiveCategory = useArchiveCategory()
 
+  const classificationsQuery = useCategoryClassifications()
+  const createClassification = useCreateCategoryClassification()
+  const updateClassification = useUpdateCategoryClassification()
+  const deleteClassification = useDeleteCategoryClassification()
+
   const [formOpen, setFormOpen] = useState(false)
   const [editingCategory, setEditingCategory] = useState<Tables<'categories'> | null>(null)
   const [archivingCategory, setArchivingCategory] = useState<Tables<'categories'> | null>(null)
+  const [removingClassification, setRemovingClassification] =
+    useState<ClassifiedCategory<PanelCategory> | null>(null)
+
+  const partition = useMemo(
+    () =>
+      partitionCategoriesForClassification(
+        categories ?? [],
+        classificationsQuery.data ?? NO_CLASSIFICATIONS,
+      ),
+    [categories, classificationsQuery.data],
+  )
+
+  const isClassifying =
+    createClassification.isPending ||
+    updateClassification.isPending ||
+    deleteClassification.isPending
 
   function openCreateForm() {
     setEditingCategory(null)
@@ -63,6 +103,43 @@ export default function Settings() {
     }
   }
 
+  function reportClassificationError(error: unknown, fallback: string) {
+    const known = error instanceof ClassificationError ? error : null
+    toast.error(fallback, { description: known?.message })
+  }
+
+  async function handleClassify(categoryId: string, group: ClassificationGroup) {
+    try {
+      await createClassification.mutateAsync({ categoryId, group })
+      toast.success('Categoría clasificada')
+    } catch (error) {
+      reportClassificationError(error, 'No se pudo clasificar la categoría')
+    }
+  }
+
+  async function handleChangeGroup(classificationId: string, group: ClassificationGroup) {
+    try {
+      await updateClassification.mutateAsync({ classificationId, group })
+      toast.success('Clasificación actualizada')
+    } catch (error) {
+      reportClassificationError(error, 'No se pudo cambiar el grupo')
+    }
+  }
+
+  async function handleRemoveClassification() {
+    const target = removingClassification
+    if (!target?.classificationId) return
+
+    try {
+      await deleteClassification.mutateAsync(target.classificationId)
+      toast.success('Clasificación eliminada')
+    } catch (error) {
+      reportClassificationError(error, 'No se pudo quitar la clasificación')
+    } finally {
+      setRemovingClassification(null)
+    }
+  }
+
   return (
     <div className="mx-auto max-w-3xl p-6">
       <div className="flex items-center justify-between">
@@ -89,6 +166,21 @@ export default function Settings() {
             onArchive={(category) => setArchivingCategory(category)}
           />
         </div>
+      )}
+
+      {!isLoading && (
+        <ClassificationPanel
+          unclassified={partition.unclassified}
+          classified={partition.classified}
+          historical={partition.historical}
+          hasNoExpenseCategories={
+            (categories ?? []).filter((category) => category.type === 'expense').length === 0
+          }
+          isBusy={isClassifying}
+          onClassify={handleClassify}
+          onChangeGroup={handleChangeGroup}
+          onRemove={setRemovingClassification}
+        />
       )}
 
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
@@ -122,6 +214,15 @@ export default function Settings() {
         description={`"${archivingCategory?.name}" dejará de estar disponible para nuevos movimientos, pero se conservará su historial.`}
         confirmLabel="Archivar"
         onConfirm={handleArchiveConfirm}
+      />
+
+      <ConfirmDialog
+        open={removingClassification !== null}
+        onOpenChange={(open) => !open && setRemovingClassification(null)}
+        title="Quitar la clasificación"
+        description={`"${removingClassification?.category.name}" volverá a contar como gasto sin clasificar en el Plan mensual, en todos los meses. La categoría y sus movimientos no se tocan.`}
+        confirmLabel="Quitar"
+        onConfirm={handleRemoveClassification}
       />
     </div>
   )

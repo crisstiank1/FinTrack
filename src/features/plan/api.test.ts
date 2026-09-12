@@ -4,14 +4,17 @@ import { monthRange } from '@/lib/dates'
 import { supabase } from '@/lib/supabase'
 
 import {
-  fetchCategoryClassifications,
+  deletePlanLine,
   fetchPlanAllocations,
   fetchPlanIncomeSourceCategories,
   fetchPlanIncomeSources,
   fetchPlanLines,
   fetchPlanMonth,
   fetchTransactionsByAccounts,
+  insertPlanLine,
+  updatePlanLine,
 } from './api'
+import { PlanError } from './errors'
 import { transactionsByAccountsQueryKey } from './hooks'
 
 /**
@@ -40,7 +43,7 @@ interface QueryResult {
   error: unknown
 }
 
-const CHAINABLE = ['select', 'eq', 'in', 'order', 'range'] as const
+const CHAINABLE = ['select', 'eq', 'in', 'order', 'range', 'insert', 'update', 'delete'] as const
 
 const fromMock = supabase.from as unknown as Mock
 
@@ -226,27 +229,6 @@ describe('fetchPlanLines', () => {
   })
 })
 
-describe('fetchCategoryClassifications', () => {
-  it('filtra por usuario y no por mes', async () => {
-    const { calls, tables } = mockQueries({ data: [], error: null })
-
-    await fetchCategoryClassifications(USER_ID)
-
-    expect(tables).toEqual(['category_classifications'])
-    expect(calls).toContainEqual({ method: 'eq', args: ['user_id', USER_ID] })
-    expect(calls.some((call) => call.method === 'eq' && call.args[0] === 'period_month')).toBe(
-      false,
-    )
-  })
-
-  it('propaga el error crudo', async () => {
-    const error = { code: '42P01', message: 'relation does not exist' }
-    mockQueries({ data: null, error })
-
-    await expect(fetchCategoryClassifications(USER_ID)).rejects.toBe(error)
-  })
-})
-
 describe('fetchTransactionsByAccounts', () => {
   const PAGE_SIZE = 1000
 
@@ -373,5 +355,96 @@ describe('transactionsByAccountsQueryKey', () => {
       'by-accounts',
       ['acc-a'],
     ])
+  })
+})
+describe('insertPlanLine', () => {
+  const row = {
+    user_id: USER_ID,
+    plan_month_id: PLAN_MONTH_ID,
+    period_month: FIRST_DAY,
+    kind: 'bill',
+    name: 'Arriendo',
+    category_id: 'cat-vivienda',
+    position: 0,
+  }
+
+  it('inserta la fila tal como la construyó mutations, sin completarla', async () => {
+    const { calls, tables } = mockQueries({ data: { id: 'line-1' }, error: null })
+
+    await insertPlanLine(row)
+
+    expect(tables).toEqual(['plan_lines'])
+    expect(rows(calls, 'insert')).toEqual([[row]])
+  })
+
+  it('no usa upsert', async () => {
+    const { calls } = mockQueries({ data: { id: 'line-1' }, error: null })
+
+    await insertPlanLine(row)
+
+    expect(calls.some((call) => call.method === 'upsert')).toBe(false)
+  })
+
+  it('traduce el conflicto de categoría a un error de dominio', async () => {
+    mockQueries({
+      data: null,
+      error: {
+        code: '23505',
+        message: 'duplicate key value violates unique constraint "plan_lines_..._category_id_key"',
+      },
+    })
+
+    await expect(insertPlanLine(row)).rejects.toBeInstanceOf(PlanError)
+  })
+})
+
+describe('updatePlanLine', () => {
+  it('envía solo name y due_date', async () => {
+    const { calls } = mockQueries({ data: { id: 'line-1' }, error: null })
+
+    await updatePlanLine('line-1', { name: 'Arriendo', due_date: '2026-04-05' })
+
+    expect(rows(calls, 'update')).toEqual([[{ name: 'Arriendo', due_date: '2026-04-05' }]])
+  })
+
+  it('nunca reenvía category_id ni kind: cambiarlos sería estrenar el destino', async () => {
+    const { calls } = mockQueries({ data: { id: 'line-1' }, error: null })
+
+    await updatePlanLine('line-1', { name: 'Arriendo', due_date: null })
+
+    const [[patch]] = rows(calls, 'update') as [Record<string, unknown>][]
+
+    expect(Object.keys(patch).sort()).toEqual(['due_date', 'name'])
+    expect(patch).not.toHaveProperty('category_id')
+    expect(patch).not.toHaveProperty('kind')
+    expect(patch).not.toHaveProperty('position')
+    expect(patch).not.toHaveProperty('planned_minor')
+    expect(patch).not.toHaveProperty('user_id')
+  })
+
+  it('localiza la fila por su identificador', async () => {
+    const { calls } = mockQueries({ data: { id: 'line-1' }, error: null })
+
+    await updatePlanLine('line-1', { name: 'Arriendo', due_date: null })
+
+    expect(calls).toContainEqual({ method: 'eq', args: ['id', 'line-1'] })
+  })
+})
+
+describe('deletePlanLine', () => {
+  it('borra por identificador', async () => {
+    const { calls, tables } = mockQueries({ data: null, error: null })
+
+    await deletePlanLine('line-1')
+
+    expect(tables).toEqual(['plan_lines'])
+    expect(calls.some((call) => call.method === 'delete')).toBe(true)
+    expect(calls).toContainEqual({ method: 'eq', args: ['id', 'line-1'] })
+  })
+
+  it('traduce el fallo en vez de propagarlo crudo', async () => {
+    mockQueries({ data: null, error: { code: '42501', message: 'permission denied' } })
+
+    await expect(deletePlanLine('line-1')).rejects.toBeInstanceOf(PlanError)
   })
 })

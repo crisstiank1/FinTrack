@@ -1,16 +1,18 @@
 import { monthRange } from '@/lib/dates'
 import { supabase } from '@/lib/supabase'
-import type { Tables } from '@/types/database.types'
+import type { Tables, TablesInsert, TablesUpdate } from '@/types/database.types'
 
+import { toPlanError } from './errors'
+import { ALLOCATION_CONFLICT_TARGET } from './mutations'
 import type { PlanBalanceTransaction } from './read-model'
 
 /**
- * Capa de datos del Plan mensual. **Solo lectura.**
+ * Capa de datos del Plan mensual.
  *
  * Adaptador fino sobre Supabase, como `categories/api.ts`: aquí no hay reglas
  * de negocio, ni fórmulas, ni estrechamiento de tipos. Las filas salen tal
  * como llegan; interpretarlas es trabajo de `read-model.ts` y de
- * `calculations/`.
+ * `calculations/`, y decidir qué escribir lo hace `mutations.ts`.
  *
  * Sobre `userId`: llega siempre desde la sesión autenticada (`useAuth`), nunca
  * de la URL ni de props. Es un **filtro de alcance y rendimiento** —evita
@@ -18,10 +20,11 @@ import type { PlanBalanceTransaction } from './read-model'
  * La frontera de seguridad son las políticas RLS de las seis tablas, que el
  * servidor aplica aunque este filtro faltase o fuese otro.
  *
- * Los errores se propagan crudos, como en `categories`, `accounts` y
- * `transactions`. `/budgets` los traduce porque distingue conflictos de
- * escritura contra su índice único; una capa de solo lectura no tiene ese
- * vocabulario que construir.
+ * **Las lecturas propagan el error crudo**, como en `categories`, `accounts` y
+ * `transactions`: quien consulta solo necesita saber que falló. **Las
+ * escrituras lo traducen** con `toPlanError`, porque ahí el usuario acaba de
+ * hacer algo y necesita saber qué hacer ahora, y porque un mismo SQLSTATE
+ * significa cosas distintas según la operación.
  *
  * Sin RPC, sin SQL arbitrario y sin recursos embebidos: `plan_lines` tiene
  * cuatro claves foráneas hacia `plan_months` y el puente tres hacia
@@ -34,6 +37,11 @@ import type { PlanBalanceTransaction } from './read-model'
  * filas por mes, muy por debajo del corte de 1000 que PostgREST aplica por
  * defecto. La única lectura paginada es la del historial de saldos, al final
  * del archivo, que sí puede superarlo.
+ *
+ * `category_classifications` **no se lee aquí**. Esa tabla no depende del mes y
+ * pertenece al dominio de las categorías, que existen y se clasifican aunque
+ * nadie llegue a crear un plan: vive en
+ * `features/categories/classifications`, y este módulo consume su hook.
  */
 
 /**
@@ -152,26 +160,6 @@ export async function fetchPlanLines(
 }
 
 /**
- * Clasificación de las categorías de gasto.
- *
- * Sin filtro de mes: una clasificación no pertenece a un mes, vale para todos.
- * Tampoco se filtran las categorías archivadas, que conservan su clasificación
- * y siguen haciendo falta para consultar meses cerrados.
- */
-export async function fetchCategoryClassifications(
-  userId: string,
-): Promise<Tables<'category_classifications'>[]> {
-  const { data, error } = await supabase
-    .from('category_classifications')
-    .select('*')
-    .eq('user_id', userId)
-    .order('category_id', { ascending: true })
-
-  if (error) throw error
-  return data
-}
-
-/**
  * PostgREST corta las respuestas en 1000 filas por defecto. El historial de
  * una cuenta puede superarlo, así que esta lectura pagina explícitamente.
  */
@@ -235,4 +223,200 @@ export async function fetchTransactionsByAccounts(
   }
 
   return all
+}
+
+/* -------------------------------------------------------------------------- */
+/* Escrituras                                                                 */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * A diferencia de las lecturas, las escrituras no propagan el error crudo:
+ * cada una sabe qué estaba haciendo y traduce con `toPlanError`, porque el
+ * mismo SQLSTATE significa cosas distintas segun la operacion. Ver `errors.ts`.
+ */
+
+/**
+ * Crea la cabecera del plan de un mes.
+ *
+ * No usa `upsert`: con `DO UPDATE` tocaria el `updated_at` de un mes existente
+ * para fingir un cambio que no ocurrio, y con `DO NOTHING` no devolveria fila.
+ * Si el mes ya existia, el 23505 sale de aqui como `month_conflict` y quien
+ * llama lo resuelve releyendo.
+ */
+export async function createPlanMonth(
+  userId: string,
+  monthKey: string,
+): Promise<Tables<'plan_months'>> {
+  const { data, error } = await supabase
+    .from('plan_months')
+    .insert({ user_id: userId, period_month: monthRange(monthKey).start })
+    .select()
+    .single()
+
+  if (error) throw toPlanError(error, 'create_plan_month')
+  return data
+}
+
+export async function insertPlanIncomeSource(
+  row: TablesInsert<'plan_income_sources'>,
+): Promise<Tables<'plan_income_sources'>> {
+  const { data, error } = await supabase.from('plan_income_sources').insert(row).select().single()
+
+  if (error) throw toPlanError(error, 'save_income_source')
+  return data
+}
+
+/**
+ * Solo `name` y `planned_minor`. Ni `position` —reordenar necesita diferir U8,
+ * que no se puede desde PostgREST— ni `plan_month_id`, que convertiria la fila
+ * en otra distinta.
+ */
+export async function updatePlanIncomeSource(
+  id: string,
+  patch: Pick<TablesUpdate<'plan_income_sources'>, 'name' | 'planned_minor'>,
+): Promise<Tables<'plan_income_sources'>> {
+  const { data, error } = await supabase
+    .from('plan_income_sources')
+    .update(patch)
+    .eq('id', id)
+    .select()
+    .single()
+
+  if (error) throw toPlanError(error, 'save_income_source')
+  return data
+}
+
+/** Los vinculos de la fuente caen por cascada (F4); no hay que borrarlos antes. */
+export async function deletePlanIncomeSource(id: string): Promise<void> {
+  const { error } = await supabase.from('plan_income_sources').delete().eq('id', id)
+  if (error) throw toPlanError(error, 'delete_income_source')
+}
+
+export async function insertPlanIncomeSourceCategories(
+  rows: TablesInsert<'plan_income_source_categories'>[],
+): Promise<void> {
+  if (rows.length === 0) return
+
+  const { error } = await supabase.from('plan_income_source_categories').insert(rows)
+  if (error) throw toPlanError(error, 'save_income_source_categories')
+}
+
+export async function deletePlanIncomeSourceCategories(
+  planIncomeSourceId: string,
+  categoryIds: readonly string[],
+): Promise<void> {
+  if (categoryIds.length === 0) return
+
+  const { error } = await supabase
+    .from('plan_income_source_categories')
+    .delete()
+    .eq('plan_income_source_id', planIncomeSourceId)
+    .in('category_id', [...categoryIds])
+
+  if (error) throw toPlanError(error, 'save_income_source_categories')
+}
+
+/* -------------------------------------------------------------------------- */
+/* Reparto 50/30/20                                                           */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * Las dos escrituras del reparto son **una sola sentencia cada una**, y eso no
+ * es una optimizacion: `check_plan_allocations_sum_trigger` esta diferido al
+ * commit y evalua la suma del conjunto entero del mes. Cinco sentencias
+ * sueltas desde PostgREST son cinco transacciones distintas, y la primera
+ * fallaria al commit por una suma de 5000 puntos base que ninguna pantalla
+ * pidio.
+ */
+
+/**
+ * Primera configuracion del reparto: las cinco filas en un solo INSERT.
+ *
+ * No usa `upsert` a proposito. Aqui el mes no tiene reparto, asi que no hay
+ * nada que resolver por conflicto; si otra sesion se adelanto, el 23505 sale
+ * como `conflict` y quien llama refresca en vez de pisar lo que aquella dejo.
+ */
+export async function insertPlanAllocations(
+  rows: TablesInsert<'plan_allocations'>[],
+): Promise<void> {
+  const { error } = await supabase.from('plan_allocations').insert(rows)
+  if (error) throw toPlanError(error, 'save_allocations')
+}
+
+/**
+ * Edicion del reparto: las cinco filas en un solo UPSERT.
+ *
+ * Es la unica escritura del Plan que usa `upsert`, y la excepcion se sostiene
+ * en que las cinco filas **son** el estado completo del reparto: cada envio lo
+ * manda entero, la clave del conflicto existe y es exactamente la suya, y
+ * actualizar lo que ya hay es justo lo que el usuario pidio —tocar
+ * `updated_at` refleja un cambio real, no uno fingido—.
+ *
+ * La alternativa, borrar y volver a insertar, dejaria el reparto vacio entre
+ * las dos sentencias: sin transaccion, un fallo en medio se lleva por delante
+ * un reparto que nadie pidio borrar.
+ */
+export async function upsertPlanAllocations(
+  rows: TablesInsert<'plan_allocations'>[],
+): Promise<void> {
+  const { error } = await supabase
+    .from('plan_allocations')
+    .upsert(rows, { onConflict: ALLOCATION_CONFLICT_TARGET })
+
+  if (error) throw toPlanError(error, 'save_allocations')
+}
+
+/* -------------------------------------------------------------------------- */
+/* Líneas de facturas y gastos variables                                      */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Crea una línea medida por categoría.
+ *
+ * La fila llega ya construida por `buildPlanLineRow`, que decide la posición y
+ * omite `planned_minor`. Esta capa no la completa ni la corrige: si faltara
+ * algo, el CHECK correspondiente lo rechazaría, que es justo lo que debe pasar.
+ */
+export async function insertPlanLine(
+  row: TablesInsert<'plan_lines'>,
+): Promise<Tables<'plan_lines'>> {
+  const { data, error } = await supabase.from('plan_lines').insert(row).select().single()
+
+  if (error) throw toPlanError(error, 'save_plan_line')
+  return data
+}
+
+/**
+ * Solo `name` y `due_date`, y el tipo del parámetro lo impone.
+ *
+ * Ni `category_id` ni `kind`: el trigger T3 considera que cambiarlos es
+ * **estrenar** el destino, así que volvería a exigir una categoría activa y de
+ * gasto, y una línea histórica dejaría de poder corregirse. Además, mover la
+ * línea a otra categoría cambia en silencio qué movimientos describe —el
+ * emparejamiento es por categoría, no hay columna en `transactions`— y su
+ * «Actual» saltaría sin que nada lo avise. Corregir un tipo o una categoría es
+ * borrar la línea y crear otra.
+ *
+ * Tampoco `position`, que reordenar exigiría diferir U12, ni `plan_month_id` o
+ * `period_month`, que convertirían la fila en otra distinta.
+ */
+export async function updatePlanLine(
+  id: string,
+  patch: Pick<TablesUpdate<'plan_lines'>, 'name' | 'due_date'>,
+): Promise<Tables<'plan_lines'>> {
+  const { data, error } = await supabase
+    .from('plan_lines')
+    .update(patch)
+    .eq('id', id)
+    .select()
+    .single()
+
+  if (error) throw toPlanError(error, 'save_plan_line')
+  return data
+}
+
+/** Borra una línea. No toca la categoría, su presupuesto ni sus movimientos. */
+export async function deletePlanLine(id: string): Promise<void> {
+  const { error } = await supabase.from('plan_lines').delete().eq('id', id)
+  if (error) throw toPlanError(error, 'delete_plan_line')
 }

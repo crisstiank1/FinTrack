@@ -1,5 +1,7 @@
+import { classificationGroupLabel } from '@/features/categories/classifications/labels'
 import { formatAmount } from '@/lib/currency'
 
+import type { AllocationGroup } from './calculations/allocation'
 import type { Diff, DiffRowKind } from './calculations/diff'
 
 /**
@@ -163,6 +165,21 @@ export const planRowLabel: Record<PlanRowId, string> = {
 }
 
 /**
+ * Filas que se miden contra el ingreso planeado y no contra un presupuesto:
+ * los ingresos, y el restante, que es «por asignar» leído al revés.
+ *
+ * Está en un solo sitio porque la distinción tiene que valer para **todas** las
+ * columnas de esas filas. Que el planeado dijera «Sin ingreso planeado» y la
+ * diferencia «Sin presupuesto» hacía que una misma fila diera dos versiones de
+ * la misma ausencia.
+ */
+const INCOME_MEASURED_ROWS: readonly PlanRowId[] = ['income', 'remaining']
+
+function isIncomeMeasuredRow(rowId: PlanRowId): boolean {
+  return INCOME_MEASURED_ROWS.includes(rowId)
+}
+
+/**
  * «Planeado» de una fila del cuadro.
  *
  * Ingresos y restante se miden contra el ingreso planeado; el resto, contra un
@@ -173,10 +190,34 @@ export function formatRowPlannedAmount(
   plannedMinor: number | null,
   currencyCode: string,
 ): string {
-  if (rowId === 'income' || rowId === 'remaining') {
+  if (isIncomeMeasuredRow(rowId)) {
     return formatPlannedIncomeAmount(plannedMinor, currencyCode)
   }
   return formatPlannedAmount(plannedMinor, currencyCode)
+}
+
+/**
+ * «Diferencia» de una fila del cuadro.
+ *
+ * `calculateDiff` devuelve `no_budget` siempre que no hay nada que comparar,
+ * sin saber por qué falta. Aquí se nombra la causa real de cada fila: en
+ * ingresos y restante lo que falta es el ingreso planeado, no un presupuesto.
+ */
+export function formatRowDiff(rowId: PlanRowId, diff: Diff, currencyCode: string): string {
+  if (diff.status === 'no_budget' && isIncomeMeasuredRow(rowId)) return NO_PLANNED_INCOME_LABEL
+  return formatDiff(diff, currencyCode)
+}
+
+/**
+ * Tono del restante realmente ocurrido.
+ *
+ * Negativo significa que salió más dinero del que entró, contando los aportes:
+ * es la señal más importante del mes y no debe leerse igual que un sobrante. El
+ * signo sigue estando en el texto, así que el color solo acompaña
+ * (docs/03-ui-ux.md).
+ */
+export function remainingTone(remainingActualMinor: number): PlanTone {
+  return remainingActualMinor < 0 ? 'negative' : 'neutral'
 }
 
 /**
@@ -215,4 +256,113 @@ export const planRowGroupNote: Record<PlanRowGroupId, string | null> = {
   income: null,
   breakdown: 'Facturas, gastos variables y no planeado suman los gastos totales.',
   indicators: 'No forman parte de los gastos totales: se miden aparte.',
+}
+
+/* -------------------------------------------------------------------------- */
+/* Reparto 50/30/20                                                           */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Los cinco destinos del ingreso. El orden lo fija `ALLOCATION_GROUPS`.
+ *
+ * Los tres que también se clasifican por categoría se toman de
+ * `features/categories/classifications`, que es su módulo dueño, en vez de
+ * repetir aquí las mismas cadenas: dos copias divergirían en cuanto alguien
+ * renombrase una. Ahorro e inversión sí son propios del reparto, porque no se
+ * clasifican por categoría sino que se miden por transferencias.
+ */
+export const allocationGroupLabel: Record<AllocationGroup, string> = {
+  ...classificationGroupLabel,
+  savings: 'Ahorro',
+  investment: 'Inversión',
+}
+
+/**
+ * Convención de signo por grupo.
+ *
+ * Necesidades, deseos y deuda son gasto: quedarse por debajo de lo asignado es
+ * favorable. Ahorro e inversión son aportes: superar lo asignado lo es.
+ */
+export const allocationGroupDiffKind: Record<AllocationGroup, DiffRowKind> = {
+  needs: 'expense_like',
+  wants: 'expense_like',
+  savings: 'income_like',
+  investment: 'income_like',
+  debt: 'expense_like',
+}
+
+/**
+ * Gasto de categorías sin clasificar. **No es un grupo del reparto**: es una
+ * fila aparte que nunca entra en la suma, porque asignarlo en silencio
+ * falsearía el mes entero (docs/09-plan-mensual.md).
+ */
+export const UNCLASSIFIED_LABEL = 'Sin clasificar'
+
+/** El mes no tiene porcentajes guardados. No es un error: es un mes sin plan. */
+export const NO_ALLOCATION_LABEL = 'Sin reparto configurado'
+
+/** Hay reparto, pero este grupo no tiene porcentaje propio. */
+export const NO_PERCENT_LABEL = 'Sin definir'
+
+/**
+ * Nota fija del bloque. Explica la diferencia que más confunde de estas
+ * plantillas: el reparto mide destinos del ingreso, no gastos.
+ */
+export const ALLOCATION_NOTE =
+  'Los cinco grupos no suman los gastos totales: ahorro e inversión son transferencias registradas, no gastos.'
+
+/** Aviso cuando hay gasto sin clasificar. Se explica, no se reparte. */
+export const UNCLASSIFIED_NOTE =
+  'Este gasto no entra en ningún grupo mientras su categoría no esté clasificada.'
+
+const percentFormatter = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 2 })
+
+/** Puntos base como porcentaje legible: 5000 → «50 %». */
+export function formatBasisPoints(basisPoints: number | null): string {
+  if (basisPoints === null) return NO_PERCENT_LABEL
+  return `${percentFormatter.format(basisPoints / 100)} %`
+}
+
+/**
+ * Importe asignado a un grupo.
+ *
+ * Sin importe hay dos causas distintas, y se dicen distinto: o el mes no tiene
+ * reparto, o lo tiene pero no hay ingreso planeado que repartir. Nunca un `0`,
+ * que fingiría un reparto que nadie configuró.
+ */
+export function formatAllocationPlanned(
+  plannedMinor: number | null,
+  hasAllocation: boolean,
+  currencyCode: string,
+): string {
+  if (plannedMinor !== null) return formatAmount(plannedMinor, currencyCode)
+  return hasAllocation ? NO_PLANNED_INCOME_LABEL : NO_ALLOCATION_LABEL
+}
+
+/** Diferencia de un grupo, nombrando la misma causa que su importe asignado. */
+export function formatAllocationDiff(
+  diff: Diff,
+  hasAllocation: boolean,
+  currencyCode: string,
+): string {
+  if (diff.status === 'no_budget') {
+    return hasAllocation ? NO_PLANNED_INCOME_LABEL : NO_ALLOCATION_LABEL
+  }
+  return formatDiff(diff, currencyCode)
+}
+
+/**
+ * Aviso cuando el reparto guardado trae un grupo fuera del contrato.
+ *
+ * `buildAllocationPercentages` los descarta para no enviarlos al cálculo, y
+ * eso puede dejar la suma por debajo del 100 %: quien lo lee tiene derecho a
+ * saberlo. `null` cuando no hay nada que avisar.
+ */
+export function ignoredAllocationGroupsNote(ignoredGroups: readonly string[]): string | null {
+  if (ignoredGroups.length === 0) return null
+
+  const listado = ignoredGroups.join(', ')
+  return ignoredGroups.length === 1
+    ? `El reparto guardado incluye un grupo que no existe (${listado}); se descarta, así que los porcentajes pueden no sumar 100 %.`
+    : `El reparto guardado incluye grupos que no existen (${listado}); se descartan, así que los porcentajes pueden no sumar 100 %.`
 }

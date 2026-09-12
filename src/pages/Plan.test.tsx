@@ -1,9 +1,10 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { PlanError } from '@/features/plan/errors'
 import type { Tables } from '@/types/database.types'
 
 import Plan from './Plan'
@@ -14,19 +15,57 @@ const useCategoryClassifications = vi.fn()
 const useEffectiveCategoryBudgets = vi.fn()
 const usePlanActuals = vi.fn()
 const usePlanIncomeSources = vi.fn()
+const usePlanAllocations = vi.fn()
+const usePlanIncomeSourceCategories = vi.fn()
+const createPlanMonth = vi.fn()
+const saveIncomeSource = vi.fn()
+const deleteIncomeSource = vi.fn()
+const saveAllocations = vi.fn()
+const usePlanLineProgress = vi.fn()
+const savePlanLine = vi.fn()
+const deletePlanLine = vi.fn()
 
 vi.mock('@/features/plan/hooks', () => ({
   usePlanMonth: () => usePlanMonth(),
   usePlanLines: () => usePlanLines(),
-  useCategoryClassifications: () => useCategoryClassifications(),
   useEffectiveCategoryBudgets: () => useEffectiveCategoryBudgets(),
   usePlanActuals: (options: unknown) => usePlanActuals(options),
   usePlanIncomeSources: (planMonthId: unknown) => usePlanIncomeSources(planMonthId),
+  usePlanAllocations: (planMonthId: unknown) => usePlanAllocations(planMonthId),
+  usePlanIncomeSourceCategories: (planMonthId: unknown) =>
+    usePlanIncomeSourceCategories(planMonthId),
+  useCreatePlanMonth: () => ({ mutateAsync: createPlanMonth, isPending: false }),
+  useSaveIncomeSource: () => ({ mutateAsync: saveIncomeSource, isPending: false }),
+  useDeleteIncomeSource: () => ({ mutateAsync: deleteIncomeSource, isPending: false }),
+  useSaveAllocations: () => ({ mutateAsync: saveAllocations, isPending: false }),
+  usePlanLineProgress: (options: unknown) => usePlanLineProgress(options),
+  useSavePlanLine: () => ({ mutateAsync: savePlanLine, isPending: false }),
+  useDeletePlanLine: () => ({ mutateAsync: deletePlanLine, isPending: false }),
+}))
+
+vi.mock('@/features/categories/hooks', () => ({
+  useCategories: () => ({ data: categories }),
+}))
+
+// La clasificación pertenece al dominio de las categorías: su hook vive ahí y
+// `/plan` solo lo consume.
+vi.mock('@/features/categories/classifications/hooks', () => ({
+  useCategoryClassifications: () => useCategoryClassifications(),
+}))
+
+vi.mock('sonner', () => ({
+  toast: {
+    error: (...args: unknown[]) => toastError(...args),
+    success: (...args: unknown[]) => toastSuccess(...args),
+  },
 }))
 
 vi.mock('@/features/accounts/hooks', () => ({
   useAccounts: () => ({ data: [{ id: 'acc-1', currency_code: 'COP' }] }),
 }))
+
+const toastError = vi.fn()
+const toastSuccess = vi.fn()
 
 const CAT_RENT = 'cat-rent'
 const CAT_FOOD = 'cat-food'
@@ -40,9 +79,33 @@ function resolved<T>(data: T) {
 const planMonth = { id: 'plan-month-1', period_month: '2026-04-01' } as Tables<'plan_months'>
 
 const lines = [
-  { id: 'l1', kind: 'bill', category_id: CAT_RENT, planned_minor: null },
-  { id: 'l2', kind: 'variable', category_id: CAT_FOOD, planned_minor: null },
-  { id: 'l3', kind: 'savings', category_id: null, planned_minor: 400_000 },
+  {
+    id: 'l1',
+    kind: 'bill',
+    category_id: CAT_RENT,
+    planned_minor: null,
+    name: 'Arriendo',
+    due_date: null,
+    position: 0,
+  },
+  {
+    id: 'l2',
+    kind: 'variable',
+    category_id: CAT_FOOD,
+    planned_minor: null,
+    name: 'Mercado',
+    due_date: null,
+    position: 1,
+  },
+  {
+    id: 'l3',
+    kind: 'savings',
+    category_id: null,
+    planned_minor: 400_000,
+    name: 'Ahorro',
+    due_date: null,
+    position: 2,
+  },
 ] as Tables<'plan_lines'>[]
 
 const classifications = [
@@ -52,8 +115,49 @@ const classifications = [
 const effectiveBudgets = { [CAT_RENT]: 400_000, [CAT_FOOD]: 350_000, [CAT_LOAN]: 60_000 }
 
 const incomeSources = [
-  { id: 'src-1', planned_minor: 1_400_000, position: 0 },
+  { id: 'src-1', name: 'Salario', planned_minor: 1_400_000, position: 0 },
 ] as Tables<'plan_income_sources'>[]
+
+const categories = [
+  { id: 'cat-salario', name: 'Salario', type: 'income', is_archived: false },
+  { id: 'cat-bono', name: 'Bono', type: 'income', is_archived: false },
+  { id: 'cat-viejo', name: 'Antiguo', type: 'income', is_archived: true },
+  { id: CAT_RENT, name: 'Arriendo', type: 'expense', is_archived: false },
+  { id: CAT_FOOD, name: 'Alimentación', type: 'expense', is_archived: false },
+  { id: 'cat-salud', name: 'Salud', type: 'expense', is_archived: false },
+] as Tables<'categories'>[]
+
+const incomeSourceLinks = [
+  { id: 'l1', plan_income_source_id: 'src-1', category_id: 'cat-salario' },
+] as Tables<'plan_income_source_categories'>[]
+
+const allocations = [
+  { id: 'a1', budget_group: 'needs', percent_bp: 5_000 },
+  { id: 'a2', budget_group: 'wants', percent_bp: 3_000 },
+  { id: 'a3', budget_group: 'savings', percent_bp: 2_000 },
+] as Tables<'plan_allocations'>[]
+
+/** Progreso por categoría de las líneas del fixture, como lo da /budgets. */
+const lineProgress = [
+  {
+    categoryId: CAT_RENT,
+    budgetMinor: 400_000,
+    spentMinor: 400_000,
+    remainingMinor: 0,
+    ratio: 1,
+    status: 'warning_90',
+    source: 'template',
+  },
+  {
+    categoryId: CAT_FOOD,
+    budgetMinor: 350_000,
+    spentMinor: 300_000,
+    remainingMinor: 50_000,
+    ratio: 300_000 / 350_000,
+    status: 'warning_70',
+    source: 'template',
+  },
+]
 
 const actuals = {
   incomeActualMinor: 1_400_000,
@@ -87,8 +191,12 @@ function renderPlan() {
 }
 
 /** Celdas de una fila del cuadro, en el orden planeado, actual y diferencia. */
+function comparisonTable(): HTMLElement {
+  return screen.getByRole('table', { name: /Presupuesto frente a lo real/ })
+}
+
 function rowCells(name: string): string[] {
-  const table = screen.getByRole('table')
+  const table = comparisonTable()
   const header = within(table).getByRole('rowheader', { name })
   const row = header.closest('tr')
   if (!row) throw new Error(`No se encontró la fila «${name}»`)
@@ -108,7 +216,33 @@ beforeEach(() => {
   useEffectiveCategoryBudgets.mockReturnValue(resolved(effectiveBudgets))
   usePlanActuals.mockReturnValue(resolved(actuals))
   usePlanIncomeSources.mockReturnValue(resolved(incomeSources))
+  usePlanAllocations.mockReturnValue(resolved(allocations))
+  usePlanIncomeSourceCategories.mockReturnValue(resolved(incomeSourceLinks))
+  createPlanMonth.mockResolvedValue(planMonth)
+  saveIncomeSource.mockResolvedValue(undefined)
+  deleteIncomeSource.mockResolvedValue(undefined)
+  saveAllocations.mockReset()
+  saveAllocations.mockResolvedValue(undefined)
+  usePlanLineProgress.mockReturnValue(resolved(lineProgress))
+  savePlanLine.mockReset()
+  savePlanLine.mockResolvedValue(undefined)
+  deletePlanLine.mockReset()
+  deletePlanLine.mockResolvedValue(undefined)
+  toastError.mockClear()
+  toastSuccess.mockClear()
 })
+
+const GRUPOS = ['Necesidades', 'Deseos', 'Ahorro', 'Inversión', 'Deuda']
+
+/** Celdas de una fila del reparto: porcentaje, planeado, actual y diferencia. */
+function allocationCells(name: string): string[] {
+  const table = screen.getByRole('table', { name: /Reparto del ingreso planeado/ })
+  const header = within(table).getByRole('rowheader', { name })
+  const row = header.closest('tr')
+  if (!row) throw new Error(`No se encontro el grupo ${name}`)
+
+  return Array.from(row.querySelectorAll('td')).map((cell) => cell.textContent?.trim() ?? '')
+}
 
 describe('Plan', () => {
   it('muestra el mes en pantalla y permite cambiarlo', async () => {
@@ -191,7 +325,7 @@ describe('Plan', () => {
   it('mantiene los indicadores fuera del desglose que suma los gastos', () => {
     renderPlan()
 
-    const table = screen.getByRole('table')
+    const table = comparisonTable()
     const breakdown = within(table).getByText('Desglose de gastos').closest('tbody')
     const indicators = within(table).getByText('Indicadores').closest('tbody')
     if (!breakdown || !indicators) throw new Error('No se encontraron los grupos del cuadro')
@@ -249,6 +383,62 @@ describe('Plan', () => {
       renderPlan()
 
       expect(rowCells('Restante')[0]).toBe('Sin ingreso planeado')
+    })
+
+    it('la diferencia dice lo mismo que el planeado: la fila no se contradice', () => {
+      renderPlan()
+
+      const ingresos = rowCells('Ingresos')
+      const restante = rowCells('Restante')
+
+      expect(ingresos[2]).toBe('Sin ingreso planeado')
+      expect(restante[2]).toBe('Sin ingreso planeado')
+      expect(ingresos[2]).toBe(ingresos[0])
+      expect(restante[2]).toBe(restante[0])
+    })
+
+    it('las filas de gasto siguen diciendo «Sin presupuesto»', () => {
+      renderPlan()
+
+      expect(rowCells('No planeado')[2]).toBe('Sin presupuesto')
+    })
+  })
+
+  describe('restante negativo', () => {
+    beforeEach(() => {
+      usePlanActuals.mockReturnValue(
+        resolved({
+          ...actuals,
+          incomeActualMinor: 100_000,
+          expenseActualMinor: 500_000,
+        }),
+      )
+    })
+
+    it('destaca la cifra, sin quitarle el signo al texto', () => {
+      renderPlan()
+
+      const summary = screen.getByRole('region', { name: 'Resumen del mes' })
+      const card = within(summary).getByRole('heading', { name: 'Restante' }).closest('section')
+      if (!card) throw new Error('No se encontró la tarjeta de Restante')
+
+      // 100.000 − 500.000 − 400.000 de aportes.
+      const value = within(card).getByText('COP -800.000')
+
+      expect(value).toBeInTheDocument()
+      expect(value.className).toContain('text-danger')
+    })
+
+    it('un restante positivo no se marca como problema', () => {
+      usePlanActuals.mockReturnValue(resolved(actuals))
+      renderPlan()
+
+      const summary = screen.getByRole('region', { name: 'Resumen del mes' })
+      const card = within(summary).getByRole('heading', { name: 'Restante' }).closest('section')
+      if (!card) throw new Error('No se encontró la tarjeta de Restante')
+
+      // 1.400.000 − 800.000 − 400.000 de aportes.
+      expect(within(card).getByText('COP 200.000').className).not.toContain('text-danger')
     })
   })
 
@@ -337,5 +527,848 @@ describe('Plan', () => {
     expect(screen.getByRole('status')).toHaveTextContent(/Cargando el plan/)
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  describe('reparto 50/30/20', () => {
+    it('muestra los cinco grupos en el orden del desempate, con su porcentaje', () => {
+      renderPlan()
+
+      const table = screen.getByRole('table', { name: /Reparto del ingreso planeado/ })
+      const grupos = within(table)
+        .getAllByRole('rowheader')
+        .map((header) => header.textContent?.trim())
+
+      expect(grupos.slice(0, 5)).toEqual(['Necesidades', 'Deseos', 'Ahorro', 'Inversión', 'Deuda'])
+      expect(allocationCells('Necesidades')[0]).toBe('50 %')
+      expect(allocationCells('Deseos')[0]).toBe('30 %')
+      expect(allocationCells('Ahorro')[0]).toBe('20 %')
+      // Un grupo sin porcentaje propio recibe 0, no un valor sin definir.
+      expect(allocationCells('Deuda')[0]).toBe('0 %')
+    })
+
+    it('reparte el ingreso planeado con resolveAllocation', () => {
+      renderPlan()
+
+      expect(allocationCells('Necesidades')[1]).toBe('COP 700.000')
+      expect(allocationCells('Deseos')[1]).toBe('COP 420.000')
+      expect(allocationCells('Ahorro')[1]).toBe('COP 280.000')
+      expect(allocationCells('Inversión')[1]).toBe('COP 0')
+    })
+
+    it('la suma de los cinco grupos es exactamente el ingreso planeado', () => {
+      renderPlan()
+
+      const suma = GRUPOS.map((grupo) => amountOf(allocationCells(grupo)[1])).reduce(
+        (total, amount) => total + amount,
+        0,
+      )
+
+      expect(suma).toBe(1_400_000)
+      expect(screen.getAllByText('Total repartido').length).toBeGreaterThan(0)
+    })
+
+    it('cuadra igual cuando el reparto exige desempatar por mayor resto', () => {
+      usePlanIncomeSources.mockReturnValue(
+        resolved([
+          { id: 'src-1', planned_minor: 1_000_001, position: 0 },
+        ] as Tables<'plan_income_sources'>[]),
+      )
+      renderPlan()
+
+      const suma = GRUPOS.map((grupo) => amountOf(allocationCells(grupo)[1])).reduce(
+        (total, amount) => total + amount,
+        0,
+      )
+
+      // La unidad sobrante va al mayor resto, que aquí es Necesidades.
+      expect(allocationCells('Necesidades')[1]).toBe('COP 500.001')
+      expect(suma).toBe(1_000_001)
+    })
+
+    it('el ahorro y la inversion salen de aportes, no de gastos', () => {
+      renderPlan()
+
+      // 400.000 de aportes por transferencia, no de byGroup.
+      expect(allocationCells('Ahorro')[2]).toBe('COP 400.000')
+      expect(allocationCells('Inversión')[2]).toBe('COP 0')
+      expect(allocationCells('Necesidades')[2]).toBe('COP 600.000')
+    })
+
+    it('gastar de menos es favorable y aportar de menos es desfavorable', () => {
+      renderPlan()
+
+      // Necesidades: 600.000 reales contra 700.000 asignados.
+      expect(allocationCells('Necesidades')[3]).toBe('Favorable por COP 100.000')
+      // Ahorro: 400.000 aportados contra 280.000 asignados.
+      expect(allocationCells('Ahorro')[3]).toBe('Favorable por COP 120.000')
+    })
+
+    it('deja el gasto sin clasificar fuera de los cinco grupos', () => {
+      usePlanActuals.mockReturnValue(
+        resolved({ ...actuals, byGroup: { ...actuals.byGroup, sinClasificarMinor: 90_000 } }),
+      )
+      renderPlan()
+
+      const table = screen.getByRole('table', { name: /Reparto del ingreso planeado/ })
+      const fila = within(table).getByRole('rowheader', { name: /Sin clasificar/ })
+      const cuerpoDelReparto = within(table)
+        .getByRole('rowheader', { name: 'Necesidades' })
+        .closest('tbody')
+
+      expect(fila.closest('tbody')).not.toBe(cuerpoDelReparto)
+      expect(within(table).getByText(/no entra en ningún grupo/)).toBeInTheDocument()
+    })
+
+    it('avisa de un grupo que no pertenece al reparto', () => {
+      usePlanAllocations.mockReturnValue(
+        resolved([
+          ...allocations,
+          { id: 'a4', budget_group: 'caprichos', percent_bp: 1_000 },
+        ] as Tables<'plan_allocations'>[]),
+      )
+      renderPlan()
+
+      expect(screen.getByText(/caprichos/)).toBeInTheDocument()
+      expect(screen.getByText(/pueden no sumar 100 %/)).toBeInTheDocument()
+    })
+
+    it('sin reparto configurado lo dice, sin fingir porcentajes ni ceros', () => {
+      usePlanAllocations.mockReturnValue(resolved([]))
+      renderPlan()
+
+      expect(allocationCells('Necesidades')[0]).toBe('Sin definir')
+      expect(allocationCells('Necesidades')[1]).toBe('Sin reparto configurado')
+      expect(allocationCells('Necesidades')[3]).toBe('Sin reparto configurado')
+    })
+
+    it('un mes sin reparto no es un error, y las cifras reales se siguen viendo', () => {
+      usePlanAllocations.mockReturnValue(resolved([]))
+      renderPlan()
+
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+      expect(screen.getByText(/no tiene reparto configurado/)).toBeInTheDocument()
+      expect(allocationCells('Ahorro')[2]).toBe('COP 400.000')
+    })
+
+    it('con reparto pero sin ingreso planeado, no hay importes que repartir', () => {
+      usePlanIncomeSources.mockReturnValue(resolved([]))
+      renderPlan()
+
+      expect(allocationCells('Necesidades')[0]).toBe('50 %')
+      expect(allocationCells('Necesidades')[1]).toBe('Sin ingreso planeado')
+      expect(allocationCells('Necesidades')[3]).toBe('Sin ingreso planeado')
+    })
+
+    it('explica que los cinco grupos no suman los gastos totales', () => {
+      renderPlan()
+
+      expect(screen.getByText(/transferencias registradas, no gastos/)).toBeInTheDocument()
+    })
+  })
+
+  describe('ingresos planeados', () => {
+    it('lista las fuentes con su monto y sus categorías vinculadas', () => {
+      renderPlan()
+
+      const panel = screen.getByRole('region', { name: 'Ingresos planeados' })
+      const fuente = within(panel).getByRole('listitem')
+
+      // «Salario» aparece dos veces a propósito: es el nombre de la fuente y
+      // el de la categoría que la alimenta.
+      expect(within(fuente).getAllByText('Salario')).toHaveLength(2)
+      expect(within(fuente).getByText('COP 1.400.000')).toBeInTheDocument()
+      expect(within(panel).getByRole('button', { name: 'Editar Salario' })).toBeInTheDocument()
+    })
+
+    it('un mes con plan y sin fuentes lo dice sin fingir que no hay plan', () => {
+      usePlanIncomeSources.mockReturnValue(resolved([]))
+      renderPlan()
+
+      expect(screen.getByText(/está listo/)).toBeInTheDocument()
+      expect(screen.getByText(/Añade una fuente de ingreso/)).toBeInTheDocument()
+      expect(screen.queryByText(/todavía no tiene plan/)).not.toBeInTheDocument()
+    })
+
+    it('sin fuentes no hay ingreso planeado; con una de 0 sí lo hay', () => {
+      usePlanIncomeSources.mockReturnValue(resolved([]))
+      const { unmount } = renderPlan()
+
+      const sinFuentes = screen.getByRole('region', { name: 'Ingresos planeados' })
+      expect(within(sinFuentes).getByText('Sin ingreso planeado')).toBeInTheDocument()
+      unmount()
+
+      usePlanIncomeSources.mockReturnValue(
+        resolved([
+          { id: 'src-1', name: 'Salario', planned_minor: 0, position: 0 },
+        ] as Tables<'plan_income_sources'>[]),
+      )
+      renderPlan()
+
+      const conCero = screen.getByRole('region', { name: 'Ingresos planeados' })
+      expect(within(conCero).getAllByText('COP 0').length).toBeGreaterThan(0)
+      expect(within(conCero).queryByText('Sin ingreso planeado')).not.toBeInTheDocument()
+    })
+
+    it('el botón de crear plan solo aparece cuando el mes no tiene plan', async () => {
+      const user = userEvent.setup()
+      usePlanMonth.mockReturnValue(resolved(null))
+      usePlanIncomeSources.mockReturnValue({
+        data: undefined,
+        isPending: true,
+        isError: false,
+        error: null,
+      })
+      usePlanIncomeSourceCategories.mockReturnValue({
+        data: undefined,
+        isPending: true,
+        isError: false,
+        error: null,
+      })
+      renderPlan()
+
+      await user.click(screen.getByRole('button', { name: /Crear plan de/ }))
+
+      expect(createPlanMonth).toHaveBeenCalledWith('2026-09')
+    })
+
+    it('tras crear el plan abre el diálogo de la primera fuente', async () => {
+      const user = userEvent.setup()
+      usePlanMonth.mockReturnValue(resolved(null))
+      usePlanIncomeSources.mockReturnValue({
+        data: undefined,
+        isPending: true,
+        isError: false,
+        error: null,
+      })
+      usePlanIncomeSourceCategories.mockReturnValue({
+        data: undefined,
+        isPending: true,
+        isError: false,
+        error: null,
+      })
+      renderPlan()
+
+      await user.click(screen.getByRole('button', { name: /Crear plan de/ }))
+
+      expect(await screen.findByRole('dialog')).toBeInTheDocument()
+      expect(screen.getByText('Nueva fuente de ingreso')).toBeInTheDocument()
+    })
+
+    it('si crear el plan falla, lo dice y no abre el diálogo', async () => {
+      const user = userEvent.setup()
+      usePlanMonth.mockReturnValue(resolved(null))
+      usePlanIncomeSources.mockReturnValue({
+        data: undefined,
+        isPending: true,
+        isError: false,
+        error: null,
+      })
+      usePlanIncomeSourceCategories.mockReturnValue({
+        data: undefined,
+        isPending: true,
+        isError: false,
+        error: null,
+      })
+      createPlanMonth.mockRejectedValue(new PlanError('month_missing_after_conflict'))
+      renderPlan()
+
+      await user.click(screen.getByRole('button', { name: /Crear plan de/ }))
+
+      await waitFor(() => expect(toastError).toHaveBeenCalled())
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    })
+
+    it('guarda una fuente nueva con las fuentes ya cargadas, para la posición', async () => {
+      const user = userEvent.setup()
+      renderPlan()
+
+      await user.click(screen.getByRole('button', { name: 'Añadir fuente' }))
+      await user.type(screen.getByLabelText('Nombre'), 'Freelance')
+      await user.type(screen.getByLabelText('Monto planeado'), '600000')
+      await user.click(screen.getByRole('button', { name: 'Añadir fuente', hidden: false }))
+
+      await waitFor(() => expect(saveIncomeSource).toHaveBeenCalled())
+      expect(saveIncomeSource.mock.calls[0][0]).toMatchObject({
+        planMonthId: 'plan-month-1',
+        sourceId: undefined,
+        name: 'Freelance',
+        plannedMinor: 600_000,
+        currentCategoryIds: [],
+        sources: incomeSources,
+      })
+    })
+
+    it('al editar envía solo el diff de categorías y conserva las existentes', async () => {
+      const user = userEvent.setup()
+      renderPlan()
+
+      await user.click(screen.getByRole('button', { name: 'Editar Salario' }))
+      await user.click(screen.getByLabelText('Bono'))
+      await user.click(screen.getByRole('button', { name: 'Guardar cambios' }))
+
+      await waitFor(() => expect(saveIncomeSource).toHaveBeenCalled())
+      const input = saveIncomeSource.mock.calls[0][0]
+
+      expect(input.sourceId).toBe('src-1')
+      expect(input.currentCategoryIds).toEqual(['cat-salario'])
+      expect(input.categoryIds).toEqual(['cat-salario', 'cat-bono'])
+    })
+
+    it('al editar, la categoría propia sigue seleccionable y marcada', async () => {
+      const user = userEvent.setup()
+      renderPlan()
+
+      await user.click(screen.getByRole('button', { name: 'Editar Salario' }))
+
+      expect(screen.getByLabelText('Salario')).toBeChecked()
+    })
+
+    it('no ofrece categorías de gasto, archivadas ni de otra fuente del mes', async () => {
+      const user = userEvent.setup()
+      usePlanIncomeSourceCategories.mockReturnValue(
+        resolved([
+          { id: 'l1', plan_income_source_id: 'src-2', category_id: 'cat-bono' },
+        ] as Tables<'plan_income_source_categories'>[]),
+      )
+      renderPlan()
+
+      await user.click(screen.getByRole('button', { name: 'Añadir fuente' }))
+
+      const dialog = screen.getByRole('dialog')
+      expect(within(dialog).getByLabelText('Salario')).toBeInTheDocument()
+      expect(within(dialog).queryByLabelText('Bono')).not.toBeInTheDocument()
+      expect(within(dialog).queryByLabelText('Antiguo')).not.toBeInTheDocument()
+      expect(within(dialog).queryByLabelText('Arriendo')).not.toBeInTheDocument()
+    })
+
+    it('no guarda una fuente sin monto', async () => {
+      const user = userEvent.setup()
+      renderPlan()
+
+      await user.click(screen.getByRole('button', { name: 'Añadir fuente' }))
+      await user.type(screen.getByLabelText('Nombre'), 'Freelance')
+      await user.click(screen.getByRole('button', { name: 'Añadir fuente', hidden: false }))
+
+      await waitFor(() => expect(screen.getByText('Ingresa un monto')).toBeInTheDocument())
+      expect(saveIncomeSource).not.toHaveBeenCalled()
+    })
+
+    it('acepta una fuente de 0 y avisa de lo que significa', async () => {
+      const user = userEvent.setup()
+      renderPlan()
+
+      await user.click(screen.getByRole('button', { name: 'Añadir fuente' }))
+      await user.type(screen.getByLabelText('Nombre'), 'Bono pendiente')
+      await user.type(screen.getByLabelText('Monto planeado'), '0')
+
+      expect(screen.getByText(/cuenta como ingreso planeado de cero/)).toBeInTheDocument()
+
+      await user.click(screen.getByRole('button', { name: 'Añadir fuente', hidden: false }))
+
+      await waitFor(() => expect(saveIncomeSource).toHaveBeenCalled())
+      expect(saveIncomeSource.mock.calls[0][0]).toMatchObject({ plannedMinor: 0 })
+    })
+
+    it('un fallo parcial se muestra y el diálogo no miente diciendo que todo fue bien', async () => {
+      const user = userEvent.setup()
+      saveIncomeSource.mockRejectedValue(new PlanError('category_already_linked'))
+      renderPlan()
+
+      await user.click(screen.getByRole('button', { name: 'Editar Salario' }))
+      await user.click(screen.getByRole('button', { name: 'Guardar cambios' }))
+
+      await waitFor(() => expect(toastError).toHaveBeenCalled())
+      expect(toastSuccess).not.toHaveBeenCalled()
+      expect(screen.getByRole('dialog')).toBeInTheDocument()
+    })
+
+    it('borrar pide confirmación antes de tocar nada', async () => {
+      const user = userEvent.setup()
+      renderPlan()
+
+      await user.click(screen.getByRole('button', { name: 'Eliminar Salario' }))
+      expect(deleteIncomeSource).not.toHaveBeenCalled()
+
+      await user.click(screen.getByRole('button', { name: 'Eliminar' }))
+
+      await waitFor(() => expect(deleteIncomeSource).toHaveBeenCalledWith('src-1'))
+    })
+
+    it('el panel no aparece mientras el mes no tenga plan', () => {
+      usePlanMonth.mockReturnValue(resolved(null))
+      usePlanIncomeSources.mockReturnValue({
+        data: undefined,
+        isPending: true,
+        isError: false,
+        error: null,
+      })
+      usePlanIncomeSourceCategories.mockReturnValue({
+        data: undefined,
+        isPending: true,
+        isError: false,
+        error: null,
+      })
+      renderPlan()
+
+      expect(screen.queryByRole('region', { name: 'Ingresos planeados' })).not.toBeInTheDocument()
+    })
+  })
+
+  describe('configurar el reparto', () => {
+    /** Abre el diálogo del reparto y devuelve su contenido. */
+    async function openAllocationDialog(user: ReturnType<typeof userEvent.setup>) {
+      await user.click(screen.getByRole('button', { name: /reparto/ }))
+      return screen.getByRole('dialog')
+    }
+
+    /** Los cinco campos de porcentaje, en el orden del desempate. */
+    function percentInputs(dialog: HTMLElement): string[] {
+      return GRUPOS.map((grupo) => (within(dialog).getByLabelText(grupo) as HTMLInputElement).value)
+    }
+
+    /** Los cinco importes derivados, ya formateados. */
+    function derivedAmounts(dialog: HTMLElement): string[] {
+      return GRUPOS.map((grupo) => {
+        const input = within(dialog).getByLabelText(grupo)
+        const amountId = (input.getAttribute('aria-describedby') ?? '')
+          .split(' ')
+          .find((id) => id.endsWith('-amount'))
+        const amount = amountId ? document.getElementById(amountId) : null
+        if (!amount) throw new Error(`Sin importe derivado para ${grupo}`)
+
+        return amount.textContent?.trim() ?? ''
+      })
+    }
+
+    describe('preset inicial', () => {
+      beforeEach(() => {
+        usePlanAllocations.mockReturnValue(resolved([]))
+      })
+
+      it('abre con 50 / 30 / 20 / 0 / 0 y un total de 100 %', async () => {
+        const user = userEvent.setup()
+        renderPlan()
+
+        const dialog = await openAllocationDialog(user)
+
+        expect(percentInputs(dialog)).toEqual(['50', '30', '20', '0', '0'])
+        expect(within(dialog).getByRole('status')).toHaveTextContent('100 %')
+      })
+
+      it('la suma de los importes es exactamente el ingreso planeado', async () => {
+        const user = userEvent.setup()
+        renderPlan()
+
+        const dialog = await openAllocationDialog(user)
+        const total = derivedAmounts(dialog).reduce((sum, text) => sum + amountOf(text), 0)
+
+        expect(derivedAmounts(dialog)).toEqual([
+          'COP 700.000',
+          'COP 420.000',
+          'COP 280.000',
+          'COP 0',
+          'COP 0',
+        ])
+        expect(total).toBe(1_400_000)
+      })
+
+      it('un grupo en 0 % muestra COP 0, no «sin reparto»', async () => {
+        const user = userEvent.setup()
+        renderPlan()
+
+        const dialog = await openAllocationDialog(user)
+        const [, , , inversion, deuda] = derivedAmounts(dialog)
+
+        expect(inversion).toBe('COP 0')
+        expect(deuda).toBe('COP 0')
+        expect(within(dialog).queryByText(/Sin reparto configurado/)).not.toBeInTheDocument()
+      })
+
+      it('guarda las cinco filas como primera configuración, no como edición', async () => {
+        const user = userEvent.setup()
+        renderPlan()
+
+        const dialog = await openAllocationDialog(user)
+        await user.click(within(dialog).getByRole('button', { name: 'Guardar reparto' }))
+
+        await waitFor(() => expect(saveAllocations).toHaveBeenCalled())
+        expect(saveAllocations.mock.calls[0][0]).toEqual({
+          planMonthId: 'plan-month-1',
+          hasAllocation: false,
+          percentages: { needs: 50, wants: 30, savings: 20, investment: 0, debt: 0 },
+        })
+      })
+    })
+
+    describe('edición', () => {
+      it('abre con el reparto guardado, incluidos los grupos sin fila propia', async () => {
+        const user = userEvent.setup()
+        renderPlan()
+
+        const dialog = await openAllocationDialog(user)
+
+        // El mes guarda needs, wants y savings; los otros dos llegan como 0.
+        expect(percentInputs(dialog)).toEqual(['50', '30', '20', '0', '0'])
+      })
+
+      it('marca el guardado como edición, para que sea un upsert y no un insert', async () => {
+        const user = userEvent.setup()
+        renderPlan()
+
+        const dialog = await openAllocationDialog(user)
+        await user.click(within(dialog).getByRole('button', { name: 'Guardar cambios' }))
+
+        await waitFor(() => expect(saveAllocations).toHaveBeenCalled())
+        expect(saveAllocations.mock.calls[0][0]).toMatchObject({ hasAllocation: true })
+      })
+
+      it('envía el reparto completo tras cambiar un grupo', async () => {
+        const user = userEvent.setup()
+        renderPlan()
+
+        const dialog = await openAllocationDialog(user)
+        const deseos = within(dialog).getByLabelText('Deseos')
+        const inversion = within(dialog).getByLabelText('Inversión')
+
+        await user.clear(deseos)
+        await user.type(deseos, '20')
+        await user.clear(inversion)
+        await user.type(inversion, '10')
+        await user.click(within(dialog).getByRole('button', { name: 'Guardar cambios' }))
+
+        await waitFor(() => expect(saveAllocations).toHaveBeenCalled())
+        expect(saveAllocations.mock.calls[0][0].percentages).toEqual({
+          needs: 50,
+          wants: 20,
+          savings: 20,
+          investment: 10,
+          debt: 0,
+        })
+      })
+    })
+
+    it('no guarda un reparto que no suma 100 y dice por qué', async () => {
+      const user = userEvent.setup()
+      renderPlan()
+
+      const dialog = await openAllocationDialog(user)
+      const deseos = within(dialog).getByLabelText('Deseos')
+
+      await user.clear(deseos)
+      await user.type(deseos, '40')
+
+      await waitFor(() => expect(within(dialog).getByRole('status')).toHaveTextContent('110 %'))
+      expect(within(dialog).getByText(/deben sumar exactamente 100/)).toBeInTheDocument()
+
+      await user.click(within(dialog).getByRole('button', { name: 'Guardar cambios' }))
+
+      expect(saveAllocations).not.toHaveBeenCalled()
+    })
+
+    it('sin un total válido no previsualiza importes inventados', async () => {
+      const user = userEvent.setup()
+      renderPlan()
+
+      const dialog = await openAllocationDialog(user)
+      const deseos = within(dialog).getByLabelText('Deseos')
+
+      await user.clear(deseos)
+      await user.type(deseos, '40')
+
+      await waitFor(() =>
+        expect(derivedAmounts(dialog).every((text) => !text.includes('COP'))).toBe(true),
+      )
+    })
+
+    describe('sin ingreso planeado', () => {
+      beforeEach(() => {
+        usePlanIncomeSources.mockReturnValue(resolved([]))
+      })
+
+      it('deja ver los porcentajes y dice que no hay importe que repartir', async () => {
+        const user = userEvent.setup()
+        renderPlan()
+
+        const dialog = await openAllocationDialog(user)
+
+        expect(percentInputs(dialog)).toEqual(['50', '30', '20', '0', '0'])
+        expect(derivedAmounts(dialog)).toEqual(Array(5).fill('Sin ingreso planeado'))
+      })
+
+      it('permite guardar igual: el reparto pertenece al plan, no al ingreso', async () => {
+        const user = userEvent.setup()
+        renderPlan()
+
+        const dialog = await openAllocationDialog(user)
+        await user.click(within(dialog).getByRole('button', { name: /Guardar/ }))
+
+        await waitFor(() => expect(saveAllocations).toHaveBeenCalled())
+        expect(saveAllocations.mock.calls[0][0].percentages).toEqual({
+          needs: 50,
+          wants: 30,
+          savings: 20,
+          investment: 0,
+          debt: 0,
+        })
+      })
+    })
+
+    describe('conflicto con otra sesión', () => {
+      beforeEach(() => {
+        saveAllocations.mockRejectedValue(new PlanError('conflict'))
+      })
+
+      it('lo dice sin filtrar SQLSTATE, constraints ni identificadores', async () => {
+        const user = userEvent.setup()
+        renderPlan()
+
+        const dialog = await openAllocationDialog(user)
+        await user.click(within(dialog).getByRole('button', { name: 'Guardar cambios' }))
+
+        await waitFor(() => expect(toastError).toHaveBeenCalled())
+        const [fallback, options] = toastError.mock.calls[0] as [string, { description?: string }]
+
+        expect(`${fallback} ${options.description ?? ''}`).not.toMatch(
+          /23505|P0001|PGRST|constraint|_key|_fkey|uuid/i,
+        )
+      })
+
+      it('no afirma que el reparto quedó guardado', async () => {
+        const user = userEvent.setup()
+        renderPlan()
+
+        const dialog = await openAllocationDialog(user)
+        await user.click(within(dialog).getByRole('button', { name: 'Guardar cambios' }))
+
+        await waitFor(() => expect(toastError).toHaveBeenCalled())
+        expect(toastSuccess).not.toHaveBeenCalled()
+        expect(screen.getByRole('dialog')).toBeInTheDocument()
+      })
+    })
+
+    it('confirma el guardado solo cuando de verdad ocurrió', async () => {
+      const user = userEvent.setup()
+      renderPlan()
+
+      const dialog = await openAllocationDialog(user)
+      await user.click(within(dialog).getByRole('button', { name: 'Guardar cambios' }))
+
+      await waitFor(() => expect(toastSuccess).toHaveBeenCalledWith('Reparto guardado'))
+      expect(toastError).not.toHaveBeenCalled()
+    })
+
+    it('el botón no aparece mientras el mes no tenga plan', () => {
+      usePlanMonth.mockReturnValue(resolved(null))
+      usePlanIncomeSources.mockReturnValue({
+        data: undefined,
+        isPending: true,
+        isError: false,
+        error: null,
+      })
+      usePlanIncomeSourceCategories.mockReturnValue({
+        data: undefined,
+        isPending: true,
+        isError: false,
+        error: null,
+      })
+      renderPlan()
+
+      expect(screen.queryByRole('button', { name: /reparto/ })).not.toBeInTheDocument()
+    })
+  })
+
+  describe('enlace a la clasificación', () => {
+    it('aparece solo cuando queda gasto sin clasificar', () => {
+      usePlanActuals.mockReturnValue(
+        resolved({ ...actuals, byGroup: { ...actuals.byGroup, sinClasificarMinor: 90_000 } }),
+      )
+      renderPlan()
+
+      const enlace = screen.getByRole('link', { name: 'Clasificar categorías' })
+
+      expect(enlace).toHaveAttribute('href', '/settings')
+      expect(screen.getByText(/COP 90.000 sin/)).toBeInTheDocument()
+    })
+
+    it('no aparece cuando todo el gasto está clasificado', () => {
+      renderPlan()
+
+      expect(screen.queryByRole('link', { name: 'Clasificar categorías' })).not.toBeInTheDocument()
+    })
+
+    it('dice que el grupo se elige en Ajustes y vale para todos los meses', () => {
+      usePlanActuals.mockReturnValue(
+        resolved({ ...actuals, byGroup: { ...actuals.byGroup, sinClasificarMinor: 90_000 } }),
+      )
+      renderPlan()
+
+      expect(
+        screen.getByText(/se elige en Ajustes y vale para todos los meses/),
+      ).toBeInTheDocument()
+    })
+  })
+  describe('facturas y gastos variables', () => {
+    /** El panel de líneas, para no confundirlo con el cuadro comparativo. */
+    function linesPanel(): HTMLElement {
+      return screen.getByRole('region', { name: 'Facturas y gastos variables' })
+    }
+
+    it('lista las líneas del mes repartidas por tipo', () => {
+      renderPlan()
+
+      const panel = linesPanel()
+
+      // El fixture trae una factura de Arriendo y una variable de Alimentación.
+      expect(within(panel).getByRole('list', { name: 'Facturas' })).toBeInTheDocument()
+      expect(within(panel).getByRole('list', { name: 'Gastos variables' })).toBeInTheDocument()
+    })
+
+    it('muestra el progreso de cada línea sin volverlo editable', () => {
+      renderPlan()
+
+      const panel = linesPanel()
+
+      expect(within(panel).getByText(/Presupuesto COP 400.000/)).toBeInTheDocument()
+      expect(panel.querySelectorAll('input, textarea, select')).toHaveLength(0)
+    })
+
+    it('pide el progreso solo de las categorías que tienen línea', () => {
+      renderPlan()
+
+      const calls = usePlanLineProgress.mock.calls
+      const options = calls[calls.length - 1][0] as {
+        monthKey: string
+        categoryIds: string[]
+      }
+
+      expect(options.monthKey).toBe('2026-09')
+      expect(options.categoryIds.sort()).toEqual([CAT_FOOD, CAT_RENT].sort())
+    })
+
+    it('el panel no aparece mientras el mes no tenga plan', () => {
+      usePlanMonth.mockReturnValue(resolved(null))
+      usePlanIncomeSources.mockReturnValue({
+        data: undefined,
+        isPending: true,
+        isError: false,
+        error: null,
+      })
+      usePlanIncomeSourceCategories.mockReturnValue({
+        data: undefined,
+        isPending: true,
+        isError: false,
+        error: null,
+      })
+      renderPlan()
+
+      expect(
+        screen.queryByRole('region', { name: 'Facturas y gastos variables' }),
+      ).not.toBeInTheDocument()
+    })
+
+    it('guarda una línea nueva con el mes, el plan y las líneas ya cargadas', async () => {
+      const user = userEvent.setup()
+      renderPlan()
+
+      await user.click(within(linesPanel()).getByRole('button', { name: 'Añadir línea' }))
+
+      const dialog = await screen.findByRole('dialog')
+      await user.type(within(dialog).getByLabelText('Nombre'), 'Internet')
+      await user.selectOptions(within(dialog).getByLabelText('Categoría'), 'cat-salud')
+      await user.click(within(dialog).getByRole('button', { name: 'Añadir línea' }))
+
+      await waitFor(() => expect(savePlanLine).toHaveBeenCalled())
+      expect(savePlanLine.mock.calls[0][0]).toMatchObject({
+        planMonthId: 'plan-month-1',
+        monthKey: '2026-09',
+        lineId: undefined,
+        kind: 'bill',
+        name: 'Internet',
+        categoryId: 'cat-salud',
+        dueDate: null,
+        lines,
+      })
+    })
+
+    it('el selector no ofrece categorías que ya tienen línea', async () => {
+      const user = userEvent.setup()
+      renderPlan()
+
+      await user.click(within(linesPanel()).getByRole('button', { name: 'Añadir línea' }))
+
+      const dialog = await screen.findByRole('dialog')
+      const selector = within(dialog).getByLabelText('Categoría')
+
+      // Arriendo y Alimentación ya tienen línea; Salud está libre.
+      expect(within(selector).getByRole('option', { name: 'Salud' })).toBeInTheDocument()
+      expect(within(selector).queryByRole('option', { name: 'Arriendo' })).not.toBeInTheDocument()
+    })
+
+    it('al editar manda solo el nombre y la fecha, nunca la categoría', async () => {
+      const user = userEvent.setup()
+      renderPlan()
+
+      await user.click(within(linesPanel()).getByRole('button', { name: 'Editar Arriendo' }))
+
+      const dialog = await screen.findByRole('dialog')
+      expect(within(dialog).queryByLabelText('Categoría')).not.toBeInTheDocument()
+
+      await user.clear(within(dialog).getByLabelText('Nombre'))
+      await user.type(within(dialog).getByLabelText('Nombre'), 'Arriendo apartamento')
+      await user.click(within(dialog).getByRole('button', { name: 'Guardar cambios' }))
+
+      await waitFor(() => expect(savePlanLine).toHaveBeenCalled())
+      expect(savePlanLine.mock.calls[0][0]).toMatchObject({
+        lineId: 'l1',
+        name: 'Arriendo apartamento',
+      })
+    })
+
+    it('borrar pide confirmación antes de tocar nada', async () => {
+      const user = userEvent.setup()
+      renderPlan()
+
+      await user.click(within(linesPanel()).getByRole('button', { name: 'Eliminar Arriendo' }))
+      expect(deletePlanLine).not.toHaveBeenCalled()
+
+      await user.click(screen.getByRole('button', { name: 'Eliminar' }))
+
+      await waitFor(() =>
+        expect(deletePlanLine).toHaveBeenCalledWith({ lineId: 'l1', monthKey: '2026-09' }),
+      )
+    })
+
+    it('un fallo se muestra y el diálogo no miente diciendo que todo fue bien', async () => {
+      const user = userEvent.setup()
+      savePlanLine.mockRejectedValue(new PlanError('line_category_taken'))
+      renderPlan()
+
+      await user.click(within(linesPanel()).getByRole('button', { name: 'Editar Arriendo' }))
+
+      const dialog = await screen.findByRole('dialog')
+      await user.click(within(dialog).getByRole('button', { name: 'Guardar cambios' }))
+
+      await waitFor(() => expect(toastError).toHaveBeenCalled())
+      expect(toastSuccess).not.toHaveBeenCalled()
+      expect(screen.getByRole('dialog')).toBeInTheDocument()
+
+      const [fallback, options] = toastError.mock.calls[0] as [string, { description?: string }]
+      expect(`${fallback} ${options.description ?? ''}`).not.toMatch(
+        /23505|P0001|PGRST|constraint|_key|_fkey|uuid/i,
+      )
+    })
+
+    it('las dos particiones del gasto siguen siendo independientes', () => {
+      renderPlan()
+
+      // El desglose por línea y el reparto por clasificación cuadran cada uno
+      // contra el mismo total, sin cruzarse entre sí.
+      const desglose =
+        amountOf(rowCells('Facturas')[1]) +
+        amountOf(rowCells('Gastos variables')[1]) +
+        amountOf(rowCells('No planeado')[1])
+
+      expect(desglose).toBe(amountOf(rowCells('Gastos totales')[1]))
+    })
   })
 })

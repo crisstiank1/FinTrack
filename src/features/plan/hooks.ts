@@ -1,22 +1,34 @@
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo } from 'react'
 
 import { useAccounts } from '@/features/accounts/hooks'
 import { useAuth } from '@/features/auth/auth-provider'
+import { useCategoryClassifications } from '@/features/categories/classifications/hooks'
 import { useBudgets } from '@/features/budgets/hooks'
 import { buildBudgetProgressList, type BudgetProgress } from '@/features/budgets/progress'
 import { resolveBudget } from '@/features/budgets/resolution'
 import { useTransactions } from '@/features/transactions/hooks'
 import { calculateMonthlyIncome } from '@/lib/calculations'
+import { monthRange } from '@/lib/dates'
 
 import {
-  fetchCategoryClassifications,
+  createPlanMonth,
+  deletePlanIncomeSource,
+  deletePlanIncomeSourceCategories,
   fetchPlanAllocations,
   fetchPlanIncomeSourceCategories,
   fetchPlanIncomeSources,
   fetchPlanLines,
   fetchPlanMonth,
   fetchTransactionsByAccounts,
+  deletePlanLine,
+  insertPlanAllocations,
+  insertPlanIncomeSource,
+  insertPlanIncomeSourceCategories,
+  insertPlanLine,
+  updatePlanIncomeSource,
+  updatePlanLine,
+  upsertPlanAllocations,
 } from './api'
 import {
   calculateBalanceForAccountType,
@@ -29,6 +41,16 @@ import {
   type ExpenseGroupBreakdown,
   type ExpenseLineBreakdown,
 } from './calculations/expenses'
+import { PlanError } from './errors'
+import {
+  buildAllocationRows,
+  buildPlanLineRow,
+  diffIncomeSourceCategories,
+  nextPosition,
+  type AllocationPercentInput,
+  type CategoryLineKind,
+  type PositionedRow,
+} from './mutations'
 import {
   buildClassificationMap,
   buildIncomeActualBySource,
@@ -62,9 +84,13 @@ import {
 
 /*
  * Las cinco tablas del plan cuelgan de la raíz 'plan' porque se leen siempre
- * juntas por mes: cuando existan mutaciones, una sola invalidación las
- * refrescará. `category_classifications` tiene raíz propia porque no depende
- * del mes y una reclasificación debe alcanzar a todos los meses en caché.
+ * juntas por mes: una sola invalidación las refresca.
+ *
+ * `category_classifications` no está entre ellas. Su clave y su consulta viven
+ * en `features/categories/classifications`, que es el módulo dueño de esa
+ * tabla; aquí solo se consume el hook. Definir una segunda clave para el mismo
+ * recurso dejaría dos cachés que se desincronizan en cuanto una mutación
+ * invalidase solo una de las dos.
  */
 
 export function planMonthQueryKey(userId: string | undefined, monthKey: string) {
@@ -94,10 +120,6 @@ export function planIncomeSourceCategoriesQueryKey(
 
 export function planLinesQueryKey(userId: string | undefined, monthKey: string) {
   return ['plan', userId, 'lines', monthKey] as const
-}
-
-export function categoryClassificationsQueryKey(userId: string | undefined) {
-  return ['category-classifications', userId] as const
 }
 
 /**
@@ -185,16 +207,6 @@ export function usePlanLines(monthKey: string) {
   return useQuery({
     queryKey: planLinesQueryKey(user?.id, monthKey),
     queryFn: () => fetchPlanLines(user!.id, monthKey),
-    enabled: !!user,
-  })
-}
-
-export function useCategoryClassifications() {
-  const { user } = useAuth()
-
-  return useQuery({
-    queryKey: categoryClassificationsQueryKey(user?.id),
-    queryFn: () => fetchCategoryClassifications(user!.id),
     enabled: !!user,
   })
 }
@@ -511,4 +523,243 @@ export function usePlanContributionBalances(): DerivedState<ContributionBalances
     isError: accountsQuery.isError || historyQuery.isError,
     error: accountsQuery.error ?? historyQuery.error,
   }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Mutaciones                                                                 */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * Todas invalidan la raiz `['plan', userId]`. Crear el mes cambia el
+ * `plan_month_id` del que cuelgan las consultas dependientes, asi que
+ * invalidar por prefijo es lo unico que garantiza que ninguna se quede
+ * colgando de un identificador viejo.
+ */
+
+/**
+ * Crea el plan del mes, o recupera el que ya existia.
+ *
+ * El 23505 no es un fallo que mostrar: significa que otra pestana se adelanto.
+ * Se relee el mes y se sigue con el existente, que es lo que el usuario queria.
+ * Solo si la relectura tampoco encuentra nada se informa del problema, porque
+ * entonces no hay plan con el que continuar.
+ */
+export function useCreatePlanMonth() {
+  const { user } = useAuth()
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (monthKey: string) => {
+      try {
+        return await createPlanMonth(user!.id, monthKey)
+      } catch (error) {
+        if (error instanceof PlanError && error.code === 'month_conflict') {
+          const existing = await fetchPlanMonth(user!.id, monthKey)
+          if (existing) return existing
+
+          throw new PlanError('month_missing_after_conflict')
+        }
+        throw error
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['plan', user?.id] })
+    },
+  })
+}
+
+export interface SaveIncomeSourceInput {
+  planMonthId: string
+  /** `undefined` al crear; el identificador de la fuente al editar. */
+  sourceId?: string
+  name: string
+  plannedMinor: number
+  /** Conjunto completo de categorias que debe quedar vinculado. */
+  categoryIds: string[]
+  /** Categorias vinculadas ahora mismo, para calcular solo las diferencias. */
+  currentCategoryIds: string[]
+  /** Fuentes ya cargadas, para elegir la siguiente posicion al crear. */
+  sources: PositionedRow[]
+}
+
+/**
+ * Crea o edita una fuente y ajusta sus vinculos de categoria.
+ *
+ * Son hasta tres sentencias y **no hay transaccion**: PostgREST no las ofrece.
+ * Si falla la de vinculos, la fuente queda guardada y el error se muestra tal
+ * cual; la invalidacion del `onSettled` hace que la pantalla enseñe lo que de
+ * verdad quedo persistido, en vez de afirmar un exito que no fue completo.
+ */
+export function useSaveIncomeSource() {
+  const { user } = useAuth()
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (input: SaveIncomeSourceInput) => {
+      const source = input.sourceId
+        ? await updatePlanIncomeSource(input.sourceId, {
+            name: input.name,
+            planned_minor: input.plannedMinor,
+          })
+        : await insertPlanIncomeSource({
+            user_id: user!.id,
+            plan_month_id: input.planMonthId,
+            name: input.name,
+            planned_minor: input.plannedMinor,
+            position: nextPosition(input.sources),
+          })
+
+      const { toAdd, toRemove } = diffIncomeSourceCategories(
+        input.currentCategoryIds,
+        input.categoryIds,
+      )
+
+      await deletePlanIncomeSourceCategories(source.id, toRemove)
+      await insertPlanIncomeSourceCategories(
+        toAdd.map((categoryId) => ({
+          user_id: user!.id,
+          plan_month_id: input.planMonthId,
+          plan_income_source_id: source.id,
+          category_id: categoryId,
+        })),
+      )
+
+      return source
+    },
+    // `onSettled` y no `onSuccess`: tras un fallo parcial la pantalla tiene que
+    // refrescarse igual, porque parte de la escritura si se guardo.
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['plan', user?.id] })
+    },
+  })
+}
+
+/** Borra una fuente. Sus vinculos caen por cascada (F4). */
+export function useDeleteIncomeSource() {
+  const { user } = useAuth()
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (sourceId: string) => deletePlanIncomeSource(sourceId),
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['plan', user?.id] })
+    },
+  })
+}
+
+export interface SaveAllocationsInput {
+  planMonthId: string
+  /** Porcentajes enteros por grupo, ya validados: suman 100. */
+  percentages: AllocationPercentInput
+  /**
+   * `true` cuando el mes ya tiene reparto guardado. Decide entre estrenar el
+   * conjunto y actualizarlo; no es una preferencia, es lo que separa un INSERT
+   * de un UPSERT.
+   */
+  hasAllocation: boolean
+}
+
+/**
+ * Guarda el reparto del mes: siempre los cinco grupos, siempre en una sentencia.
+ *
+ * La mutacion no reparte importes ni valida la suma: lo primero lo hace
+ * `resolveAllocation` al mostrar, y lo segundo `allocationFormSchema` antes de
+ * llegar aqui. Lo unico que decide es cual de las dos escrituras corresponde.
+ *
+ * `onSettled` y no `onSuccess`, como en las demas: tras un conflicto la
+ * pantalla tiene que enseñar el reparto que de verdad quedo guardado, no el
+ * que se intento guardar.
+ */
+export function useSaveAllocations() {
+  const { user } = useAuth()
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (input: SaveAllocationsInput) => {
+      const rows = buildAllocationRows({
+        userId: user!.id,
+        planMonthId: input.planMonthId,
+        percentages: input.percentages,
+      })
+
+      return input.hasAllocation ? upsertPlanAllocations(rows) : insertPlanAllocations(rows)
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['plan', user?.id] })
+    },
+  })
+}
+
+export interface SavePlanLineInput {
+  planMonthId: string
+  monthKey: string
+  /** `undefined` al crear; el identificador de la línea al editar. */
+  lineId?: string
+  kind: CategoryLineKind
+  name: string
+  categoryId: string
+  dueDate: string | null
+  /** Todas las líneas del mes ya cargadas, para elegir la siguiente posición. */
+  lines: PositionedRow[]
+}
+
+/**
+ * Crea o edita una línea de factura o gasto variable.
+ *
+ * Al editar se manda **solo** lo editable —nombre y fecha—; ni la categoría ni
+ * el tipo viajan, por las razones que documenta `updatePlanLine`. Por eso la
+ * rama de edición ignora `kind` y `categoryId` de la entrada en vez de
+ * reenviarlos.
+ *
+ * Invalida **solo** la consulta de líneas del mes, no la raíz `['plan',
+ * userId]`. Crear, editar o borrar una línea no cambia la cabecera del mes, ni
+ * las fuentes, ni los vínculos, ni el reparto: pedir todo eso otra vez sería
+ * trabajo sin motivo. El desglose de Facturas, Variables y No planeado se
+ * recalcula solo, porque `usePlanActuals` deriva de esta misma consulta.
+ */
+export function useSavePlanLine() {
+  const { user } = useAuth()
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (input: SavePlanLineInput) => {
+      if (input.lineId) {
+        return updatePlanLine(input.lineId, { name: input.name, due_date: input.dueDate })
+      }
+
+      return insertPlanLine(
+        buildPlanLineRow({
+          userId: user!.id,
+          planMonthId: input.planMonthId,
+          periodMonth: monthRange(input.monthKey).start,
+          kind: input.kind,
+          name: input.name,
+          categoryId: input.categoryId,
+          dueDate: input.dueDate,
+          lines: input.lines,
+        }),
+      )
+    },
+    onSuccess: (_data, input) => {
+      queryClient.invalidateQueries({ queryKey: planLinesQueryKey(user?.id, input.monthKey) })
+    },
+  })
+}
+
+export interface DeletePlanLineInput {
+  lineId: string
+  monthKey: string
+}
+
+/** Borra una línea. Su gasto vuelve a «No planeado»; nada más se toca. */
+export function useDeletePlanLine() {
+  const { user } = useAuth()
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (input: DeletePlanLineInput) => deletePlanLine(input.lineId),
+    onSuccess: (_data, input) => {
+      queryClient.invalidateQueries({ queryKey: planLinesQueryKey(user?.id, input.monthKey) })
+    },
+  })
 }
