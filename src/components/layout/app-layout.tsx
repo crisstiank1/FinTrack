@@ -13,6 +13,7 @@ const NAV_ITEMS = [
   { to: '/transactions', label: 'Movimientos' },
   { to: '/ledger', label: 'Libro' },
   { to: '/budgets', label: 'Presupuestos' },
+  { to: '/plan', label: 'Plan mensual' },
   { to: '/settings', label: 'Ajustes' },
 ]
 

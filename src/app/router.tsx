@@ -27,6 +27,9 @@ const Ledger = lazy(() => import('@/pages/Ledger'))
  */
 const Budgets = lazy(() => import('@/pages/Budgets'))
 
+/** El Plan mensual sigue el mismo criterio que Presupuestos. */
+const Plan = lazy(() => import('@/pages/Plan'))
+
 export function AppRouter() {
   return (
     <BrowserRouter>
@@ -72,6 +75,16 @@ export function AppRouter() {
                   }
                 >
                   <Budgets />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/plan"
+              element={
+                <Suspense
+                  fallback={<p className="p-6 text-sm text-muted-foreground">Cargando plan...</p>}
+                >
+                  <Plan />
                 </Suspense>
               }
             />
