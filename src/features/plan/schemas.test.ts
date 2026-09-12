@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
-import { planIncomeSourceSchema } from './schemas'
+import { ALLOCATION_GROUPS } from './calculations/allocation'
+import {
+  allocationFormSchema,
+  planIncomeSourceSchema,
+  ALLOCATION_PRESET,
+  ALLOCATION_SUM_ERROR,
+} from './schemas'
 
 function parse(values: { name?: string; plannedAmount?: string; categoryIds?: string[] }) {
   return planIncomeSourceSchema.safeParse({
@@ -74,5 +80,76 @@ describe('planIncomeSourceSchema', () => {
     const result = parse({ categoryIds: ['cat-salario', 'cat-bono'] })
 
     expect(result.success && result.data.categoryIds).toEqual(['cat-salario', 'cat-bono'])
+  })
+})
+
+describe('allocationFormSchema', () => {
+  const PRESET = { needs: '50', wants: '30', savings: '20', investment: '0', debt: '0' }
+
+  function parseAllocation(values: Partial<Record<string, string>> = {}) {
+    return allocationFormSchema.safeParse({ ...PRESET, ...values })
+  }
+
+  it('acepta el preset y devuelve los cinco porcentajes como enteros', () => {
+    const result = parseAllocation()
+
+    expect(result.success).toBe(true)
+    expect(result.success && result.data).toEqual({
+      needs: 50,
+      wants: 30,
+      savings: 20,
+      investment: 0,
+      debt: 0,
+    })
+  })
+
+  it('el preset suma exactamente 100', () => {
+    const total = ALLOCATION_GROUPS.reduce((sum, group) => sum + ALLOCATION_PRESET[group], 0)
+
+    expect(total).toBe(100)
+  })
+
+  it('un grupo en 0 es una decisión válida, no un campo vacío', () => {
+    const result = parseAllocation({ needs: '100', wants: '0', savings: '0' })
+
+    expect(result.success).toBe(true)
+    expect(result.success && result.data.wants).toBe(0)
+  })
+
+  it('rechaza un total que no suma 100, por arriba y por abajo', () => {
+    expect(parseAllocation({ needs: '60' }).success).toBe(false)
+    expect(parseAllocation({ needs: '40' }).success).toBe(false)
+  })
+
+  it('el error del total no se atribuye a ningún grupo concreto', () => {
+    const result = parseAllocation({ needs: '60' })
+    const issue = !result.success && result.error.issues[0]
+
+    expect(issue && issue.path).toEqual(['root'])
+    expect(issue && issue.message).toBe(ALLOCATION_SUM_ERROR)
+  })
+
+  it('rechaza porcentajes fraccionarios en vez de redondearlos', () => {
+    // 33,33 tres veces suman 99,99: el tercio exacto no existe en este modelo.
+    expect(parseAllocation({ needs: '33,33' }).success).toBe(false)
+    expect(parseAllocation({ needs: '33.33' }).success).toBe(false)
+  })
+
+  it('un campo vacío es un error, no un cero', () => {
+    expect(parseAllocation({ investment: '' }).success).toBe(false)
+  })
+
+  it('rechaza negativos y valores por encima de 100', () => {
+    expect(parseAllocation({ needs: '-10' }).success).toBe(false)
+    expect(parseAllocation({ needs: '150' }).success).toBe(false)
+  })
+
+  it('no acepta puntos base disfrazados de porcentaje', () => {
+    // 5000 sería 50 % en la tabla, pero aquí significaría 5000 %.
+    expect(parseAllocation({ needs: '5000' }).success).toBe(false)
+  })
+
+  it('recorta los espacios antes de medir', () => {
+    expect(parseAllocation({ needs: ' 50 ' }).success).toBe(true)
   })
 })

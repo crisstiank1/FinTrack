@@ -1,5 +1,7 @@
+import { SlidersHorizontal } from 'lucide-react'
 import { useId } from 'react'
 
+import { Button } from '@/components/ui/button'
 import { formatAmount } from '@/lib/currency'
 import { cn } from '@/lib/utils'
 
@@ -40,6 +42,14 @@ interface AllocationBreakdownProps {
   ignoredGroups: string[]
   currencyCode: string
   monthLabel: string
+  /**
+   * Abre el formulario del reparto. **Ausente cuando el mes no tiene plan**:
+   * sin `plan_month_id` no hay a qué colgar las cinco filas, así que el botón
+   * no se pinta en vez de ofrecer algo que no se podría guardar. Crear el plan
+   * es trabajo del bloque de ingresos.
+   */
+  onConfigure?: () => void
+  isBusy?: boolean
 }
 
 const TONE_STYLES: Record<PlanTone, string> = {
@@ -84,6 +94,8 @@ export function AllocationBreakdown({
   ignoredGroups,
   currencyCode,
   monthLabel,
+  onConfigure,
+  isBusy,
 }: AllocationBreakdownProps) {
   const titleId = useId()
   const ignoredNote = ignoredAllocationGroupsNote(ignoredGroups)
@@ -100,9 +112,18 @@ export function AllocationBreakdown({
 
   return (
     <section aria-labelledby={titleId} className="mt-8">
-      <h2 id={titleId} className="text-base font-semibold text-foreground">
-        Reparto 50/30/20
-      </h2>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <h2 id={titleId} className="text-base font-semibold text-foreground">
+          Reparto 50/30/20
+        </h2>
+
+        {onConfigure && (
+          <Button type="button" variant="outline" size="sm" onClick={onConfigure} disabled={isBusy}>
+            <SlidersHorizontal className="size-4" aria-hidden="true" />
+            {hasAllocation ? 'Editar reparto' : 'Configurar reparto'}
+          </Button>
+        )}
+      </div>
 
       {!hasAllocation && (
         <p className="mt-2 rounded-lg border border-border bg-card p-3 text-sm text-muted-foreground first-letter:uppercase">

@@ -21,6 +21,7 @@ export type PlanOperation =
   | 'save_income_source'
   | 'save_income_source_categories'
   | 'delete_income_source'
+  | 'save_allocations'
 
 export type PlanErrorCode =
   /** El mes ya existía: otra pestaña se adelantó. Se resuelve releyendo. */
@@ -41,6 +42,8 @@ export type PlanErrorCode =
   | 'row_missing'
   /** CHECK del esquema: importe negativo o nombre fuera de rango. */
   | 'invalid_input'
+  /** T4: los porcentajes del reparto no suman 100 %. */
+  | 'allocation_sum'
   /** RLS, permisos o sesión caducada. */
   | 'forbidden'
   /** No se pudo hablar con el servidor. */
@@ -60,6 +63,7 @@ const MESSAGES: Record<PlanErrorCode, string> = {
   category_missing: 'Esa categoría ya no está disponible.',
   row_missing: 'Lo que intentas modificar ya no existe. Refresca la pantalla.',
   invalid_input: 'Revisa el nombre y el monto: el monto debe ser un entero de cero o más.',
+  allocation_sum: 'Los porcentajes deben sumar exactamente 100 %.',
   forbidden:
     'Tu sesión no tiene permiso para esta operación. Vuelve a iniciar sesión e inténtalo de nuevo.',
   network: 'No se pudo conectar con el servidor. Revisa tu conexión e inténtalo de nuevo.',
@@ -98,6 +102,9 @@ const UNIQUE_VIOLATION: Record<PlanOperation, PlanErrorCode> = {
   save_income_source: 'conflict',
   save_income_source_categories: 'category_already_linked',
   delete_income_source: 'unknown',
+  // Las cinco filas se envían juntas, así que un grupo repetido solo puede
+  // venir de que otra sesión configurara el reparto entre medias.
+  save_allocations: 'conflict',
 }
 
 /**
@@ -133,6 +140,12 @@ export function toPlanError(error: unknown, operation: PlanOperation): PlanError
   switch (error.code ?? '') {
     // Excepción del trigger de reglas de negocio.
     case 'P0001':
+      // Sobre `plan_allocations` el único trigger que puede saltar es
+      // `check_plan_allocations_sum`, así que aquí la operación ya identifica
+      // la regla y no hace falta mirar el texto —que es el punto frágil del
+      // mapeo—. Zod debería haberlo atajado antes; esto cubre una petición
+      // antigua, dos pestañas o una regresión del cliente.
+      if (operation === 'save_allocations') return new PlanError('allocation_sum')
       return new PlanError(mapTriggerMessage(error.message ?? ''))
 
     case '23505':

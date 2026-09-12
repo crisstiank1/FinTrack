@@ -27,6 +27,10 @@ import {
   type AllocationRow,
 } from '@/features/plan/components/allocation-breakdown'
 import {
+  AllocationForm,
+  type AllocationFormSubmit,
+} from '@/features/plan/components/allocation-form'
+import {
   BudgetVsActualTable,
   type PlanComparisonGroup,
   type PlanComparisonRow,
@@ -53,6 +57,7 @@ import {
   usePlanIncomeSources,
   usePlanLines,
   usePlanMonth,
+  useSaveAllocations,
   useSaveIncomeSource,
 } from '@/features/plan/hooks'
 import { allocationGroupDiffKind, planRowDiffKind, type PlanRowId } from '@/features/plan/labels'
@@ -72,12 +77,13 @@ import { currentMonthKey, formatMonthLabel } from '@/lib/dates'
 import type { Tables } from '@/types/database.types'
 
 /**
- * Plan mensual, primera entrega: resumen del mes y cuadro Presupuesto vs.
- * Actual, **solo lectura**.
+ * Plan mensual: resumen del mes, cuadro Presupuesto vs. Actual, fuentes de
+ * ingreso y reparto 50/30/20.
  *
- * El único control de datos de la pantalla es el selector de mes. Ningún valor
- * «Actual» es editable en ninguna parte, porque ninguno se guarda: todos se
- * calculan desde `transactions` (docs/09-plan-mensual.md).
+ * Lo editable es **solo lo planeado**: las fuentes de ingreso y los cinco
+ * porcentajes del reparto. Ningún valor «Actual» es editable en ninguna parte,
+ * porque ninguno se guarda: todos se calculan desde `transactions`
+ * (docs/09-plan-mensual.md).
  *
  * Esta página **ensambla**, no calcula: cada cifra sale de una función ya
  * publicada en `calculations/`, de `read-model.ts` o de los hooks de lectura.
@@ -146,6 +152,7 @@ export default function Plan() {
   // `null` = ninguno abierto; `'new'` = alta; un id = edicion de esa fuente.
   const [editingSourceId, setEditingSourceId] = useState<string | null>(null)
   const [deletingSourceId, setDeletingSourceId] = useState<string | null>(null)
+  const [isAllocationOpen, setIsAllocationOpen] = useState(false)
   const queryClient = useQueryClient()
 
   const { data: accounts = [] } = useAccounts()
@@ -165,6 +172,7 @@ export default function Plan() {
   const createPlanMonth = useCreatePlanMonth()
   const saveIncomeSource = useSaveIncomeSource()
   const deleteIncomeSource = useDeleteIncomeSource()
+  const saveAllocations = useSaveAllocations()
 
   // Sin `plan_month_id` la consulta de fuentes queda deshabilitada, y una
   // consulta deshabilitada se queda en `pending` para siempre. Un mes sin plan
@@ -416,6 +424,21 @@ export default function Plan() {
     [links, editingSource],
   )
 
+  const hasAllocation = model?.allocation.hasAllocation ?? false
+
+  /**
+   * Reparto guardado, en puntos base, para abrir el formulario con lo que ya
+   * hay. `undefined` cuando el mes no tiene reparto: entonces el formulario
+   * usa su preset en vez de cinco ceros, que no son un punto de partida.
+   */
+  const savedPercentBp = useMemo(() => {
+    if (!model || !hasAllocation) return undefined
+
+    const saved: Record<string, number> = {}
+    for (const row of model.allocation.rows) saved[row.group] = row.percentBp ?? 0
+    return saved
+  }, [model, hasAllocation])
+
   function reportPlanError(error: unknown, fallback: string) {
     const planError = error instanceof PlanError ? error : null
     toast.error(fallback, { description: planError?.message })
@@ -462,6 +485,27 @@ export default function Plan() {
       reportPlanError(error, 'No se pudo eliminar la fuente de ingreso')
     } finally {
       setDeletingSourceId(null)
+    }
+  }
+
+  async function handleSaveAllocations(values: AllocationFormSubmit) {
+    // Sin plan no hay a qué colgar las cinco filas. El botón ni siquiera se
+    // pinta en ese caso; esto lo sostiene si alguna vez se pintara.
+    if (!planMonthId) return
+
+    try {
+      await saveAllocations.mutateAsync({
+        planMonthId,
+        percentages: values.percentages,
+        hasAllocation,
+      })
+      toast.success('Reparto guardado')
+      setIsAllocationOpen(false)
+    } catch (error) {
+      // El diálogo sigue abierto: tras un conflicto, la pantalla de abajo ya se
+      // está refrescando con el reparto que de verdad quedó guardado, y cerrar
+      // aquí daría a entender que el envío salió bien.
+      reportPlanError(error, 'No se pudo guardar el reparto')
     }
   }
 
@@ -562,6 +606,8 @@ export default function Plan() {
                 {...model.allocation}
                 currencyCode={currencyCode}
                 monthLabel={monthLabel}
+                onConfigure={hasPlan ? () => setIsAllocationOpen(true) : undefined}
+                isBusy={saveAllocations.isPending}
               />
               <BudgetVsActualTable
                 groups={model.groups}
@@ -593,6 +639,24 @@ export default function Plan() {
               submitLabel={editingSource ? 'Guardar cambios' : 'Añadir fuente'}
               isSubmitting={saveIncomeSource.isPending}
               onSubmit={handleSaveIncomeSource}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isAllocationOpen} onOpenChange={setIsAllocationOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{hasAllocation ? 'Editar reparto' : 'Configurar reparto'}</DialogTitle>
+          </DialogHeader>
+          {isAllocationOpen && model && (
+            <AllocationForm
+              defaultPercentBp={savedPercentBp}
+              incomePlannedMinor={model.summary.incomePlannedMinor}
+              currencyCode={currencyCode}
+              submitLabel={hasAllocation ? 'Guardar cambios' : 'Guardar reparto'}
+              isSubmitting={saveAllocations.isPending}
+              onSubmit={handleSaveAllocations}
             />
           )}
         </DialogContent>

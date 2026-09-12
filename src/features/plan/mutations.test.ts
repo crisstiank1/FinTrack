@@ -1,11 +1,15 @@
 import { describe, expect, it } from 'vitest'
 
+import { ALLOCATION_GROUPS } from './calculations/allocation'
 import {
+  buildAllocationRows,
   categoriesLinkedElsewhere,
   categoriesOfSource,
   diffIncomeSourceCategories,
   nextIncomeSourcePosition,
   selectLinkableIncomeCategories,
+  toAllocationBasisPoints,
+  ALLOCATION_CONFLICT_TARGET,
   type IncomeSourceCategoryRow,
   type LinkableCategory,
 } from './mutations'
@@ -140,5 +144,138 @@ describe('categoriesOfSource', () => {
 
     expect(categoriesOfSource(links, 'src-1')).toEqual(['salario'])
     expect(categoriesOfSource(links, 'src-3')).toEqual([])
+  })
+})
+
+describe('toAllocationBasisPoints', () => {
+  it('convierte porcentajes enteros a puntos base', () => {
+    const result = toAllocationBasisPoints({
+      needs: 50,
+      wants: 30,
+      savings: 20,
+      investment: 0,
+      debt: 0,
+    })
+
+    expect(result).toEqual({
+      needs: 5_000,
+      wants: 3_000,
+      savings: 2_000,
+      investment: 0,
+      debt: 0,
+    })
+  })
+
+  it('un reparto que suma 100 da exactamente 10 000 puntos base', () => {
+    const result = toAllocationBasisPoints({
+      needs: 45,
+      wants: 25,
+      savings: 15,
+      investment: 10,
+      debt: 5,
+    })
+    const total = ALLOCATION_GROUPS.reduce((sum, group) => sum + result[group], 0)
+
+    expect(total).toBe(10_000)
+  })
+})
+
+describe('buildAllocationRows', () => {
+  const PERCENTAGES = { needs: 50, wants: 30, savings: 20, investment: 0, debt: 0 }
+
+  function build(percentages = PERCENTAGES) {
+    return buildAllocationRows({
+      userId: 'user-1',
+      planMonthId: 'plan-month-1',
+      percentages,
+    })
+  }
+
+  it('construye exactamente cinco filas, una por grupo', () => {
+    expect(build()).toHaveLength(5)
+  })
+
+  it('las cinco comparten el mismo mes y el mismo usuario', () => {
+    const rows = build()
+
+    expect(new Set(rows.map((row) => row.plan_month_id))).toEqual(new Set(['plan-month-1']))
+    expect(new Set(rows.map((row) => row.user_id))).toEqual(new Set(['user-1']))
+  })
+
+  it('la suma de percent_bp es 10 000, que es lo que exige el trigger', () => {
+    const total = build().reduce((sum, row) => sum + row.percent_bp, 0)
+
+    expect(total).toBe(10_000)
+  })
+
+  it('respeta el orden fijo de ALLOCATION_GROUPS', () => {
+    expect(build().map((row) => row.budget_group)).toEqual([...ALLOCATION_GROUPS])
+  })
+
+  it('escribe también los grupos en cero: el reparto se guarda entero', () => {
+    const rows = build()
+    const investment = rows.find((row) => row.budget_group === 'investment')
+
+    expect(investment).toBeDefined()
+    expect(investment?.percent_bp).toBe(0)
+  })
+
+  it('cada fila lleva las cuatro columnas NOT NULL de plan_allocations', () => {
+    for (const row of build()) {
+      expect(Object.keys(row).sort()).toEqual([
+        'budget_group',
+        'percent_bp',
+        'plan_month_id',
+        'user_id',
+      ])
+    }
+  })
+
+  it('el payload completo es el esperado, sin columnas inventadas', () => {
+    expect(build()).toEqual([
+      {
+        user_id: 'user-1',
+        plan_month_id: 'plan-month-1',
+        budget_group: 'needs',
+        percent_bp: 5_000,
+      },
+      {
+        user_id: 'user-1',
+        plan_month_id: 'plan-month-1',
+        budget_group: 'wants',
+        percent_bp: 3_000,
+      },
+      {
+        user_id: 'user-1',
+        plan_month_id: 'plan-month-1',
+        budget_group: 'savings',
+        percent_bp: 2_000,
+      },
+      {
+        user_id: 'user-1',
+        plan_month_id: 'plan-month-1',
+        budget_group: 'investment',
+        percent_bp: 0,
+      },
+      { user_id: 'user-1', plan_month_id: 'plan-month-1', budget_group: 'debt', percent_bp: 0 },
+    ])
+  })
+
+  it('la edición construye el mismo conjunto completo que la primera vez', () => {
+    const editado = build({ needs: 40, wants: 20, savings: 20, investment: 10, debt: 10 })
+
+    expect(editado).toHaveLength(5)
+    expect(editado.map((row) => row.budget_group)).toEqual([...ALLOCATION_GROUPS])
+    expect(editado.reduce((sum, row) => sum + row.percent_bp, 0)).toBe(10_000)
+  })
+})
+
+describe('ALLOCATION_CONFLICT_TARGET', () => {
+  it('nombra la restricción única real, sin user_id', () => {
+    // `plan_allocations_plan_month_id_budget_group_key` es unique
+    // (plan_month_id, budget_group). Añadir user_id apuntaría a un índice que
+    // no existe y PostgREST rechazaría el upsert.
+    expect(ALLOCATION_CONFLICT_TARGET).toBe('plan_month_id,budget_group')
+    expect(ALLOCATION_CONFLICT_TARGET).not.toContain('user_id')
   })
 })

@@ -11,6 +11,7 @@ describe('toPlanError', () => {
     expect(toPlanError(unique, 'save_income_source_categories').code).toBe(
       'category_already_linked',
     )
+    expect(toPlanError(unique, 'save_allocations').code).toBe('conflict')
   })
 
   it('distingue los tres mensajes del trigger de vínculos', () => {
@@ -70,6 +71,32 @@ describe('toPlanError', () => {
     expect(toPlanError('texto suelto', 'save_income_source').code).toBe('unknown')
   })
 
+  it('el trigger de la suma se identifica por la operación, no por el texto', () => {
+    // `check_plan_allocations_sum` es el único trigger que puede saltar sobre
+    // plan_allocations, así que la operación ya basta y no hay que fiarse de un
+    // mensaje que una migración podría reescribir.
+    const suma = {
+      code: 'P0001',
+      message:
+        'Los porcentajes del reparto del mes 0f8d… deben sumar 10000 puntos base; suman 9900.',
+    }
+
+    expect(toPlanError(suma, 'save_allocations').code).toBe('allocation_sum')
+  })
+
+  it('el mismo P0001 sigue mirando el texto en las demás operaciones', () => {
+    const archivada = { code: 'P0001', message: 'No se puede vincular una categoría archivada.' }
+
+    expect(toPlanError(archivada, 'save_income_source_categories').code).toBe('category_archived')
+  })
+
+  it('el conflicto del reparto no cuenta el guardado como hecho ni filtra Postgres', () => {
+    const { message } = new PlanError('conflict')
+
+    expect(message).toMatch(/vuelve a guardar/i)
+    expect(message).not.toMatch(/guardado con éxito|se guardó/i)
+  })
+
   it('ningún mensaje filtra SQL, constraints ni identificadores', () => {
     const codes = [
       'month_conflict',
@@ -81,6 +108,7 @@ describe('toPlanError', () => {
       'category_missing',
       'row_missing',
       'invalid_input',
+      'allocation_sum',
       'forbidden',
       'network',
       'unknown',

@@ -3,10 +3,14 @@
  *
  * Mismo papel que `budgets/mutations.ts`: qué filas hay que tocar se decide
  * aquí, en funciones puras y comprobables sin red; ejecutarlas es trabajo de
- * `api.ts`. Lo que vive en este archivo son las tres reglas del esquema que el
+ * `api.ts`. Lo que vive en este archivo son las reglas del esquema que el
  * cliente tiene que respetar por adelantado, porque el servidor las rechaza
  * pero no las resuelve.
  */
+
+import type { TablesInsert } from '@/types/database.types'
+
+import { ALLOCATION_GROUPS, type AllocationGroup } from './calculations/allocation'
 
 export interface PositionedRow {
   position: number
@@ -132,4 +136,71 @@ export function categoriesOfSource(
   return links
     .filter((link) => link.plan_income_source_id === sourceId)
     .map((link) => link.category_id)
+}
+
+/* -------------------------------------------------------------------------- */
+/* Reparto 50/30/20                                                           */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Columnas que resuelven el conflicto al editar el reparto.
+ *
+ * Es exactamente la restricción `plan_allocations_plan_month_id_budget_group_key`
+ * —`unique (plan_month_id, budget_group)`—, ni una columna más: `user_id` no
+ * forma parte de ella, y añadirlo haría que PostgREST buscara un índice único
+ * que no existe. Vive aquí, junto a las filas que describe, para que las dos
+ * decisiones se lean en el mismo sitio.
+ */
+export const ALLOCATION_CONFLICT_TARGET = 'plan_month_id,budget_group'
+
+/** Porcentajes enteros por grupo, tal como salen del formulario. */
+export type AllocationPercentInput = Record<AllocationGroup, number>
+
+/**
+ * Porcentajes enteros a puntos base: 50 % → 5000.
+ *
+ * Multiplicar por 100 y no dividir nada: la conversión solo va en este
+ * sentido, así que ningún porcentaje entero puede producir puntos base
+ * fraccionarios y la suma de 100 siempre da exactamente 10 000.
+ */
+export function toAllocationBasisPoints(
+  percentages: AllocationPercentInput,
+): Record<AllocationGroup, number> {
+  const basisPoints = {} as Record<AllocationGroup, number>
+  for (const group of ALLOCATION_GROUPS) basisPoints[group] = percentages[group] * 100
+  return basisPoints
+}
+
+export interface AllocationRowsInput {
+  userId: string
+  planMonthId: string
+  percentages: AllocationPercentInput
+}
+
+/**
+ * Las cinco filas del reparto, siempre las cinco.
+ *
+ * Un grupo en 0 % también se escribe. La tabla admite que un mes no tenga
+ * reparto —`check_plan_allocations_sum` se salta el mes sin filas—, así que
+ * omitir un grupo en cero lo dejaría indistinguible de un reparto a medias, y
+ * la interfaz tendría que adivinar si ese hueco es un cero o un dato que falta.
+ * Con las cinco filas, el reparto guardado es siempre un conjunto completo.
+ *
+ * El orden es el de `ALLOCATION_GROUPS`, el mismo del desempate del reparto.
+ * No cambia lo que la base acepta —`plan_allocations` no tiene `position`—,
+ * pero hace que el payload sea reproducible y comparable en una prueba.
+ */
+export function buildAllocationRows({
+  userId,
+  planMonthId,
+  percentages,
+}: AllocationRowsInput): TablesInsert<'plan_allocations'>[] {
+  const basisPoints = toAllocationBasisPoints(percentages)
+
+  return ALLOCATION_GROUPS.map((group) => ({
+    user_id: userId,
+    plan_month_id: planMonthId,
+    budget_group: group,
+    percent_bp: basisPoints[group],
+  }))
 }

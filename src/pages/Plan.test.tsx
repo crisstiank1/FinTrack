@@ -20,6 +20,7 @@ const usePlanIncomeSourceCategories = vi.fn()
 const createPlanMonth = vi.fn()
 const saveIncomeSource = vi.fn()
 const deleteIncomeSource = vi.fn()
+const saveAllocations = vi.fn()
 
 vi.mock('@/features/plan/hooks', () => ({
   usePlanMonth: () => usePlanMonth(),
@@ -34,6 +35,7 @@ vi.mock('@/features/plan/hooks', () => ({
   useCreatePlanMonth: () => ({ mutateAsync: createPlanMonth, isPending: false }),
   useSaveIncomeSource: () => ({ mutateAsync: saveIncomeSource, isPending: false }),
   useDeleteIncomeSource: () => ({ mutateAsync: deleteIncomeSource, isPending: false }),
+  useSaveAllocations: () => ({ mutateAsync: saveAllocations, isPending: false }),
 }))
 
 vi.mock('@/features/categories/hooks', () => ({
@@ -160,6 +162,8 @@ beforeEach(() => {
   createPlanMonth.mockResolvedValue(planMonth)
   saveIncomeSource.mockResolvedValue(undefined)
   deleteIncomeSource.mockResolvedValue(undefined)
+  saveAllocations.mockReset()
+  saveAllocations.mockResolvedValue(undefined)
   toastError.mockClear()
   toastSuccess.mockClear()
 })
@@ -843,6 +847,269 @@ describe('Plan', () => {
       renderPlan()
 
       expect(screen.queryByRole('region', { name: 'Ingresos planeados' })).not.toBeInTheDocument()
+    })
+  })
+
+  describe('configurar el reparto', () => {
+    /** Abre el diálogo del reparto y devuelve su contenido. */
+    async function openAllocationDialog(user: ReturnType<typeof userEvent.setup>) {
+      await user.click(screen.getByRole('button', { name: /reparto/ }))
+      return screen.getByRole('dialog')
+    }
+
+    /** Los cinco campos de porcentaje, en el orden del desempate. */
+    function percentInputs(dialog: HTMLElement): string[] {
+      return GRUPOS.map((grupo) => (within(dialog).getByLabelText(grupo) as HTMLInputElement).value)
+    }
+
+    /** Los cinco importes derivados, ya formateados. */
+    function derivedAmounts(dialog: HTMLElement): string[] {
+      return GRUPOS.map((grupo) => {
+        const input = within(dialog).getByLabelText(grupo)
+        const amountId = (input.getAttribute('aria-describedby') ?? '')
+          .split(' ')
+          .find((id) => id.endsWith('-amount'))
+        const amount = amountId ? document.getElementById(amountId) : null
+        if (!amount) throw new Error(`Sin importe derivado para ${grupo}`)
+
+        return amount.textContent?.trim() ?? ''
+      })
+    }
+
+    describe('preset inicial', () => {
+      beforeEach(() => {
+        usePlanAllocations.mockReturnValue(resolved([]))
+      })
+
+      it('abre con 50 / 30 / 20 / 0 / 0 y un total de 100 %', async () => {
+        const user = userEvent.setup()
+        renderPlan()
+
+        const dialog = await openAllocationDialog(user)
+
+        expect(percentInputs(dialog)).toEqual(['50', '30', '20', '0', '0'])
+        expect(within(dialog).getByRole('status')).toHaveTextContent('100 %')
+      })
+
+      it('la suma de los importes es exactamente el ingreso planeado', async () => {
+        const user = userEvent.setup()
+        renderPlan()
+
+        const dialog = await openAllocationDialog(user)
+        const total = derivedAmounts(dialog).reduce((sum, text) => sum + amountOf(text), 0)
+
+        expect(derivedAmounts(dialog)).toEqual([
+          'COP 700.000',
+          'COP 420.000',
+          'COP 280.000',
+          'COP 0',
+          'COP 0',
+        ])
+        expect(total).toBe(1_400_000)
+      })
+
+      it('un grupo en 0 % muestra COP 0, no «sin reparto»', async () => {
+        const user = userEvent.setup()
+        renderPlan()
+
+        const dialog = await openAllocationDialog(user)
+        const [, , , inversion, deuda] = derivedAmounts(dialog)
+
+        expect(inversion).toBe('COP 0')
+        expect(deuda).toBe('COP 0')
+        expect(within(dialog).queryByText(/Sin reparto configurado/)).not.toBeInTheDocument()
+      })
+
+      it('guarda las cinco filas como primera configuración, no como edición', async () => {
+        const user = userEvent.setup()
+        renderPlan()
+
+        const dialog = await openAllocationDialog(user)
+        await user.click(within(dialog).getByRole('button', { name: 'Guardar reparto' }))
+
+        await waitFor(() => expect(saveAllocations).toHaveBeenCalled())
+        expect(saveAllocations.mock.calls[0][0]).toEqual({
+          planMonthId: 'plan-month-1',
+          hasAllocation: false,
+          percentages: { needs: 50, wants: 30, savings: 20, investment: 0, debt: 0 },
+        })
+      })
+    })
+
+    describe('edición', () => {
+      it('abre con el reparto guardado, incluidos los grupos sin fila propia', async () => {
+        const user = userEvent.setup()
+        renderPlan()
+
+        const dialog = await openAllocationDialog(user)
+
+        // El mes guarda needs, wants y savings; los otros dos llegan como 0.
+        expect(percentInputs(dialog)).toEqual(['50', '30', '20', '0', '0'])
+      })
+
+      it('marca el guardado como edición, para que sea un upsert y no un insert', async () => {
+        const user = userEvent.setup()
+        renderPlan()
+
+        const dialog = await openAllocationDialog(user)
+        await user.click(within(dialog).getByRole('button', { name: 'Guardar cambios' }))
+
+        await waitFor(() => expect(saveAllocations).toHaveBeenCalled())
+        expect(saveAllocations.mock.calls[0][0]).toMatchObject({ hasAllocation: true })
+      })
+
+      it('envía el reparto completo tras cambiar un grupo', async () => {
+        const user = userEvent.setup()
+        renderPlan()
+
+        const dialog = await openAllocationDialog(user)
+        const deseos = within(dialog).getByLabelText('Deseos')
+        const inversion = within(dialog).getByLabelText('Inversión')
+
+        await user.clear(deseos)
+        await user.type(deseos, '20')
+        await user.clear(inversion)
+        await user.type(inversion, '10')
+        await user.click(within(dialog).getByRole('button', { name: 'Guardar cambios' }))
+
+        await waitFor(() => expect(saveAllocations).toHaveBeenCalled())
+        expect(saveAllocations.mock.calls[0][0].percentages).toEqual({
+          needs: 50,
+          wants: 20,
+          savings: 20,
+          investment: 10,
+          debt: 0,
+        })
+      })
+    })
+
+    it('no guarda un reparto que no suma 100 y dice por qué', async () => {
+      const user = userEvent.setup()
+      renderPlan()
+
+      const dialog = await openAllocationDialog(user)
+      const deseos = within(dialog).getByLabelText('Deseos')
+
+      await user.clear(deseos)
+      await user.type(deseos, '40')
+
+      await waitFor(() => expect(within(dialog).getByRole('status')).toHaveTextContent('110 %'))
+      expect(within(dialog).getByText(/deben sumar exactamente 100/)).toBeInTheDocument()
+
+      await user.click(within(dialog).getByRole('button', { name: 'Guardar cambios' }))
+
+      expect(saveAllocations).not.toHaveBeenCalled()
+    })
+
+    it('sin un total válido no previsualiza importes inventados', async () => {
+      const user = userEvent.setup()
+      renderPlan()
+
+      const dialog = await openAllocationDialog(user)
+      const deseos = within(dialog).getByLabelText('Deseos')
+
+      await user.clear(deseos)
+      await user.type(deseos, '40')
+
+      await waitFor(() =>
+        expect(derivedAmounts(dialog).every((text) => !text.includes('COP'))).toBe(true),
+      )
+    })
+
+    describe('sin ingreso planeado', () => {
+      beforeEach(() => {
+        usePlanIncomeSources.mockReturnValue(resolved([]))
+      })
+
+      it('deja ver los porcentajes y dice que no hay importe que repartir', async () => {
+        const user = userEvent.setup()
+        renderPlan()
+
+        const dialog = await openAllocationDialog(user)
+
+        expect(percentInputs(dialog)).toEqual(['50', '30', '20', '0', '0'])
+        expect(derivedAmounts(dialog)).toEqual(Array(5).fill('Sin ingreso planeado'))
+      })
+
+      it('permite guardar igual: el reparto pertenece al plan, no al ingreso', async () => {
+        const user = userEvent.setup()
+        renderPlan()
+
+        const dialog = await openAllocationDialog(user)
+        await user.click(within(dialog).getByRole('button', { name: /Guardar/ }))
+
+        await waitFor(() => expect(saveAllocations).toHaveBeenCalled())
+        expect(saveAllocations.mock.calls[0][0].percentages).toEqual({
+          needs: 50,
+          wants: 30,
+          savings: 20,
+          investment: 0,
+          debt: 0,
+        })
+      })
+    })
+
+    describe('conflicto con otra sesión', () => {
+      beforeEach(() => {
+        saveAllocations.mockRejectedValue(new PlanError('conflict'))
+      })
+
+      it('lo dice sin filtrar SQLSTATE, constraints ni identificadores', async () => {
+        const user = userEvent.setup()
+        renderPlan()
+
+        const dialog = await openAllocationDialog(user)
+        await user.click(within(dialog).getByRole('button', { name: 'Guardar cambios' }))
+
+        await waitFor(() => expect(toastError).toHaveBeenCalled())
+        const [fallback, options] = toastError.mock.calls[0] as [string, { description?: string }]
+
+        expect(`${fallback} ${options.description ?? ''}`).not.toMatch(
+          /23505|P0001|PGRST|constraint|_key|_fkey|uuid/i,
+        )
+      })
+
+      it('no afirma que el reparto quedó guardado', async () => {
+        const user = userEvent.setup()
+        renderPlan()
+
+        const dialog = await openAllocationDialog(user)
+        await user.click(within(dialog).getByRole('button', { name: 'Guardar cambios' }))
+
+        await waitFor(() => expect(toastError).toHaveBeenCalled())
+        expect(toastSuccess).not.toHaveBeenCalled()
+        expect(screen.getByRole('dialog')).toBeInTheDocument()
+      })
+    })
+
+    it('confirma el guardado solo cuando de verdad ocurrió', async () => {
+      const user = userEvent.setup()
+      renderPlan()
+
+      const dialog = await openAllocationDialog(user)
+      await user.click(within(dialog).getByRole('button', { name: 'Guardar cambios' }))
+
+      await waitFor(() => expect(toastSuccess).toHaveBeenCalledWith('Reparto guardado'))
+      expect(toastError).not.toHaveBeenCalled()
+    })
+
+    it('el botón no aparece mientras el mes no tenga plan', () => {
+      usePlanMonth.mockReturnValue(resolved(null))
+      usePlanIncomeSources.mockReturnValue({
+        data: undefined,
+        isPending: true,
+        isError: false,
+        error: null,
+      })
+      usePlanIncomeSourceCategories.mockReturnValue({
+        data: undefined,
+        isPending: true,
+        isError: false,
+        error: null,
+      })
+      renderPlan()
+
+      expect(screen.queryByRole('button', { name: /reparto/ })).not.toBeInTheDocument()
     })
   })
 })

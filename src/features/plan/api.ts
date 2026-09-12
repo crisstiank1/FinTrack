@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase'
 import type { Tables, TablesInsert, TablesUpdate } from '@/types/database.types'
 
 import { toPlanError } from './errors'
+import { ALLOCATION_CONFLICT_TARGET } from './mutations'
 import type { PlanBalanceTransaction } from './read-model'
 
 /**
@@ -328,4 +329,54 @@ export async function deletePlanIncomeSourceCategories(
     .in('category_id', [...categoryIds])
 
   if (error) throw toPlanError(error, 'save_income_source_categories')
+}
+
+/* -------------------------------------------------------------------------- */
+/* Reparto 50/30/20                                                           */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * Las dos escrituras del reparto son **una sola sentencia cada una**, y eso no
+ * es una optimizacion: `check_plan_allocations_sum_trigger` esta diferido al
+ * commit y evalua la suma del conjunto entero del mes. Cinco sentencias
+ * sueltas desde PostgREST son cinco transacciones distintas, y la primera
+ * fallaria al commit por una suma de 5000 puntos base que ninguna pantalla
+ * pidio.
+ */
+
+/**
+ * Primera configuracion del reparto: las cinco filas en un solo INSERT.
+ *
+ * No usa `upsert` a proposito. Aqui el mes no tiene reparto, asi que no hay
+ * nada que resolver por conflicto; si otra sesion se adelanto, el 23505 sale
+ * como `conflict` y quien llama refresca en vez de pisar lo que aquella dejo.
+ */
+export async function insertPlanAllocations(
+  rows: TablesInsert<'plan_allocations'>[],
+): Promise<void> {
+  const { error } = await supabase.from('plan_allocations').insert(rows)
+  if (error) throw toPlanError(error, 'save_allocations')
+}
+
+/**
+ * Edicion del reparto: las cinco filas en un solo UPSERT.
+ *
+ * Es la unica escritura del Plan que usa `upsert`, y la excepcion se sostiene
+ * en que las cinco filas **son** el estado completo del reparto: cada envio lo
+ * manda entero, la clave del conflicto existe y es exactamente la suya, y
+ * actualizar lo que ya hay es justo lo que el usuario pidio —tocar
+ * `updated_at` refleja un cambio real, no uno fingido—.
+ *
+ * La alternativa, borrar y volver a insertar, dejaria el reparto vacio entre
+ * las dos sentencias: sin transaccion, un fallo en medio se lleva por delante
+ * un reparto que nadie pidio borrar.
+ */
+export async function upsertPlanAllocations(
+  rows: TablesInsert<'plan_allocations'>[],
+): Promise<void> {
+  const { error } = await supabase
+    .from('plan_allocations')
+    .upsert(rows, { onConflict: ALLOCATION_CONFLICT_TARGET })
+
+  if (error) throw toPlanError(error, 'save_allocations')
 }

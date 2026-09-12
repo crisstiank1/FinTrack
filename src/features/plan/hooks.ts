@@ -20,9 +20,11 @@ import {
   fetchPlanLines,
   fetchPlanMonth,
   fetchTransactionsByAccounts,
+  insertPlanAllocations,
   insertPlanIncomeSource,
   insertPlanIncomeSourceCategories,
   updatePlanIncomeSource,
+  upsertPlanAllocations,
 } from './api'
 import {
   calculateBalanceForAccountType,
@@ -37,8 +39,10 @@ import {
 } from './calculations/expenses'
 import { PlanError } from './errors'
 import {
+  buildAllocationRows,
   diffIncomeSourceCategories,
   nextIncomeSourcePosition,
+  type AllocationPercentInput,
   type PositionedRow,
 } from './mutations'
 import {
@@ -641,6 +645,49 @@ export function useDeleteIncomeSource() {
 
   return useMutation({
     mutationFn: (sourceId: string) => deletePlanIncomeSource(sourceId),
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['plan', user?.id] })
+    },
+  })
+}
+
+export interface SaveAllocationsInput {
+  planMonthId: string
+  /** Porcentajes enteros por grupo, ya validados: suman 100. */
+  percentages: AllocationPercentInput
+  /**
+   * `true` cuando el mes ya tiene reparto guardado. Decide entre estrenar el
+   * conjunto y actualizarlo; no es una preferencia, es lo que separa un INSERT
+   * de un UPSERT.
+   */
+  hasAllocation: boolean
+}
+
+/**
+ * Guarda el reparto del mes: siempre los cinco grupos, siempre en una sentencia.
+ *
+ * La mutacion no reparte importes ni valida la suma: lo primero lo hace
+ * `resolveAllocation` al mostrar, y lo segundo `allocationFormSchema` antes de
+ * llegar aqui. Lo unico que decide es cual de las dos escrituras corresponde.
+ *
+ * `onSettled` y no `onSuccess`, como en las demas: tras un conflicto la
+ * pantalla tiene que enseñar el reparto que de verdad quedo guardado, no el
+ * que se intento guardar.
+ */
+export function useSaveAllocations() {
+  const { user } = useAuth()
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (input: SaveAllocationsInput) => {
+      const rows = buildAllocationRows({
+        userId: user!.id,
+        planMonthId: input.planMonthId,
+        percentages: input.percentages,
+      })
+
+      return input.hasAllocation ? upsertPlanAllocations(rows) : insertPlanAllocations(rows)
+    },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['plan', user?.id] })
     },
