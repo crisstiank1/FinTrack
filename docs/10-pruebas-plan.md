@@ -1591,3 +1591,59 @@ entero queda pendiente; no hay variante degradada que merezca la pena.
 Las expectativas escritas en los bloques son las **previstas**; la sección
 «Hallazgos de la ejecución» documenta dónde el texto de esta guía todavía no
 coincide con lo observado.
+
+---
+
+# Casos funcionales de 3E-A — clasificación desde la interfaz
+
+Estos casos **no son SQL** y no se ejecutan en el editor de Supabase. El bloque
+0 ya cubre lo que la base rechaza y permite; lo que queda aquí es lo que la
+aplicación debe hacer con esas mismas reglas, y se prueba con Vitest más una
+pasada manual. Se documentan en esta guía, y no en otra, para que las barreras
+del esquema y el comportamiento que se apoya en ellas se lean juntos: cada caso
+de abajo nombra el caso del bloque 0 que lo sostiene.
+
+## Escritura
+
+| Caso | Esperado | Lo sostiene |
+| --- | --- | --- |
+| Clasificar una categoría de gasto activa como `needs` | `insert` con `user_id`, `category_id` y `budget_group`; la categoría pasa a «Clasificadas» | — |
+| Cambiarla a `wants` | `update` de **solo** `budget_group` | 0.7 |
+| Cambiarla a `debt` | Igual; `debt` no es un caso especial de escritura | 0.7 |
+| Eliminar la clasificación tras confirmación | `delete` por `id`; la categoría vuelve a «Sin clasificar» | — |
+| Intentar clasificar una categoría `income` | No se ofrece en la interfaz; si llegara al servidor, error manejado | 0.4 |
+| Intentar clasificar una categoría archivada | No se ofrece en la interfaz; si llegara al servidor, error manejado | 0.5 |
+| Editar el `budget_group` de una clasificación cuya categoría se archivó o pasó a `income` después | **Permitido**: el trigger solo valida la categoría cuando se estrena | 0.7-a, 0.7-b |
+| Clasificar una categoría ya clasificada desde otra pestaña | `23505` traducido a conflicto; **no** se reintenta como `update` | 0.3 |
+
+El caso del `update` merece una prueba propia sobre el payload: debe verificar
+que `category_id` **no viaja** en la sentencia. Reenviar la fila completa «por
+comodidad» funcionaría hoy —el valor sería idéntico, no distinto— pero deja
+abierta la puerta a que un cambio futuro estrene una referencia inválida sin
+que nadie lo note.
+
+## Identidades del reparto
+
+| Caso | Esperado |
+| --- | --- |
+| `needs + wants + debt + sinClasificar = gastoActual` | Se cumple con cualquier subconjunto de categorías clasificadas, incluido el conjunto vacío |
+| Clasificar redistribuye sin alterar el total | `gastoActual` no cambia al clasificar: solo cambia en qué grupo se presenta |
+| `/plan` se actualiza tras clasificar | La consulta de clasificaciones se invalida y el bloque del reparto recalcula sus derivados |
+| No hay siembra ni clasificación automática | Con cero clasificaciones, los cinco grupos muestran actual `COP 0` y todo el gasto queda en «Sin clasificar» |
+
+La última fila es una prueba de ausencia y por eso importa: es la que detecta
+que alguien haya introducido una regla por nombre, importe o historial.
+
+## Invalidación
+
+Tras crear, cambiar o eliminar una clasificación se invalida
+`['category-classifications', userId]` y **nada más**. El plan del mes no ha
+cambiado en la base: invalidar también `['plan', userId]` volvería a pedir mes,
+fuentes, vínculos, líneas y asignaciones sin que ninguna haya cambiado.
+
+## Validación manual
+
+Sobre datos reales, comprobando después de **cada** clasificación que el total
+del gasto del mes no se mueve y que solo cambia su reparto entre grupos. La
+partición del desglose —Facturas, Gastos variables y No planeado— **no debe
+cambiar** en 3E-A: depende de `plan_lines`, que es 3E-B.

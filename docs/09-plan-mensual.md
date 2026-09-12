@@ -709,15 +709,45 @@ Reglas de presentación:
 **No hay siembra automática.** Ni siquiera desde la partición entre gastos
 esenciales y flexibles de `docs/03-ui-ux.md`, que se le parece mucho. Una
 clasificación equivocada en silencio falsea el mes entero; una fila «Sin
-clasificar» visible no falsea nada. La siembra es una acción de interfaz con
-sugerencias preseleccionadas que el usuario confirma.
+clasificar» visible no falsea nada.
+
+La primera entrega de clasificación de categorías **no siembra, no
+preclasifica y no presenta sugerencias preseleccionadas**. Las categorías de
+gasto empiezan sin grupo presupuestario. La persona asigna explícitamente
+«Necesidades», «Deseos» o «Deuda» desde Ajustes. FinTrack no deduce el grupo a
+partir del nombre de la categoría, del importe, del historial de movimientos ni
+del presupuesto de esa categoría.
+
+Las sugerencias confirmables no quedan descartadas para siempre, pero son una
+entrega independiente y con sus propias pruebas. Si alguna vez se implementan,
+se mostrarían sin selección previa, exigirían una confirmación explícita por
+categoría y no escribirían nada antes de ella. Ninguna versión de esa función
+puede modificar automáticamente datos ya existentes.
+
+**La clasificación pertenece a la categoría, no al mes.** No hay
+`plan_month_id` en `category_classifications`, y no es un descuido: clasificar
+«Vivienda» como `needs` cambia la lectura de todos los meses, cerrados
+incluidos.
+
+**La edición vive en Ajustes**, junto a las categorías, y por ese mismo motivo:
+una pantalla cuya cabecera dice «Septiembre 2026» daría a entender que la
+decisión solo alcanza a septiembre.
+
+**`/plan` muestra el resultado y enlaza al editor.** Cuando queda gasto sin
+clasificar, el bloque del reparto dice cuánto es y lleva a Ajustes. No ofrece un
+segundo editor: dos superficies para la misma decisión acabarían divergiendo.
 
 **Las categorías de ingreso no se clasifican.** El reparto distribuye el
-ingreso, no lo clasifica.
+ingreso, no lo clasifica. Una categoría de ingreso sin clasificar no aparece en
+el panel de clasificación.
 
 **Las categorías archivadas conservan su clasificación** y siguen valiendo para
-meses cerrados. Solo se deniega estrenar una clasificación nueva con una
-categoría archivada.
+meses cerrados. Una clasificación existente sigue siendo editable aunque su
+categoría se archive o cambie de tipo después, y lo editable es **solo el
+grupo**: cambiar la categoría de una clasificación es estrenarla, y entonces
+vuelven a aplicarse todas las reglas. Una categoría archivada que no tenga
+clasificación no puede recibir una nueva; el panel no se la ofrece, en vez de
+ofrecer un botón que el servidor va a rechazar.
 
 **Las categorías sin clasificar nunca se adivinan.** Se acumulan en una fila
 «Sin clasificar» visible, con un aviso en la cabecera del mes. Asignarlas en
