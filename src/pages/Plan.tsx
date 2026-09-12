@@ -4,6 +4,11 @@ import { Link } from 'react-router-dom'
 
 import { Button } from '@/components/ui/button'
 import { useAccounts } from '@/features/accounts/hooks'
+import {
+  ALLOCATION_GROUPS,
+  resolveAllocation,
+  type AllocationGroup,
+} from '@/features/plan/calculations/allocation'
 import { calculateDiff } from '@/features/plan/calculations/diff'
 import { calculateRemaining } from '@/features/plan/calculations/remaining'
 import {
@@ -13,6 +18,10 @@ import {
   sumPlannedLineAmounts,
   summarizeAllocation,
 } from '@/features/plan/calculations/reconciliation'
+import {
+  AllocationBreakdown,
+  type AllocationRow,
+} from '@/features/plan/components/allocation-breakdown'
 import {
   BudgetVsActualTable,
   type PlanComparisonGroup,
@@ -24,12 +33,14 @@ import {
   useCategoryClassifications,
   useEffectiveCategoryBudgets,
   usePlanActuals,
+  usePlanAllocations,
   usePlanIncomeSources,
   usePlanLines,
   usePlanMonth,
 } from '@/features/plan/hooks'
-import { planRowDiffKind, type PlanRowId } from '@/features/plan/labels'
+import { allocationGroupDiffKind, planRowDiffKind, type PlanRowId } from '@/features/plan/labels'
 import {
+  buildAllocationPercentages,
   partitionPlanLines,
   planLineCategoryIds,
   toPlannedIncomeSources,
@@ -52,8 +63,9 @@ import type { Tables } from '@/types/database.types'
  * conjunto está vacío —que es distinto de valer cero—.
  */
 
-/** Colección vacía con identidad estable, para no invalidar los `useMemo`. */
+/* Colecciones vacías con identidad estable, para no invalidar los `useMemo`. */
 const NO_INCOME_SOURCES: Tables<'plan_income_sources'>[] = []
+const NO_ALLOCATIONS: Tables<'plan_allocations'>[] = []
 
 /**
  * Plan de un grupo de categorías.
@@ -120,6 +132,7 @@ export default function Plan() {
   const budgetsQuery = useEffectiveCategoryBudgets(monthKey)
   const actualsQuery = usePlanActuals({ monthKey, planMonthId })
   const incomeSourcesQuery = usePlanIncomeSources(planMonthId)
+  const allocationsQuery = usePlanAllocations(planMonthId)
 
   // Sin `plan_month_id` la consulta de fuentes queda deshabilitada, y una
   // consulta deshabilitada se queda en `pending` para siempre. Un mes sin plan
@@ -128,6 +141,10 @@ export default function Plan() {
   const incomeSources = planMonthId ? incomeSourcesQuery.data : NO_INCOME_SOURCES
   const incomeSourcesPending = planMonthId ? incomeSourcesQuery.isPending : false
   const incomeSourcesError = planMonthId ? incomeSourcesQuery.isError : false
+
+  const allocations = planMonthId ? allocationsQuery.data : NO_ALLOCATIONS
+  const allocationsPending = planMonthId ? allocationsQuery.isPending : false
+  const allocationsError = planMonthId ? allocationsQuery.isError : false
 
   // El MVP no convierte divisas: se usa la moneda de la primera cuenta como
   // moneda de presentación, mismo criterio que el dashboard y /budgets.
@@ -140,7 +157,8 @@ export default function Plan() {
     classificationsQuery.isPending ||
     budgetsQuery.isPending ||
     actualsQuery.isPending ||
-    incomeSourcesPending
+    incomeSourcesPending ||
+    allocationsPending
 
   const isError =
     planMonthQuery.isError ||
@@ -148,7 +166,8 @@ export default function Plan() {
     classificationsQuery.isError ||
     budgetsQuery.isError ||
     actualsQuery.isError ||
-    incomeSourcesError
+    incomeSourcesError ||
+    allocationsError
 
   const actuals = actualsQuery.data
   const budgetsByCategory = budgetsQuery.data
@@ -156,7 +175,14 @@ export default function Plan() {
   const classifications = classificationsQuery.data
 
   const model = useMemo(() => {
-    if (!actuals || !budgetsByCategory || !lines || !classifications || !incomeSources) {
+    if (
+      !actuals ||
+      !budgetsByCategory ||
+      !lines ||
+      !classifications ||
+      !incomeSources ||
+      !allocations
+    ) {
       return undefined
     }
 
@@ -206,6 +232,43 @@ export default function Plan() {
       allocation.unassignedMinor,
     )
 
+    // Reparto 50/30/20. Los porcentajes se estrechan en `read-model` y el
+    // importe por grupo lo decide `resolveAllocation` por mayor resto: aquí no
+    // se reparte nada a mano.
+    const { percentages, ignoredGroups } = buildAllocationPercentages(allocations)
+    const hasAllocation = Object.keys(percentages).length > 0
+    const allocationAmounts =
+      hasAllocation && incomePlannedMinor !== null
+        ? resolveAllocation(incomePlannedMinor, percentages)
+        : null
+
+    // Lo real de cada grupo: gasto clasificado en necesidades, deseos y deuda;
+    // aportes por transferencia en ahorro e inversión. Son dos orígenes
+    // distintos a propósito, y ninguno se cruza con el otro.
+    const actualByGroup: Record<AllocationGroup, number> = {
+      needs: actuals.byGroup.needsMinor,
+      wants: actuals.byGroup.wantsMinor,
+      savings: actuals.savingsContributionsMinor,
+      investment: actuals.investmentContributionsMinor,
+      debt: actuals.byGroup.debtMinor,
+    }
+
+    const allocationRows: AllocationRow[] = ALLOCATION_GROUPS.map((group) => {
+      const plannedMinor = allocationAmounts ? allocationAmounts[group] : null
+      const actualMinor = actualByGroup[group]
+
+      return {
+        group,
+        // Con reparto configurado, un grupo que no aparece tiene 0 puntos
+        // base: al usuario no le tocó nada ahí, que es distinto de no haber
+        // repartido todavía.
+        percentBp: hasAllocation ? (percentages[group] ?? 0) : null,
+        plannedMinor,
+        actualMinor,
+        diff: calculateDiff(actualMinor, plannedMinor, allocationGroupDiffKind[group]),
+      }
+    })
+
     const groups: PlanComparisonGroup[] = [
       {
         id: 'income',
@@ -242,6 +305,15 @@ export default function Plan() {
 
     return {
       groups,
+      allocation: {
+        rows: allocationRows,
+        hasAllocation,
+        // La suma de los cinco grupos es exactamente el ingreso planeado
+        // (docs/09-plan-mensual.md): se muestra ese mismo número, no otra suma.
+        totalPlannedMinor: allocationAmounts ? incomePlannedMinor : null,
+        unclassifiedMinor: actuals.byGroup.sinClasificarMinor,
+        ignoredGroups,
+      },
       summary: {
         incomeActualMinor: actuals.incomeActualMinor,
         incomePlannedMinor,
@@ -260,7 +332,7 @@ export default function Plan() {
         actuals.savingsContributionsMinor > 0 ||
         actuals.investmentContributionsMinor > 0,
     }
-  }, [actuals, budgetsByCategory, lines, classifications, incomeSources])
+  }, [actuals, budgetsByCategory, lines, classifications, incomeSources, allocations])
 
   const hasPlan = Boolean(planMonthQuery.data)
 
@@ -327,6 +399,11 @@ export default function Plan() {
           ) : (
             <>
               <PlanSummary currencyCode={currencyCode} {...model.summary} />
+              <AllocationBreakdown
+                {...model.allocation}
+                currencyCode={currencyCode}
+                monthLabel={monthLabel}
+              />
               <BudgetVsActualTable
                 groups={model.groups}
                 currencyCode={currencyCode}

@@ -14,6 +14,7 @@ const useCategoryClassifications = vi.fn()
 const useEffectiveCategoryBudgets = vi.fn()
 const usePlanActuals = vi.fn()
 const usePlanIncomeSources = vi.fn()
+const usePlanAllocations = vi.fn()
 
 vi.mock('@/features/plan/hooks', () => ({
   usePlanMonth: () => usePlanMonth(),
@@ -22,6 +23,7 @@ vi.mock('@/features/plan/hooks', () => ({
   useEffectiveCategoryBudgets: () => useEffectiveCategoryBudgets(),
   usePlanActuals: (options: unknown) => usePlanActuals(options),
   usePlanIncomeSources: (planMonthId: unknown) => usePlanIncomeSources(planMonthId),
+  usePlanAllocations: (planMonthId: unknown) => usePlanAllocations(planMonthId),
 }))
 
 vi.mock('@/features/accounts/hooks', () => ({
@@ -55,6 +57,12 @@ const incomeSources = [
   { id: 'src-1', planned_minor: 1_400_000, position: 0 },
 ] as Tables<'plan_income_sources'>[]
 
+const allocations = [
+  { id: 'a1', budget_group: 'needs', percent_bp: 5_000 },
+  { id: 'a2', budget_group: 'wants', percent_bp: 3_000 },
+  { id: 'a3', budget_group: 'savings', percent_bp: 2_000 },
+] as Tables<'plan_allocations'>[]
+
 const actuals = {
   incomeActualMinor: 1_400_000,
   expenseActualMinor: 800_000,
@@ -87,8 +95,12 @@ function renderPlan() {
 }
 
 /** Celdas de una fila del cuadro, en el orden planeado, actual y diferencia. */
+function comparisonTable(): HTMLElement {
+  return screen.getByRole('table', { name: /Presupuesto frente a lo real/ })
+}
+
 function rowCells(name: string): string[] {
-  const table = screen.getByRole('table')
+  const table = comparisonTable()
   const header = within(table).getByRole('rowheader', { name })
   const row = header.closest('tr')
   if (!row) throw new Error(`No se encontró la fila «${name}»`)
@@ -108,7 +120,20 @@ beforeEach(() => {
   useEffectiveCategoryBudgets.mockReturnValue(resolved(effectiveBudgets))
   usePlanActuals.mockReturnValue(resolved(actuals))
   usePlanIncomeSources.mockReturnValue(resolved(incomeSources))
+  usePlanAllocations.mockReturnValue(resolved(allocations))
 })
+
+const GRUPOS = ['Necesidades', 'Deseos', 'Ahorro', 'Inversión', 'Deuda']
+
+/** Celdas de una fila del reparto: porcentaje, planeado, actual y diferencia. */
+function allocationCells(name: string): string[] {
+  const table = screen.getByRole('table', { name: /Reparto del ingreso planeado/ })
+  const header = within(table).getByRole('rowheader', { name })
+  const row = header.closest('tr')
+  if (!row) throw new Error(`No se encontro el grupo ${name}`)
+
+  return Array.from(row.querySelectorAll('td')).map((cell) => cell.textContent?.trim() ?? '')
+}
 
 describe('Plan', () => {
   it('muestra el mes en pantalla y permite cambiarlo', async () => {
@@ -191,7 +216,7 @@ describe('Plan', () => {
   it('mantiene los indicadores fuera del desglose que suma los gastos', () => {
     renderPlan()
 
-    const table = screen.getByRole('table')
+    const table = comparisonTable()
     const breakdown = within(table).getByText('Desglose de gastos').closest('tbody')
     const indicators = within(table).getByText('Indicadores').closest('tbody')
     if (!breakdown || !indicators) throw new Error('No se encontraron los grupos del cuadro')
@@ -393,5 +418,142 @@ describe('Plan', () => {
     expect(screen.getByRole('status')).toHaveTextContent(/Cargando el plan/)
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  describe('reparto 50/30/20', () => {
+    it('muestra los cinco grupos en el orden del desempate, con su porcentaje', () => {
+      renderPlan()
+
+      const table = screen.getByRole('table', { name: /Reparto del ingreso planeado/ })
+      const grupos = within(table)
+        .getAllByRole('rowheader')
+        .map((header) => header.textContent?.trim())
+
+      expect(grupos.slice(0, 5)).toEqual(['Necesidades', 'Deseos', 'Ahorro', 'Inversión', 'Deuda'])
+      expect(allocationCells('Necesidades')[0]).toBe('50 %')
+      expect(allocationCells('Deseos')[0]).toBe('30 %')
+      expect(allocationCells('Ahorro')[0]).toBe('20 %')
+      // Un grupo sin porcentaje propio recibe 0, no un valor sin definir.
+      expect(allocationCells('Deuda')[0]).toBe('0 %')
+    })
+
+    it('reparte el ingreso planeado con resolveAllocation', () => {
+      renderPlan()
+
+      expect(allocationCells('Necesidades')[1]).toBe('COP 700.000')
+      expect(allocationCells('Deseos')[1]).toBe('COP 420.000')
+      expect(allocationCells('Ahorro')[1]).toBe('COP 280.000')
+      expect(allocationCells('Inversión')[1]).toBe('COP 0')
+    })
+
+    it('la suma de los cinco grupos es exactamente el ingreso planeado', () => {
+      renderPlan()
+
+      const suma = GRUPOS.map((grupo) => amountOf(allocationCells(grupo)[1])).reduce(
+        (total, amount) => total + amount,
+        0,
+      )
+
+      expect(suma).toBe(1_400_000)
+      expect(screen.getAllByText('Total repartido').length).toBeGreaterThan(0)
+    })
+
+    it('cuadra igual cuando el reparto exige desempatar por mayor resto', () => {
+      usePlanIncomeSources.mockReturnValue(
+        resolved([
+          { id: 'src-1', planned_minor: 1_000_001, position: 0 },
+        ] as Tables<'plan_income_sources'>[]),
+      )
+      renderPlan()
+
+      const suma = GRUPOS.map((grupo) => amountOf(allocationCells(grupo)[1])).reduce(
+        (total, amount) => total + amount,
+        0,
+      )
+
+      // La unidad sobrante va al mayor resto, que aquí es Necesidades.
+      expect(allocationCells('Necesidades')[1]).toBe('COP 500.001')
+      expect(suma).toBe(1_000_001)
+    })
+
+    it('el ahorro y la inversion salen de aportes, no de gastos', () => {
+      renderPlan()
+
+      // 400.000 de aportes por transferencia, no de byGroup.
+      expect(allocationCells('Ahorro')[2]).toBe('COP 400.000')
+      expect(allocationCells('Inversión')[2]).toBe('COP 0')
+      expect(allocationCells('Necesidades')[2]).toBe('COP 600.000')
+    })
+
+    it('gastar de menos es favorable y aportar de menos es desfavorable', () => {
+      renderPlan()
+
+      // Necesidades: 600.000 reales contra 700.000 asignados.
+      expect(allocationCells('Necesidades')[3]).toBe('Favorable por COP 100.000')
+      // Ahorro: 400.000 aportados contra 280.000 asignados.
+      expect(allocationCells('Ahorro')[3]).toBe('Favorable por COP 120.000')
+    })
+
+    it('deja el gasto sin clasificar fuera de los cinco grupos', () => {
+      usePlanActuals.mockReturnValue(
+        resolved({ ...actuals, byGroup: { ...actuals.byGroup, sinClasificarMinor: 90_000 } }),
+      )
+      renderPlan()
+
+      const table = screen.getByRole('table', { name: /Reparto del ingreso planeado/ })
+      const fila = within(table).getByRole('rowheader', { name: /Sin clasificar/ })
+      const cuerpoDelReparto = within(table)
+        .getByRole('rowheader', { name: 'Necesidades' })
+        .closest('tbody')
+
+      expect(fila.closest('tbody')).not.toBe(cuerpoDelReparto)
+      expect(within(table).getByText(/no entra en ningún grupo/)).toBeInTheDocument()
+    })
+
+    it('avisa de un grupo que no pertenece al reparto', () => {
+      usePlanAllocations.mockReturnValue(
+        resolved([
+          ...allocations,
+          { id: 'a4', budget_group: 'caprichos', percent_bp: 1_000 },
+        ] as Tables<'plan_allocations'>[]),
+      )
+      renderPlan()
+
+      expect(screen.getByText(/caprichos/)).toBeInTheDocument()
+      expect(screen.getByText(/pueden no sumar 100 %/)).toBeInTheDocument()
+    })
+
+    it('sin reparto configurado lo dice, sin fingir porcentajes ni ceros', () => {
+      usePlanAllocations.mockReturnValue(resolved([]))
+      renderPlan()
+
+      expect(allocationCells('Necesidades')[0]).toBe('Sin definir')
+      expect(allocationCells('Necesidades')[1]).toBe('Sin reparto configurado')
+      expect(allocationCells('Necesidades')[3]).toBe('Sin reparto configurado')
+    })
+
+    it('un mes sin reparto no es un error, y las cifras reales se siguen viendo', () => {
+      usePlanAllocations.mockReturnValue(resolved([]))
+      renderPlan()
+
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+      expect(screen.getByText(/no tiene reparto configurado/)).toBeInTheDocument()
+      expect(allocationCells('Ahorro')[2]).toBe('COP 400.000')
+    })
+
+    it('con reparto pero sin ingreso planeado, no hay importes que repartir', () => {
+      usePlanIncomeSources.mockReturnValue(resolved([]))
+      renderPlan()
+
+      expect(allocationCells('Necesidades')[0]).toBe('50 %')
+      expect(allocationCells('Necesidades')[1]).toBe('Sin ingreso planeado')
+      expect(allocationCells('Necesidades')[3]).toBe('Sin ingreso planeado')
+    })
+
+    it('explica que los cinco grupos no suman los gastos totales', () => {
+      renderPlan()
+
+      expect(screen.getByText(/transferencias registradas, no gastos/)).toBeInTheDocument()
+    })
   })
 })

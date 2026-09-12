@@ -2,9 +2,14 @@ import { describe, expect, it } from 'vitest'
 
 import { calculateDiff } from './calculations/diff'
 import {
+  allocationGroupDiffKind,
+  allocationGroupLabel,
   diffStatusLabel,
   diffStatusTone,
   formatDiff,
+  formatAllocationDiff,
+  formatAllocationPlanned,
+  formatBasisPoints,
   formatPlannedAmount,
   formatPlannedIncomeAmount,
   formatRowDiff,
@@ -12,9 +17,12 @@ import {
   formatUnassigned,
   planRowDiffKind,
   planRowLabel,
+  ignoredAllocationGroupsNote,
   planSummaryLabel,
   remainingTone,
+  NO_ALLOCATION_LABEL,
   NO_BUDGET_LABEL,
+  NO_PERCENT_LABEL,
   NO_PLANNED_INCOME_LABEL,
 } from './labels'
 
@@ -213,5 +221,62 @@ describe('filas del cuadro', () => {
     const diff = calculateDiff(1_200_000, 1_400_000, planRowDiffKind.income)
 
     expect(formatDiff(diff, COP)).toBe('Desfavorable por COP 200.000')
+  })
+})
+
+describe('reparto 50/30/20', () => {
+  it('escribe los puntos base como porcentaje', () => {
+    expect(formatBasisPoints(5_000)).toBe('50 %')
+    expect(formatBasisPoints(0)).toBe('0 %')
+    expect(formatBasisPoints(3_333)).toBe('33,33 %')
+  })
+
+  it('sin reparto configurado, el porcentaje no se inventa', () => {
+    expect(formatBasisPoints(null)).toBe(NO_PERCENT_LABEL)
+  })
+
+  it('los cinco grupos tienen nombre propio', () => {
+    expect(allocationGroupLabel).toEqual({
+      needs: 'Necesidades',
+      wants: 'Deseos',
+      savings: 'Ahorro',
+      investment: 'Inversión',
+      debt: 'Deuda',
+    })
+  })
+
+  it('gastar menos es favorable; aportar menos, desfavorable', () => {
+    expect(allocationGroupDiffKind.needs).toBe('expense_like')
+    expect(allocationGroupDiffKind.wants).toBe('expense_like')
+    expect(allocationGroupDiffKind.debt).toBe('expense_like')
+    expect(allocationGroupDiffKind.savings).toBe('income_like')
+    expect(allocationGroupDiffKind.investment).toBe('income_like')
+  })
+
+  it('distingue las dos razones por las que puede faltar un importe', () => {
+    expect(formatAllocationPlanned(null, false, COP)).toBe(NO_ALLOCATION_LABEL)
+    expect(formatAllocationPlanned(null, true, COP)).toBe(NO_PLANNED_INCOME_LABEL)
+    expect(formatAllocationPlanned(700_000, true, COP)).toBe('COP 700.000')
+  })
+
+  it('conserva un 0 asignado, que es una decisión y no una ausencia', () => {
+    expect(formatAllocationPlanned(0, true, COP)).toBe('COP 0')
+  })
+
+  it('la diferencia nombra la misma causa que el importe', () => {
+    const sinComparacion = calculateDiff(500_000, null, 'expense_like')
+
+    expect(formatAllocationDiff(sinComparacion, false, COP)).toBe(NO_ALLOCATION_LABEL)
+    expect(formatAllocationDiff(sinComparacion, true, COP)).toBe(NO_PLANNED_INCOME_LABEL)
+    expect(formatAllocationDiff(calculateDiff(600_000, 700_000, 'expense_like'), true, COP)).toBe(
+      'Favorable por COP 100.000',
+    )
+  })
+
+  it('avisa de los grupos descartados, y calla cuando no hay ninguno', () => {
+    expect(ignoredAllocationGroupsNote([])).toBeNull()
+    expect(ignoredAllocationGroupsNote(['caprichos'])).toContain('caprichos')
+    expect(ignoredAllocationGroupsNote(['caprichos'])).toContain('100 %')
+    expect(ignoredAllocationGroupsNote(['caprichos', 'viajes'])).toContain('viajes')
   })
 })

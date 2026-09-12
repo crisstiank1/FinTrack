@@ -1,5 +1,6 @@
 import { formatAmount } from '@/lib/currency'
 
+import type { AllocationGroup } from './calculations/allocation'
 import type { Diff, DiffRowKind } from './calculations/diff'
 
 /**
@@ -254,4 +255,107 @@ export const planRowGroupNote: Record<PlanRowGroupId, string | null> = {
   income: null,
   breakdown: 'Facturas, gastos variables y no planeado suman los gastos totales.',
   indicators: 'No forman parte de los gastos totales: se miden aparte.',
+}
+
+/* -------------------------------------------------------------------------- */
+/* Reparto 50/30/20                                                           */
+/* -------------------------------------------------------------------------- */
+
+/** Los cinco destinos del ingreso. El orden lo fija `ALLOCATION_GROUPS`. */
+export const allocationGroupLabel: Record<AllocationGroup, string> = {
+  needs: 'Necesidades',
+  wants: 'Deseos',
+  savings: 'Ahorro',
+  investment: 'Inversión',
+  debt: 'Deuda',
+}
+
+/**
+ * Convención de signo por grupo.
+ *
+ * Necesidades, deseos y deuda son gasto: quedarse por debajo de lo asignado es
+ * favorable. Ahorro e inversión son aportes: superar lo asignado lo es.
+ */
+export const allocationGroupDiffKind: Record<AllocationGroup, DiffRowKind> = {
+  needs: 'expense_like',
+  wants: 'expense_like',
+  savings: 'income_like',
+  investment: 'income_like',
+  debt: 'expense_like',
+}
+
+/**
+ * Gasto de categorías sin clasificar. **No es un grupo del reparto**: es una
+ * fila aparte que nunca entra en la suma, porque asignarlo en silencio
+ * falsearía el mes entero (docs/09-plan-mensual.md).
+ */
+export const UNCLASSIFIED_LABEL = 'Sin clasificar'
+
+/** El mes no tiene porcentajes guardados. No es un error: es un mes sin plan. */
+export const NO_ALLOCATION_LABEL = 'Sin reparto configurado'
+
+/** Hay reparto, pero este grupo no tiene porcentaje propio. */
+export const NO_PERCENT_LABEL = 'Sin definir'
+
+/**
+ * Nota fija del bloque. Explica la diferencia que más confunde de estas
+ * plantillas: el reparto mide destinos del ingreso, no gastos.
+ */
+export const ALLOCATION_NOTE =
+  'Los cinco grupos no suman los gastos totales: ahorro e inversión son transferencias registradas, no gastos.'
+
+/** Aviso cuando hay gasto sin clasificar. Se explica, no se reparte. */
+export const UNCLASSIFIED_NOTE =
+  'Este gasto no entra en ningún grupo mientras su categoría no esté clasificada.'
+
+const percentFormatter = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 2 })
+
+/** Puntos base como porcentaje legible: 5000 → «50 %». */
+export function formatBasisPoints(basisPoints: number | null): string {
+  if (basisPoints === null) return NO_PERCENT_LABEL
+  return `${percentFormatter.format(basisPoints / 100)} %`
+}
+
+/**
+ * Importe asignado a un grupo.
+ *
+ * Sin importe hay dos causas distintas, y se dicen distinto: o el mes no tiene
+ * reparto, o lo tiene pero no hay ingreso planeado que repartir. Nunca un `0`,
+ * que fingiría un reparto que nadie configuró.
+ */
+export function formatAllocationPlanned(
+  plannedMinor: number | null,
+  hasAllocation: boolean,
+  currencyCode: string,
+): string {
+  if (plannedMinor !== null) return formatAmount(plannedMinor, currencyCode)
+  return hasAllocation ? NO_PLANNED_INCOME_LABEL : NO_ALLOCATION_LABEL
+}
+
+/** Diferencia de un grupo, nombrando la misma causa que su importe asignado. */
+export function formatAllocationDiff(
+  diff: Diff,
+  hasAllocation: boolean,
+  currencyCode: string,
+): string {
+  if (diff.status === 'no_budget') {
+    return hasAllocation ? NO_PLANNED_INCOME_LABEL : NO_ALLOCATION_LABEL
+  }
+  return formatDiff(diff, currencyCode)
+}
+
+/**
+ * Aviso cuando el reparto guardado trae un grupo fuera del contrato.
+ *
+ * `buildAllocationPercentages` los descarta para no enviarlos al cálculo, y
+ * eso puede dejar la suma por debajo del 100 %: quien lo lee tiene derecho a
+ * saberlo. `null` cuando no hay nada que avisar.
+ */
+export function ignoredAllocationGroupsNote(ignoredGroups: readonly string[]): string | null {
+  if (ignoredGroups.length === 0) return null
+
+  const listado = ignoredGroups.join(', ')
+  return ignoredGroups.length === 1
+    ? `El reparto guardado incluye un grupo que no existe (${listado}); se descarta, así que los porcentajes pueden no sumar 100 %.`
+    : `El reparto guardado incluye grupos que no existen (${listado}); se descartan, así que los porcentajes pueden no sumar 100 %.`
 }
