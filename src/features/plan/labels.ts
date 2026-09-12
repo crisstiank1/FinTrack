@@ -1,3 +1,4 @@
+import { classificationGroupLabel } from '@/features/categories/classifications/labels'
 import { formatAmount } from '@/lib/currency'
 
 import type { AllocationGroup } from './calculations/allocation'
@@ -261,13 +262,19 @@ export const planRowGroupNote: Record<PlanRowGroupId, string | null> = {
 /* Reparto 50/30/20                                                           */
 /* -------------------------------------------------------------------------- */
 
-/** Los cinco destinos del ingreso. El orden lo fija `ALLOCATION_GROUPS`. */
+/**
+ * Los cinco destinos del ingreso. El orden lo fija `ALLOCATION_GROUPS`.
+ *
+ * Los tres que también se clasifican por categoría se toman de
+ * `features/categories/classifications`, que es su módulo dueño, en vez de
+ * repetir aquí las mismas cadenas: dos copias divergirían en cuanto alguien
+ * renombrase una. Ahorro e inversión sí son propios del reparto, porque no se
+ * clasifican por categoría sino que se miden por transferencias.
+ */
 export const allocationGroupLabel: Record<AllocationGroup, string> = {
-  needs: 'Necesidades',
-  wants: 'Deseos',
+  ...classificationGroupLabel,
   savings: 'Ahorro',
   investment: 'Inversión',
-  debt: 'Deuda',
 }
 
 /**

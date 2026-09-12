@@ -4,7 +4,6 @@ import { monthRange } from '@/lib/dates'
 import { supabase } from '@/lib/supabase'
 
 import {
-  fetchCategoryClassifications,
   fetchPlanAllocations,
   fetchPlanIncomeSourceCategories,
   fetchPlanIncomeSources,
@@ -223,27 +222,6 @@ describe('fetchPlanLines', () => {
     await fetchPlanLines(USER_ID, MONTH_KEY)
 
     expect(tables).not.toContain('plan_months')
-  })
-})
-
-describe('fetchCategoryClassifications', () => {
-  it('filtra por usuario y no por mes', async () => {
-    const { calls, tables } = mockQueries({ data: [], error: null })
-
-    await fetchCategoryClassifications(USER_ID)
-
-    expect(tables).toEqual(['category_classifications'])
-    expect(calls).toContainEqual({ method: 'eq', args: ['user_id', USER_ID] })
-    expect(calls.some((call) => call.method === 'eq' && call.args[0] === 'period_month')).toBe(
-      false,
-    )
-  })
-
-  it('propaga el error crudo', async () => {
-    const error = { code: '42P01', message: 'relation does not exist' }
-    mockQueries({ data: null, error })
-
-    await expect(fetchCategoryClassifications(USER_ID)).rejects.toBe(error)
   })
 })
 

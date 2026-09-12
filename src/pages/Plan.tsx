@@ -7,6 +7,10 @@ import { ConfirmDialog } from '@/components/shared/confirm-dialog'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useAccounts } from '@/features/accounts/hooks'
+import {
+  categoryClassificationsQueryKey,
+  useCategoryClassifications,
+} from '@/features/categories/classifications/hooks'
 import { useCategories } from '@/features/categories/hooks'
 import {
   ALLOCATION_GROUPS,
@@ -47,7 +51,6 @@ import { PlanHeader } from '@/features/plan/components/plan-header'
 import { PlanSummary } from '@/features/plan/components/plan-summary'
 import { PlanError } from '@/features/plan/errors'
 import {
-  useCategoryClassifications,
   useCreatePlanMonth,
   useDeleteIncomeSource,
   useEffectiveCategoryBudgets,
@@ -73,6 +76,7 @@ import {
   toPlannedIncomeSources,
   toPlannedLineAmounts,
 } from '@/features/plan/read-model'
+import { formatAmount } from '@/lib/currency'
 import { currentMonthKey, formatMonthLabel } from '@/lib/dates'
 import type { Tables } from '@/types/database.types'
 
@@ -512,9 +516,13 @@ export default function Plan() {
   function handleRetry() {
     // Invalidar por prefijo alcanza todas las consultas que cuelgan de esas
     // raíces, incluidas las del mes en pantalla.
+    //
+    // La raíz de las clasificaciones se pide a su módulo dueño en vez de
+    // escribirla aquí: el literal vive en un solo sitio, así que esta pantalla
+    // no puede quedarse con una clave desfasada si aquel contrato cambia.
     queryClient.invalidateQueries({ queryKey: ['plan'] })
     queryClient.invalidateQueries({ queryKey: ['transactions'] })
-    queryClient.invalidateQueries({ queryKey: ['category-classifications'] })
+    queryClient.invalidateQueries({ queryKey: categoryClassificationsQueryKey.all })
   }
 
   return (
@@ -609,6 +617,27 @@ export default function Plan() {
                 onConfigure={hasPlan ? () => setIsAllocationOpen(true) : undefined}
                 isBusy={saveAllocations.isPending}
               />
+
+              {/* El enlace sale solo cuando hay gasto fuera de los grupos, y
+                  lleva a Ajustes en vez de abrir un editor aquí: la
+                  clasificación pertenece a la categoría y no al mes, así que
+                  editarla bajo una cabecera que dice «septiembre 2026» daría a
+                  entender que solo alcanza a septiembre. */}
+              {model.allocation.unclassifiedMinor > 0 && (
+                <p className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-border bg-card p-3 text-sm text-muted-foreground">
+                  <span>
+                    Tienes {formatAmount(model.allocation.unclassifiedMinor, currencyCode)} sin
+                    clasificar. El grupo de cada categoría se elige en Ajustes y vale para todos los
+                    meses, no solo para este.
+                  </span>
+                  <Link
+                    to="/settings"
+                    className="font-medium text-primary underline underline-offset-4"
+                  >
+                    Clasificar categorías
+                  </Link>
+                </p>
+              )}
               <BudgetVsActualTable
                 groups={model.groups}
                 currencyCode={currencyCode}

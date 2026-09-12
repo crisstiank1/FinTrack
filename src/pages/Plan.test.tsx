@@ -25,7 +25,6 @@ const saveAllocations = vi.fn()
 vi.mock('@/features/plan/hooks', () => ({
   usePlanMonth: () => usePlanMonth(),
   usePlanLines: () => usePlanLines(),
-  useCategoryClassifications: () => useCategoryClassifications(),
   useEffectiveCategoryBudgets: () => useEffectiveCategoryBudgets(),
   usePlanActuals: (options: unknown) => usePlanActuals(options),
   usePlanIncomeSources: (planMonthId: unknown) => usePlanIncomeSources(planMonthId),
@@ -40,6 +39,12 @@ vi.mock('@/features/plan/hooks', () => ({
 
 vi.mock('@/features/categories/hooks', () => ({
   useCategories: () => ({ data: categories }),
+}))
+
+// La clasificación pertenece al dominio de las categorías: su hook vive ahí y
+// `/plan` solo lo consume.
+vi.mock('@/features/categories/classifications/hooks', () => ({
+  useCategoryClassifications: () => useCategoryClassifications(),
 }))
 
 vi.mock('sonner', () => ({
@@ -1110,6 +1115,37 @@ describe('Plan', () => {
       renderPlan()
 
       expect(screen.queryByRole('button', { name: /reparto/ })).not.toBeInTheDocument()
+    })
+  })
+
+  describe('enlace a la clasificación', () => {
+    it('aparece solo cuando queda gasto sin clasificar', () => {
+      usePlanActuals.mockReturnValue(
+        resolved({ ...actuals, byGroup: { ...actuals.byGroup, sinClasificarMinor: 90_000 } }),
+      )
+      renderPlan()
+
+      const enlace = screen.getByRole('link', { name: 'Clasificar categorías' })
+
+      expect(enlace).toHaveAttribute('href', '/settings')
+      expect(screen.getByText(/COP 90.000 sin/)).toBeInTheDocument()
+    })
+
+    it('no aparece cuando todo el gasto está clasificado', () => {
+      renderPlan()
+
+      expect(screen.queryByRole('link', { name: 'Clasificar categorías' })).not.toBeInTheDocument()
+    })
+
+    it('dice que el grupo se elige en Ajustes y vale para todos los meses', () => {
+      usePlanActuals.mockReturnValue(
+        resolved({ ...actuals, byGroup: { ...actuals.byGroup, sinClasificarMinor: 90_000 } }),
+      )
+      renderPlan()
+
+      expect(
+        screen.getByText(/se elige en Ajustes y vale para todos los meses/),
+      ).toBeInTheDocument()
     })
   })
 })

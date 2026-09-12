@@ -3,6 +3,7 @@ import { useMemo } from 'react'
 
 import { useAccounts } from '@/features/accounts/hooks'
 import { useAuth } from '@/features/auth/auth-provider'
+import { useCategoryClassifications } from '@/features/categories/classifications/hooks'
 import { useBudgets } from '@/features/budgets/hooks'
 import { buildBudgetProgressList, type BudgetProgress } from '@/features/budgets/progress'
 import { resolveBudget } from '@/features/budgets/resolution'
@@ -13,7 +14,6 @@ import {
   createPlanMonth,
   deletePlanIncomeSource,
   deletePlanIncomeSourceCategories,
-  fetchCategoryClassifications,
   fetchPlanAllocations,
   fetchPlanIncomeSourceCategories,
   fetchPlanIncomeSources,
@@ -78,9 +78,13 @@ import {
 
 /*
  * Las cinco tablas del plan cuelgan de la raíz 'plan' porque se leen siempre
- * juntas por mes: cuando existan mutaciones, una sola invalidación las
- * refrescará. `category_classifications` tiene raíz propia porque no depende
- * del mes y una reclasificación debe alcanzar a todos los meses en caché.
+ * juntas por mes: una sola invalidación las refresca.
+ *
+ * `category_classifications` no está entre ellas. Su clave y su consulta viven
+ * en `features/categories/classifications`, que es el módulo dueño de esa
+ * tabla; aquí solo se consume el hook. Definir una segunda clave para el mismo
+ * recurso dejaría dos cachés que se desincronizan en cuanto una mutación
+ * invalidase solo una de las dos.
  */
 
 export function planMonthQueryKey(userId: string | undefined, monthKey: string) {
@@ -110,10 +114,6 @@ export function planIncomeSourceCategoriesQueryKey(
 
 export function planLinesQueryKey(userId: string | undefined, monthKey: string) {
   return ['plan', userId, 'lines', monthKey] as const
-}
-
-export function categoryClassificationsQueryKey(userId: string | undefined) {
-  return ['category-classifications', userId] as const
 }
 
 /**
@@ -201,16 +201,6 @@ export function usePlanLines(monthKey: string) {
   return useQuery({
     queryKey: planLinesQueryKey(user?.id, monthKey),
     queryFn: () => fetchPlanLines(user!.id, monthKey),
-    enabled: !!user,
-  })
-}
-
-export function useCategoryClassifications() {
-  const { user } = useAuth()
-
-  return useQuery({
-    queryKey: categoryClassificationsQueryKey(user?.id),
-    queryFn: () => fetchCategoryClassifications(user!.id),
     enabled: !!user,
   })
 }

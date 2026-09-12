@@ -37,6 +37,11 @@ import type { PlanBalanceTransaction } from './read-model'
  * filas por mes, muy por debajo del corte de 1000 que PostgREST aplica por
  * defecto. La única lectura paginada es la del historial de saldos, al final
  * del archivo, que sí puede superarlo.
+ *
+ * `category_classifications` **no se lee aquí**. Esa tabla no depende del mes y
+ * pertenece al dominio de las categorías, que existen y se clasifican aunque
+ * nadie llegue a crear un plan: vive en
+ * `features/categories/classifications`, y este módulo consume su hook.
  */
 
 /**
@@ -149,26 +154,6 @@ export async function fetchPlanLines(
     .eq('user_id', userId)
     .eq('period_month', monthRange(monthKey).start)
     .order('position', { ascending: true })
-
-  if (error) throw error
-  return data
-}
-
-/**
- * Clasificación de las categorías de gasto.
- *
- * Sin filtro de mes: una clasificación no pertenece a un mes, vale para todos.
- * Tampoco se filtran las categorías archivadas, que conservan su clasificación
- * y siguen haciendo falta para consultar meses cerrados.
- */
-export async function fetchCategoryClassifications(
-  userId: string,
-): Promise<Tables<'category_classifications'>[]> {
-  const { data, error } = await supabase
-    .from('category_classifications')
-    .select('*')
-    .eq('user_id', userId)
-    .order('category_id', { ascending: true })
 
   if (error) throw error
   return data
