@@ -901,6 +901,10 @@ export default function Plan() {
                   bills={billItems}
                   variables={variableItems}
                   progressByCategory={progressByCategory}
+                  // Sin datos todavía no hay «sin presupuesto» ni «gastado 0»
+                  // que afirmar: la fila dice que está calculando.
+                  isProgressLoading={lineProgress === undefined}
+                  monthKey={monthKey}
                   currencyCode={currencyCode}
                   monthLabel={monthLabel}
                   isBusy={savePlanLine.isPending || deletePlanLine.isPending}

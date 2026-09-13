@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   buildBudgetCoverage,
+  classifyLineBudget,
   reconcileCategoryBudgets,
   summarizeAllocation,
   sumBudgetsForCategories,
@@ -90,6 +91,32 @@ describe('reconcileCategoryBudgets', () => {
     )
 
     expect(result.unlinkedMinor).toBe(0)
+  })
+})
+
+describe('classifyLineBudget', () => {
+  it('un presupuesto positivo es presupuesto', () => {
+    expect(
+      classifyLineBudget({ categoryId: 'cat-rent', budgetMinor: 900_000, source: 'template' }),
+    ).toBe('budgeted')
+  })
+
+  it('un 0 explícito de plantilla es 0, no ausencia', () => {
+    expect(
+      classifyLineBudget({ categoryId: 'cat-health', budgetMinor: null, source: 'template' }),
+    ).toBe('zero')
+  })
+
+  it('un 0 explícito de excepción también es 0', () => {
+    expect(
+      classifyLineBudget({ categoryId: 'cat-health', budgetMinor: null, source: 'exception' }),
+    ).toBe('zero')
+  })
+
+  it('sin ningún presupuesto resuelto es ausencia', () => {
+    expect(
+      classifyLineBudget({ categoryId: 'cat-internet', budgetMinor: null, source: null }),
+    ).toBe('none')
   })
 })
 

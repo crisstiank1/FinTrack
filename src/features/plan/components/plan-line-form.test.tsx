@@ -165,13 +165,39 @@ describe('PlanLineForm', () => {
     expect(screen.queryByText('COP 0')).not.toBeInTheDocument()
   })
 
-  it('enlaza a Presupuestos, que es donde se cambia la cifra', () => {
+  it('enlaza a Presupuestos del mes del plan, que es donde se cambia la cifra', () => {
     renderForm()
 
     expect(screen.getByRole('link', { name: 'Editar en Presupuestos' })).toHaveAttribute(
       'href',
-      '/budgets',
+      '/budgets?month=2026-09',
     )
+  })
+
+  it('el enlace conserva el mes del plan aunque no sea el actual', () => {
+    renderForm({ monthKey: '2025-12' })
+
+    expect(screen.getByRole('link', { name: 'Editar en Presupuestos' })).toHaveAttribute(
+      'href',
+      '/budgets?month=2025-12',
+    )
+  })
+
+  it('ofrece los dos tipos con su nombre de siempre', () => {
+    renderForm()
+
+    expect(screen.getByRole('radio', { name: /^Factura/ })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: /^Gasto variable/ })).toBeInTheDocument()
+  })
+
+  it('no añade campos: nombre, tipo, categoría y fecha, nada más', () => {
+    renderForm()
+
+    expect(screen.getAllByRole('textbox')).toHaveLength(1)
+    expect(screen.getAllByRole('radio')).toHaveLength(2)
+    expect(screen.getAllByRole('combobox')).toHaveLength(1)
+    expect(document.querySelectorAll('input[type="date"]')).toHaveLength(1)
+    expect(screen.queryByRole('spinbutton')).not.toBeInTheDocument()
   })
 
   describe('al editar', () => {
@@ -194,6 +220,7 @@ describe('PlanLineForm', () => {
       renderForm({ defaultValues, lockedCategoryName: 'Vivienda', categories: [] })
 
       expect(screen.getByText(/Vivienda/)).toBeInTheDocument()
+      expect(screen.getByText('Factura')).toBeInTheDocument()
       expect(screen.getAllByText(/elimina la línea y crea otra/).length).toBeGreaterThan(0)
     })
 

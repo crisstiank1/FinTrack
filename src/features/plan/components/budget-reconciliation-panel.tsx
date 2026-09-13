@@ -17,10 +17,12 @@ import {
   planLineKindLabel,
   reconciliationHeadline,
   unlinkedCategoriesCountLabel,
+  ARCHIVED_NO_NEW_BUDGETS_LABEL,
   NO_BUDGET_LABEL,
   UNASSIGNED_NOTE,
   type PlanTone,
 } from '../labels'
+import { budgetsHrefForMonth } from '../links'
 import type { CategoryLineKind } from '../mutations'
 
 /** Categoría con presupuesto y sin línea, con su nombre ya resuelto. */
@@ -124,7 +126,7 @@ export function BudgetReconciliationPanel({
   )
   const unassigned = formatUnassigned(unassignedMinor, currencyCode)
   const monthName = monthLabel.split(' ')[0]
-  const budgetsHref = `/budgets?month=${monthKey}`
+  const budgetsHref = budgetsHrefForMonth(monthKey)
 
   const counts = [
     unlinkedCategoriesCountLabel(unlinkedCategories.length),
@@ -359,9 +361,7 @@ export function BudgetReconciliationPanel({
                         key={line.lineId}
                         line={line}
                         status={
-                          line.isCategoryArchived
-                            ? 'Categoría archivada: no admite presupuestos nuevos.'
-                            : NO_BUDGET_LABEL
+                          line.isCategoryArchived ? ARCHIVED_NO_NEW_BUDGETS_LABEL : NO_BUDGET_LABEL
                         }
                       />
                     ))}

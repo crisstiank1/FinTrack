@@ -63,6 +63,8 @@ function renderPanel(props: Partial<Parameters<typeof PlanLinesPanel>[0]> = {}) 
         bills={bills}
         variables={variables}
         progressByCategory={progressByCategory}
+        isProgressLoading={false}
+        monthKey="2026-09"
         currencyCode="COP"
         monthLabel="septiembre 2026"
         onAdd={onAdd}
@@ -117,13 +119,124 @@ describe('PlanLinesPanel', () => {
     expect(within(arriendo).queryByRole('spinbutton')).not.toBeInTheDocument()
   })
 
-  it('dice «Sin presupuesto este mes» en vez de fingir un cero', () => {
+  it('dice «Sin presupuesto este mes» una sola vez, sin fingir un cero', () => {
     renderPanel()
 
     const mercado = row('Mercado')
 
     expect(within(mercado).getByText(/Sin presupuesto este mes/)).toBeInTheDocument()
     expect(within(mercado).getByText(/Gastado COP 750.000/)).toBeInTheDocument()
+    // Sin el estado de progreso «Sin presupuesto» repitiendo lo mismo al lado.
+    expect(within(mercado).getAllByText(/Sin presupuesto/)).toHaveLength(1)
+    expect(within(mercado).queryByText('COP 0')).not.toBeInTheDocument()
+  })
+
+  it('sin presupuesto en una categoría activa, invita a completarlo en el mes del plan', () => {
+    renderPanel()
+
+    const mercado = row('Mercado')
+
+    expect(within(mercado).getByRole('link', { name: 'Completar presupuesto' })).toHaveAttribute(
+      'href',
+      '/budgets?month=2026-09',
+    )
+    expect(
+      within(mercado).queryByRole('link', { name: 'Editar presupuesto' }),
+    ).not.toBeInTheDocument()
+  })
+
+  describe('presupuesto explícito de COP 0', () => {
+    const zero = (source: 'template' | 'exception'): BudgetProgress => ({
+      categoryId: 'cat-mercado',
+      budgetMinor: null,
+      spentMinor: 120_000,
+      remainingMinor: null,
+      ratio: null,
+      status: 'unbudgeted',
+      source,
+    })
+
+    it.each(['template', 'exception'] as const)(
+      'con fuente %s dice «Presupuesto en COP 0», no «Sin presupuesto»',
+      (source) => {
+        renderPanel({ progressByCategory: { ...progressByCategory, 'cat-mercado': zero(source) } })
+
+        const mercado = row('Mercado')
+
+        expect(within(mercado).getByText(/Presupuesto en COP 0/)).toBeInTheDocument()
+        expect(within(mercado).getByText(/Gastado COP 120.000/)).toBeInTheDocument()
+        expect(within(mercado).queryByText(/Sin presupuesto/)).not.toBeInTheDocument()
+        expect(within(mercado).getByRole('link', { name: 'Editar presupuesto' })).toHaveAttribute(
+          'href',
+          '/budgets?month=2026-09',
+        )
+        expect(
+          within(mercado).queryByRole('link', { name: 'Completar presupuesto' }),
+        ).not.toBeInTheDocument()
+      },
+    )
+
+    it('en una categoría archivada conserva el chip y el enlace para corregirlo', () => {
+      renderPanel({
+        variables: [{ ...variables[0], isCategoryArchived: true }],
+        progressByCategory: { ...progressByCategory, 'cat-mercado': zero('exception') },
+      })
+
+      const mercado = row('Mercado')
+
+      expect(within(mercado).getByText('Archivada')).toBeInTheDocument()
+      expect(within(mercado).getByText(/Presupuesto en COP 0/)).toBeInTheDocument()
+      expect(within(mercado).getByRole('link', { name: 'Editar presupuesto' })).toBeInTheDocument()
+      expect(within(mercado).queryByText(/no admite presupuestos nuevos/)).not.toBeInTheDocument()
+    })
+  })
+
+  describe('categoría archivada', () => {
+    it('sin presupuesto no invita a completarlo y dice por qué', () => {
+      renderPanel({ variables: [{ ...variables[0], isCategoryArchived: true }] })
+
+      const mercado = row('Mercado')
+
+      expect(within(mercado).getByText('Archivada')).toBeInTheDocument()
+      expect(within(mercado).getByText(/Sin presupuesto este mes/)).toBeInTheDocument()
+      expect(within(mercado).getByText(/Gastado COP 750.000/)).toBeInTheDocument()
+      expect(
+        within(mercado).getByText('Categoría archivada: no admite presupuestos nuevos.'),
+      ).toBeInTheDocument()
+      expect(within(mercado).queryByRole('link')).not.toBeInTheDocument()
+    })
+
+    it('con presupuesto positivo mantiene «Editar presupuesto»', () => {
+      renderPanel({ bills: [{ ...bills[0], isCategoryArchived: true }] })
+
+      const arriendo = row('Arriendo')
+
+      expect(within(arriendo).getByText(/Presupuesto COP 900.000/)).toBeInTheDocument()
+      expect(within(arriendo).getByText('90% usado')).toBeInTheDocument()
+      expect(within(arriendo).getByRole('link', { name: 'Editar presupuesto' })).toBeInTheDocument()
+    })
+  })
+
+  describe('mientras el progreso carga', () => {
+    it('dice que está calculando, sin gasto, sin estado y sin enlaces', () => {
+      renderPanel({ isProgressLoading: true, progressByCategory: {} })
+
+      for (const name of ['Arriendo', 'Mercado']) {
+        const fila = row(name)
+
+        expect(within(fila).getByText('Calculando presupuesto…')).toBeInTheDocument()
+        expect(within(fila).queryByText(/Gastado/)).not.toBeInTheDocument()
+        expect(within(fila).queryByText(/Sin presupuesto/)).not.toBeInTheDocument()
+        expect(within(fila).queryByText(/usado|En rango|superado/)).not.toBeInTheDocument()
+        expect(within(fila).queryByRole('link')).not.toBeInTheDocument()
+      }
+    })
+
+    it('no convierte un progreso pendiente en gasto cero', () => {
+      renderPanel({ isProgressLoading: true, progressByCategory: {} })
+
+      expect(screen.queryByText(/COP 0/)).not.toBeInTheDocument()
+    })
   })
 
   it('ningún control del panel permite escribir una cifra', () => {
@@ -150,12 +263,23 @@ describe('PlanLinesPanel', () => {
     expect(onDelete).toHaveBeenCalledWith('line-1')
   })
 
-  it('cada fila enlaza a Presupuestos, que es donde vive la cifra', () => {
+  it('cada fila enlaza a Presupuestos del mes del plan, que es donde vive la cifra', () => {
     renderPanel()
 
     expect(
       within(row('Arriendo')).getByRole('link', { name: 'Editar presupuesto' }),
-    ).toHaveAttribute('href', '/budgets')
+    ).toHaveAttribute('href', '/budgets?month=2026-09')
+  })
+
+  it('los enlaces usan el mes recibido aunque no sea el actual', () => {
+    renderPanel({ monthKey: '2025-12' })
+
+    expect(
+      within(row('Arriendo')).getByRole('link', { name: 'Editar presupuesto' }),
+    ).toHaveAttribute('href', '/budgets?month=2025-12')
+    expect(
+      within(row('Mercado')).getByRole('link', { name: 'Completar presupuesto' }),
+    ).toHaveAttribute('href', '/budgets?month=2025-12')
   })
 
   it('sin líneas explica que todo el gasto está en No planeado', () => {
@@ -188,10 +312,15 @@ describe('PlanLinesPanel', () => {
     expect(screen.getByRole('button', { name: 'Editar Arriendo' })).toBeDisabled()
   })
 
-  it('una línea sin progreso conocido no rompe la fila', () => {
+  it('con el progreso ya cargado y sin entrada, la fila es «sin presupuesto» y no inventa gasto', () => {
     renderPanel({ progressByCategory: {} })
 
-    expect(within(row('Arriendo')).getByText(/Sin presupuesto este mes/)).toBeInTheDocument()
-    expect(within(row('Arriendo')).getByText(/Gastado COP 0/)).toBeInTheDocument()
+    const arriendo = row('Arriendo')
+
+    expect(within(arriendo).getByText('Sin presupuesto este mes')).toBeInTheDocument()
+    expect(within(arriendo).queryByText(/Gastado/)).not.toBeInTheDocument()
+    expect(
+      within(arriendo).getByRole('link', { name: 'Completar presupuesto' }),
+    ).toBeInTheDocument()
   })
 })

@@ -17,6 +17,7 @@ import {
   formatContributionPlanned,
   formatUnassigned,
   formatZeroBudget,
+  planLineKindLabel,
   linesWithoutBudgetCountLabel,
   linesWithZeroBudgetCountLabel,
   reconciliationHeadline,
@@ -27,6 +28,8 @@ import {
   planSummaryLabel,
   remainingTone,
   NO_ALLOCATION_LABEL,
+  ARCHIVED_NO_NEW_BUDGETS_LABEL,
+  LINE_BUDGET_LOADING_LABEL,
   NO_BUDGET_LABEL,
   NO_CONTRIBUTION_PLAN_LABEL,
   NO_PERCENT_LABEL,
@@ -379,5 +382,25 @@ describe('conteos de la reconciliación', () => {
     expect(linesWithoutBudgetCountLabel(5)).toBe('5 líneas sin presupuesto')
     expect(linesWithZeroBudgetCountLabel(1, COP)).toBe('1 línea con presupuesto en COP 0')
     expect(linesWithZeroBudgetCountLabel(2, COP)).toBe('2 líneas con presupuesto en COP 0')
+  })
+})
+
+describe('estados del presupuesto de una línea', () => {
+  it('mientras carga no afirma ni ausencia ni cero', () => {
+    expect(LINE_BUDGET_LOADING_LABEL).toBe('Calculando presupuesto…')
+    expect(LINE_BUDGET_LOADING_LABEL).not.toContain(NO_BUDGET_LABEL)
+    expect(LINE_BUDGET_LOADING_LABEL).not.toContain('0')
+  })
+
+  it('la categoría archivada dice por qué no se invita a completar', () => {
+    expect(ARCHIVED_NO_NEW_BUDGETS_LABEL).toBe(
+      'Categoría archivada: no admite presupuestos nuevos.',
+    )
+  })
+})
+
+describe('planLineKindLabel', () => {
+  it('nombra los dos tipos de línea en singular', () => {
+    expect(planLineKindLabel).toEqual({ bill: 'Factura', variable: 'Gasto variable' })
   })
 })

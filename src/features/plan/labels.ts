@@ -3,6 +3,7 @@ import { formatAmount } from '@/lib/currency'
 
 import type { AllocationGroup } from './calculations/allocation'
 import type { Diff, DiffRowKind } from './calculations/diff'
+import type { CategoryLineKind } from './mutations'
 
 /**
  * Textos y tonos del Plan mensual.
@@ -400,12 +401,24 @@ export function formatZeroBudget(currencyCode: string): string {
 }
 
 /**
- * Tipo de una línea medida por categoría, en singular.
+ * Presupuesto de una línea mientras su progreso todavía no llegó.
  *
- * `plan-line-form.tsx` guarda la misma pareja para su selector; está duplicada
- * mientras aquel formulario no la importe de aquí.
+ * No se escribe «Sin presupuesto» ni «Gastado COP 0»: aún no se sabe, y
+ * cualquiera de los dos afirmaría algo que puede ser falso.
  */
-export const planLineKindLabel: Record<'bill' | 'variable', string> = {
+export const LINE_BUDGET_LOADING_LABEL = 'Calculando presupuesto…'
+
+/**
+ * Categoría archivada sin presupuesto: `/budgets` rechaza estrenar uno, así que
+ * no se invita a completarlo. Lo usan el panel de líneas y la reconciliación.
+ */
+export const ARCHIVED_NO_NEW_BUDGETS_LABEL = 'Categoría archivada: no admite presupuestos nuevos.'
+
+/**
+ * Tipo de una línea medida por categoría, en singular. Única fuente del texto:
+ * lo usan el formulario de líneas y la reconciliación.
+ */
+export const planLineKindLabel: Record<CategoryLineKind, string> = {
   bill: 'Factura',
   variable: 'Gasto variable',
 }

@@ -5,6 +5,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { PlanError } from '@/features/plan/errors'
+import { currentMonthKey, shiftMonthKey } from '@/lib/dates'
 import type { Tables } from '@/types/database.types'
 
 import Plan from './Plan'
@@ -1595,6 +1596,166 @@ describe('Plan', () => {
 
       await user.click(within(panel).getByRole('button', { name: 'Ocultar detalle' }))
 
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      expect(createPlanMonth).not.toHaveBeenCalled()
+      expect(saveIncomeSource).not.toHaveBeenCalled()
+      expect(deleteIncomeSource).not.toHaveBeenCalled()
+      expect(saveAllocations).not.toHaveBeenCalled()
+      expect(savePlanLine).not.toHaveBeenCalled()
+      expect(deletePlanLine).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('consistencia del plan: enlaces con mes y presupuesto por línea', () => {
+    function linesPanel(): HTMLElement {
+      return screen.getByRole('region', { name: 'Facturas y gastos variables' })
+    }
+
+    /** Fila de una línea por su nombre, que puede repetirse como nombre de categoría. */
+    function lineRow(name: string): HTMLElement {
+      const item = within(linesPanel()).getAllByText(name)[0].closest('li')
+      if (!item) throw new Error(`Sin fila para ${name}`)
+      return item
+    }
+
+    /** Todos los enlaces a Presupuestos de la página, incluidos los del detalle y el formulario. */
+    function budgetLinks(): string[] {
+      return screen
+        .getAllByRole('link')
+        .map((link) => link.getAttribute('href') ?? '')
+        .filter((href) => href.startsWith('/budgets'))
+    }
+
+    it('con el mes actual, todos los enlaces a Presupuestos llevan ese mes', async () => {
+      const user = userEvent.setup()
+      const month = currentMonthKey()
+      renderPlan()
+
+      await user.click(screen.getByRole('button', { name: 'Ver detalle' }))
+
+      const hrefs = budgetLinks()
+      expect(hrefs.length).toBeGreaterThan(0)
+      expect(new Set(hrefs)).toEqual(new Set([`/budgets?month=${month}`]))
+    })
+
+    it('al cambiar al mes anterior, panel, reconciliación y formulario usan ese mes', async () => {
+      const user = userEvent.setup()
+      const previous = shiftMonthKey(currentMonthKey(), -1)
+      renderPlan()
+
+      await user.click(screen.getByRole('button', { name: /Mes anterior/ }))
+      await user.click(screen.getByRole('button', { name: 'Ver detalle' }))
+
+      expect(
+        within(lineRow('Arriendo')).getByRole('link', { name: 'Editar presupuesto' }),
+      ).toHaveAttribute('href', `/budgets?month=${previous}`)
+      expect(screen.getByRole('link', { name: /^Ir a Presupuestos de / })).toHaveAttribute(
+        'href',
+        `/budgets?month=${previous}`,
+      )
+
+      await user.click(within(linesPanel()).getByRole('button', { name: 'Añadir línea' }))
+      const dialog = await screen.findByRole('dialog')
+
+      expect(within(dialog).getByRole('link', { name: 'Editar en Presupuestos' })).toHaveAttribute(
+        'href',
+        `/budgets?month=${previous}`,
+      )
+      expect(new Set(budgetLinks())).toEqual(new Set([`/budgets?month=${previous}`]))
+    })
+
+    it('mientras carga el progreso, las líneas dicen que están calculando', () => {
+      usePlanLineProgress.mockReturnValue({
+        data: undefined,
+        isPending: true,
+        isError: false,
+        error: null,
+      })
+      renderPlan()
+
+      for (const name of ['Arriendo', 'Mercado']) {
+        const fila = lineRow(name)
+        expect(within(fila).getByText('Calculando presupuesto…')).toBeInTheDocument()
+        expect(within(fila).queryByText(/Gastado/)).not.toBeInTheDocument()
+        expect(within(fila).queryByRole('link')).not.toBeInTheDocument()
+      }
+
+      // El resumen no depende del progreso de las líneas y no cambia.
+      const summary = screen.getByRole('region', { name: 'Resumen del mes' })
+      const asignado = within(summary)
+        .getByRole('heading', { name: 'Presupuesto asignado' })
+        .closest('section') as HTMLElement
+      expect(within(asignado).getByText('COP 1.210.000')).toBeInTheDocument()
+    })
+
+    it('distingue presupuesto positivo, 0 explícito y ausencia en las líneas', () => {
+      useEffectiveCategoryBudgets.mockReturnValue(
+        resolved({ [CAT_RENT]: 400_000, [CAT_LOAN]: 60_000 }),
+      )
+      usePlanLineProgress.mockReturnValue(
+        resolved([
+          lineProgress[0],
+          { ...lineProgress[1], budgetMinor: null, status: 'unbudgeted', source: 'template' },
+        ]),
+      )
+      renderPlan()
+
+      const arriendo = lineRow('Arriendo')
+      expect(within(arriendo).getByText(/Presupuesto COP 400.000/)).toBeInTheDocument()
+      expect(within(arriendo).getByRole('link', { name: 'Editar presupuesto' })).toBeInTheDocument()
+
+      const mercado = lineRow('Mercado')
+      expect(within(mercado).getByText(/Presupuesto en COP 0/)).toBeInTheDocument()
+      expect(within(mercado).queryByText(/Sin presupuesto/)).not.toBeInTheDocument()
+      expect(within(mercado).getByRole('link', { name: 'Editar presupuesto' })).toBeInTheDocument()
+    })
+
+    it('sin presupuesto, la línea lo dice una vez e invita a completarlo', () => {
+      usePlanLineProgress.mockReturnValue(
+        resolved([
+          lineProgress[0],
+          { ...lineProgress[1], budgetMinor: null, status: 'unbudgeted', source: null },
+        ]),
+      )
+      renderPlan()
+
+      const mercado = lineRow('Mercado')
+      expect(within(mercado).getAllByText(/Sin presupuesto/)).toHaveLength(1)
+      expect(
+        within(mercado).getByRole('link', { name: 'Completar presupuesto' }),
+      ).toBeInTheDocument()
+    })
+
+    it('la reconciliación conserva titular, cuadre y enlaces', async () => {
+      const user = userEvent.setup()
+      renderPlan()
+
+      const panel = screen.getByRole('region', { name: 'Reconciliación del presupuesto' })
+      expect(within(panel).getByText('Asignado COP 1.210.000 de COP 1.400.000')).toBeInTheDocument()
+      expect(
+        within(panel).getByText('1 categoría con presupuesto sin línea · 0 líneas sin presupuesto'),
+      ).toBeInTheDocument()
+
+      await user.click(within(panel).getByRole('button', { name: 'Ver detalle' }))
+
+      expect(
+        within(panel).getByRole('link', { name: /^Ir a Presupuestos de / }),
+      ).toBeInTheDocument()
+      expect(within(panel).getByText('Préstamo')).toBeInTheDocument()
+    })
+
+    it('no añade campos ni llama mutaciones al renderizar, desplegar o seguir el mes', async () => {
+      const user = userEvent.setup()
+      renderPlan()
+
+      await user.click(screen.getByRole('button', { name: /Mes anterior/ }))
+      await user.click(screen.getByRole('button', { name: 'Ver detalle' }))
+
+      const editable = Array.from(
+        document.querySelectorAll('input, textarea, select, [contenteditable="true"]'),
+      ).filter((element) => element.getAttribute('type') !== 'month')
+
+      expect(editable).toHaveLength(0)
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
       expect(createPlanMonth).not.toHaveBeenCalled()
       expect(saveIncomeSource).not.toHaveBeenCalled()

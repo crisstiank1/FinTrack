@@ -79,6 +79,26 @@ export interface LineBudgetInput {
   source: string | null
 }
 
+/** Presupuesto de la categoría de una línea: positivo, 0 explícito o ausente. */
+export type LineBudgetState = 'budgeted' | 'zero' | 'none'
+
+/**
+ * Estado del presupuesto de una línea, a partir de su progreso ya calculado.
+ *
+ * `buildBudgetProgress` codifica el 0 explícito como `budgetMinor === null`
+ * con `source` conservado, y la ausencia como `source === null`. Esta es la
+ * única lectura de esa codificación: la usan el panel de líneas, fila a fila, y
+ * `buildBudgetCoverage`, en lote.
+ *
+ * Solo acepta progreso **ya disponible**. «Todavía cargando» no es un estado
+ * del presupuesto sino de la pantalla, y se decide allí.
+ */
+export function classifyLineBudget(budget: LineBudgetInput): LineBudgetState {
+  if (budget.budgetMinor !== null) return 'budgeted'
+  if (budget.source !== null) return 'zero'
+  return 'none'
+}
+
 export interface BudgetCoverageInput {
   /** Presupuesto efectivo del mes, sin los resueltos en 0 (`useEffectiveCategoryBudgets`). */
   budgetsByCategory: Record<string, number>
@@ -153,7 +173,7 @@ export function buildBudgetCoverage({
     if (budgetsByCategory[categoryId] !== undefined) continue
 
     const budget = budgetByLineCategory.get(categoryId)
-    if (budget && budget.source !== null && budget.budgetMinor === null) {
+    if (budget && classifyLineBudget(budget) === 'zero') {
       lineCategoryIdsWithZeroBudget.push(categoryId)
     } else {
       lineCategoryIdsWithoutBudget.push(categoryId)
