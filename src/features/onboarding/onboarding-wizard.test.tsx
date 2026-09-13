@@ -1,14 +1,21 @@
-import { describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 
 import { OnboardingWizard } from './onboarding-wizard'
 
+const { inserts } = vi.hoisted(() => ({
+  inserts: [] as { table: string; rows: unknown }[],
+}))
+
 vi.mock('@/lib/supabase', () => ({
   supabase: {
-    from: vi.fn(() => ({
-      insert: vi.fn().mockResolvedValue({ error: null }),
+    from: vi.fn((table: string) => ({
+      insert: vi.fn((rows: unknown) => {
+        inserts.push({ table, rows })
+        return Promise.resolve({ error: null })
+      }),
       update: vi.fn(() => ({ eq: vi.fn().mockResolvedValue({ error: null }) })),
     })),
   },
@@ -27,6 +34,10 @@ function renderWizard() {
 }
 
 describe('OnboardingWizard', () => {
+  beforeEach(() => {
+    inserts.length = 0
+  })
+
   it('avanza del paso de bienvenida al de cuentas', async () => {
     const user = userEvent.setup()
     renderWizard()
@@ -87,5 +98,36 @@ describe('OnboardingWizard', () => {
 
     expect(await screen.findByText('Paso 4 de 4')).toBeInTheDocument()
     expect(screen.getByText('Todo listo, Ana')).toBeInTheDocument()
+  })
+
+  it('permite elegir «Cuenta de inversión» y la inserta con el ícono trending-up', async () => {
+    const user = userEvent.setup()
+    renderWizard()
+
+    await user.type(screen.getByLabelText('¿Cómo te llamas?'), 'Ana')
+    await user.click(screen.getByRole('button', { name: /continuar/i }))
+    await screen.findByText('Paso 2 de 4')
+
+    await user.type(screen.getByLabelText('Nombre'), 'Inversiones')
+    await user.selectOptions(screen.getByLabelText('Tipo'), 'investment')
+    await user.click(screen.getByRole('button', { name: /continuar/i }))
+    await screen.findByText('Paso 3 de 4')
+
+    await user.click(screen.getByRole('button', { name: /crear categorías y continuar/i }))
+    await screen.findByText('Paso 4 de 4')
+    expect(screen.getByText(/Inversiones \(Cuenta de inversión/)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /ir a mi dashboard/i }))
+
+    await waitFor(() => {
+      expect(inserts.find((insert) => insert.table === 'accounts')?.rows).toEqual([
+        expect.objectContaining({
+          user_id: 'user-1',
+          name: 'Inversiones',
+          type: 'investment',
+          icon: 'trending-up',
+        }),
+      ])
+    })
   })
 })
