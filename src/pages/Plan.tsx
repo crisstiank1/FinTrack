@@ -20,6 +20,7 @@ import {
 import { calculateDiff } from '@/features/plan/calculations/diff'
 import { calculateRemaining } from '@/features/plan/calculations/remaining'
 import {
+  buildBudgetCoverage,
   sumBudgetsForCategories,
   sumEffectiveCategoryBudgets,
   sumPlannedIncome,
@@ -34,6 +35,11 @@ import {
   AllocationForm,
   type AllocationFormSubmit,
 } from '@/features/plan/components/allocation-form'
+import {
+  BudgetReconciliationPanel,
+  type ReconciliationCategoryItem,
+  type ReconciliationLineItem,
+} from '@/features/plan/components/budget-reconciliation-panel'
 import {
   BudgetVsActualTable,
   type PlanComparisonGroup,
@@ -90,8 +96,9 @@ import { currentMonthKey, formatMonthLabel } from '@/lib/dates'
 import type { Tables } from '@/types/database.types'
 
 /**
- * Plan mensual: resumen del mes, cuadro Presupuesto vs. Actual, fuentes de
- * ingreso y reparto 50/30/20.
+ * Plan mensual: resumen del mes, fuentes de ingreso, reparto 50/30/20,
+ * reconciliación del presupuesto, facturas y gastos variables, y cuadro
+ * Presupuesto vs. Actual.
  *
  * Lo editable es **solo lo planeado**: las fuentes de ingreso y los cinco
  * porcentajes del reparto. Ningún valor «Actual» es editable en ninguna parte,
@@ -390,6 +397,12 @@ export default function Plan() {
 
     return {
       groups,
+      // Aportes planeados por cuenta: los mismos que entran en `asignado`. La
+      // reconciliación los muestra para que su suma se pueda leer entera.
+      contributionsPlanned: {
+        savingsMinor: savingsPlannedMinor,
+        investmentMinor: investmentPlannedMinor,
+      },
       allocation: {
         rows: allocationRows,
         hasAllocation,
@@ -523,6 +536,82 @@ export default function Plan() {
     () => linePartition.variables.map((line) => toLineItem(line, 'variable', categoryById)),
     [linePartition, categoryById],
   )
+
+  const lineProgress = lineProgressQuery.data
+
+  /**
+   * Reconciliación del presupuesto: cobertura por líneas y las categorías
+   * concretas detrás de cada cifra.
+   *
+   * Espera al progreso de las líneas en vez de darlo por vacío: es lo único que
+   * distingue un presupuesto de 0 explícito de su ausencia, y sin él un 0 se
+   * mostraría un instante como «Sin presupuesto».
+   *
+   * Aquí solo se resuelven nombres y orden. Los importes salen de
+   * `buildBudgetCoverage` y del mapa de presupuestos, sin sumar nada.
+   */
+  const reconciliation = useMemo(() => {
+    if (!budgetsByCategory || !lineProgress) return undefined
+
+    const coverage = buildBudgetCoverage({
+      budgetsByCategory,
+      billCategoryIds: planLineCategoryIds(linePartition.bills),
+      variableCategoryIds: planLineCategoryIds(linePartition.variables),
+      lineBudgets: lineProgress,
+    })
+
+    // Mismo orden que el resto de la aplicación: el de `useCategories`, activas
+    // primero. Una categoría que no llegue en esa lista va al final con un
+    // nombre genérico, como en las líneas, en vez de desaparecer del cuadre.
+    const unlinked = new Set(coverage.unlinkedCategoryIds)
+    const unlinkedCategories: ReconciliationCategoryItem[] = categories
+      .filter((category) => unlinked.has(category.id))
+      .map((category) => ({
+        categoryId: category.id,
+        name: category.name,
+        isArchived: category.is_archived,
+        amountMinor: budgetsByCategory[category.id],
+      }))
+    for (const categoryId of coverage.unlinkedCategoryIds) {
+      if (categoryById.has(categoryId)) continue
+      unlinkedCategories.push({
+        categoryId,
+        name: 'Categoría no disponible',
+        isArchived: false,
+        amountMinor: budgetsByCategory[categoryId],
+      })
+    }
+
+    // Las líneas conservan el orden del panel: facturas y después variables.
+    const lineItems = [...billItems, ...variableItems]
+    const linesFor = (categoryIds: string[]): ReconciliationLineItem[] => {
+      const wanted = new Set(categoryIds)
+      return lineItems
+        .filter((item) => wanted.has(item.categoryId))
+        .map((item) => ({
+          lineId: item.id,
+          name: item.name,
+          kind: item.kind,
+          categoryName: item.categoryName,
+          isCategoryArchived: item.isCategoryArchived,
+        }))
+    }
+
+    return {
+      coverage,
+      unlinkedCategories,
+      linesWithoutBudget: linesFor(coverage.lineCategoryIdsWithoutBudget),
+      linesWithZeroBudget: linesFor(coverage.lineCategoryIdsWithZeroBudget),
+    }
+  }, [
+    budgetsByCategory,
+    lineProgress,
+    linePartition,
+    categories,
+    categoryById,
+    billItems,
+    variableItems,
+  ])
 
   const editingLine =
     editingLineId && editingLineId !== 'new'
@@ -786,6 +875,26 @@ export default function Plan() {
                     Clasificar categorías
                   </Link>
                 </p>
+              )}
+              {/* Antes de las líneas: explica qué parte del presupuesto por
+                  categorías ya describen y qué parte todavía no. Solo lee y
+                  enlaza a Presupuestos; no abre ningún formulario. */}
+              {reconciliation && (
+                <BudgetReconciliationPanel
+                  monthKey={monthKey}
+                  monthLabel={monthLabel}
+                  currencyCode={currencyCode}
+                  hasPlan={hasPlan}
+                  incomePlannedMinor={model.summary.incomePlannedMinor}
+                  coverage={reconciliation.coverage}
+                  savingsPlannedMinor={model.contributionsPlanned.savingsMinor}
+                  investmentPlannedMinor={model.contributionsPlanned.investmentMinor}
+                  assignedMinor={model.summary.assignedMinor}
+                  unassignedMinor={model.summary.unassignedMinor}
+                  unlinkedCategories={reconciliation.unlinkedCategories}
+                  linesWithoutBudget={reconciliation.linesWithoutBudget}
+                  linesWithZeroBudget={reconciliation.linesWithZeroBudget}
+                />
               )}
               {hasPlan && (
                 <PlanLinesPanel

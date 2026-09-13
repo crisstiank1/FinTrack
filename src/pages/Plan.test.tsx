@@ -125,6 +125,8 @@ const categories = [
   { id: CAT_RENT, name: 'Arriendo', type: 'expense', is_archived: false },
   { id: CAT_FOOD, name: 'Alimentación', type: 'expense', is_archived: false },
   { id: 'cat-salud', name: 'Salud', type: 'expense', is_archived: false },
+  // Con presupuesto y sin línea: alimenta la reconciliación.
+  { id: CAT_LOAN, name: 'Préstamo', type: 'expense', is_archived: false },
 ] as Tables<'categories'>[]
 
 const incomeSourceLinks = [
@@ -1369,6 +1371,237 @@ describe('Plan', () => {
         amountOf(rowCells('No planeado')[1])
 
       expect(desglose).toBe(amountOf(rowCells('Gastos totales')[1]))
+    })
+  })
+
+  describe('reconciliación del presupuesto', () => {
+    function reconciliationPanel(): HTMLElement {
+      return screen.getByRole('region', { name: 'Reconciliación del presupuesto' })
+    }
+
+    async function expandReconciliation() {
+      const user = userEvent.setup()
+      await user.click(within(reconciliationPanel()).getByRole('button', { name: 'Ver detalle' }))
+      return user
+    }
+
+    /** Importe de una fila del cuadre de la reconciliación. */
+    function cuadre(concepto: string): string {
+      const table = screen.getByRole('table', { name: /Cuadre del presupuesto/ })
+      const header = within(table).getByRole('rowheader', { name: new RegExp(`^${concepto}`) })
+      return header.closest('tr')?.querySelector('td')?.textContent?.trim() ?? ''
+    }
+
+    it('va después del reparto y antes de facturas y gastos variables', () => {
+      renderPlan()
+
+      const reparto = screen.getByRole('region', { name: 'Reparto 50/30/20' })
+      const panel = reconciliationPanel()
+      const lineas = screen.getByRole('region', { name: 'Facturas y gastos variables' })
+
+      expect(reparto.compareDocumentPosition(panel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+      expect(panel.compareDocumentPosition(lineas) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    })
+
+    it('nace plegado y su titular usa el mismo asignado que el resumen', () => {
+      renderPlan()
+
+      const panel = reconciliationPanel()
+      const summary = screen.getByRole('region', { name: 'Resumen del mes' })
+      const asignadoCard = within(summary)
+        .getByRole('heading', { name: 'Presupuesto asignado' })
+        .closest('section') as HTMLElement
+
+      expect(within(panel).getByRole('button', { name: 'Ver detalle' })).toHaveAttribute(
+        'aria-expanded',
+        'false',
+      )
+      expect(within(asignadoCard).getByText('COP 1.210.000')).toBeInTheDocument()
+      // 810.000 de presupuestos + 400.000 de ahorro planeado, contra 1.400.000.
+      expect(within(panel).getByText('Asignado COP 1.210.000 de COP 1.400.000')).toBeInTheDocument()
+      expect(within(panel).getByText('Por asignar: COP 190.000')).toBeInTheDocument()
+      expect(
+        within(panel).getByText('1 categoría con presupuesto sin línea · 0 líneas sin presupuesto'),
+      ).toBeInTheDocument()
+    })
+
+    it('desplegado cuadra las dos identidades con las cifras de la pantalla', async () => {
+      renderPlan()
+      await expandReconciliation()
+
+      const categorias = amountOf(cuadre('Presupuesto por categorías'))
+      const facturas = amountOf(cuadre('Descrito en facturas'))
+      const variables = amountOf(cuadre('Descrito en gastos variables'))
+      const sinLinea = amountOf(cuadre('Sin línea descriptiva'))
+
+      expect([categorias, facturas, variables, sinLinea]).toEqual([
+        810_000, 400_000, 350_000, 60_000,
+      ])
+      expect(facturas + variables + sinLinea).toBe(categorias)
+
+      expect(cuadre('Aportes a ahorro planeados')).toBe('COP 400.000')
+      expect(cuadre('Aportes a inversión planeados')).toBe('Sin aportes planeados')
+      expect(amountOf(cuadre('Asignado'))).toBe(categorias + 400_000)
+      expect(cuadre('Ingreso planeado')).toBe('COP 1.400.000')
+      expect(cuadre('Por asignar')).toBe('COP 190.000')
+
+      // El cuadro planea para facturas y variables lo mismo que describe la reconciliación.
+      expect(amountOf(rowCells('Facturas')[0])).toBe(facturas)
+      expect(amountOf(rowCells('Gastos variables')[0])).toBe(variables)
+    })
+
+    it('lista la categoría con presupuesto sin línea, sin ofrecer crear la línea', async () => {
+      renderPlan()
+      await expandReconciliation()
+
+      const lista = screen.getByRole('list', { name: 'Presupuestos sin línea' })
+      const fila = within(lista).getByText('Préstamo').closest('li') as HTMLElement
+
+      expect(within(fila).getByText('COP 60.000')).toBeInTheDocument()
+      expect(within(fila).getByText(/Puedes describirla desde Facturas/)).toBeInTheDocument()
+      expect(within(fila).queryByRole('button')).not.toBeInTheDocument()
+    })
+
+    it('distingue la línea sin presupuesto de la que tiene un 0 explícito', async () => {
+      useEffectiveCategoryBudgets.mockReturnValue(resolved({ [CAT_LOAN]: 60_000 }))
+      usePlanLineProgress.mockReturnValue(
+        resolved([
+          { ...lineProgress[0], budgetMinor: null, status: 'unbudgeted', source: null },
+          { ...lineProgress[1], budgetMinor: null, status: 'unbudgeted', source: 'exception' },
+        ]),
+      )
+      renderPlan()
+
+      expect(
+        within(reconciliationPanel()).getByText(
+          '1 categoría con presupuesto sin línea · 1 línea sin presupuesto · 1 línea con presupuesto en COP 0',
+        ),
+      ).toBeInTheDocument()
+
+      await expandReconciliation()
+
+      const sinPresupuesto = screen.getByRole('list', { name: 'Líneas sin presupuesto' })
+      const enCero = screen.getByRole('list', { name: 'Líneas con presupuesto en COP 0' })
+
+      expect(within(sinPresupuesto).getByText('Arriendo')).toBeInTheDocument()
+      expect(within(sinPresupuesto).getByText('Sin presupuesto')).toBeInTheDocument()
+      expect(within(enCero).getByText('Mercado')).toBeInTheDocument()
+      expect(within(enCero).getByText('Presupuesto en COP 0')).toBeInTheDocument()
+      expect(
+        screen.getByRole('link', { name: 'Completar presupuestos en septiembre' }),
+      ).toHaveAttribute('href', '/budgets?month=2026-09')
+    })
+
+    it('mientras no llega el progreso de las líneas no afirma nada sobre ellas', () => {
+      usePlanLineProgress.mockReturnValue({
+        data: undefined,
+        isPending: true,
+        isError: false,
+        error: null,
+      })
+      renderPlan()
+
+      expect(
+        screen.queryByRole('region', { name: 'Reconciliación del presupuesto' }),
+      ).not.toBeInTheDocument()
+    })
+
+    it('enlaza a Presupuestos del mes en pantalla', async () => {
+      renderPlan()
+      await expandReconciliation()
+
+      expect(screen.getByRole('link', { name: 'Ir a Presupuestos de septiembre' })).toHaveAttribute(
+        'href',
+        '/budgets?month=2026-09',
+      )
+    })
+
+    it('dice «Sobreasignado» en el titular cuando lo asignado supera el ingreso', () => {
+      usePlanIncomeSources.mockReturnValue(
+        resolved([
+          { id: 'src-1', planned_minor: 1_000_000, position: 0 },
+        ] as Tables<'plan_income_sources'>[]),
+      )
+      renderPlan()
+
+      const panel = reconciliationPanel()
+
+      expect(within(panel).getByText('Sobreasignado por COP 210.000')).toBeInTheDocument()
+      expect(panel.textContent).not.toMatch(/COP\s*-|−/)
+    })
+
+    it('con una fuente de COP 0 compara contra COP 0 y no dice «Sin ingreso planeado»', () => {
+      usePlanIncomeSources.mockReturnValue(
+        resolved([
+          { id: 'src-1', name: 'Salario', planned_minor: 0, position: 0 },
+        ] as Tables<'plan_income_sources'>[]),
+      )
+      renderPlan()
+
+      const panel = reconciliationPanel()
+
+      expect(within(panel).getByText('Sobreasignado por COP 1.210.000')).toBeInTheDocument()
+      expect(within(panel).getByText(/Asignado COP 1.210.000 de COP 0\./)).toBeInTheDocument()
+      expect(within(panel).queryByText('Sin ingreso planeado')).not.toBeInTheDocument()
+    })
+
+    it('sin plan pero con movimientos se muestra, sin ingreso con el que comparar', async () => {
+      usePlanMonth.mockReturnValue(resolved(null))
+      usePlanIncomeSources.mockReturnValue({
+        data: undefined,
+        isPending: true,
+        isError: false,
+        error: null,
+      })
+      renderPlan()
+
+      const panel = reconciliationPanel()
+
+      expect(within(panel).getByText('Sin ingreso planeado')).toBeInTheDocument()
+      expect(within(panel).queryByText(/Sobreasignado/)).not.toBeInTheDocument()
+
+      await expandReconciliation()
+      expect(within(panel).getByText(/todavía no tiene plan: no hay ingreso/)).toBeInTheDocument()
+      expect(within(panel).queryByText(/Puedes describirla/)).not.toBeInTheDocument()
+    })
+
+    it('no aparece en el vacío de un mes sin plan y sin movimientos', () => {
+      usePlanMonth.mockReturnValue(resolved(null))
+      usePlanActuals.mockReturnValue(
+        resolved({
+          ...actuals,
+          incomeActualMinor: 0,
+          expenseActualMinor: 0,
+          byLine: { billsMinor: 0, variablesMinor: 0, unplannedMinor: 0 },
+          byGroup: { needsMinor: 0, wantsMinor: 0, debtMinor: 0, sinClasificarMinor: 0 },
+          savingsContributionsMinor: 0,
+          investmentContributionsMinor: 0,
+        }),
+      )
+      renderPlan()
+
+      expect(
+        screen.queryByRole('region', { name: 'Reconciliación del presupuesto' }),
+      ).not.toBeInTheDocument()
+    })
+
+    it('desplegar y plegar no abre formularios ni escribe nada', async () => {
+      renderPlan()
+      const user = await expandReconciliation()
+
+      const panel = reconciliationPanel()
+      expect(panel.querySelectorAll('form, input, textarea, select')).toHaveLength(0)
+      expect(within(panel).getAllByRole('button')).toHaveLength(1)
+
+      await user.click(within(panel).getByRole('button', { name: 'Ocultar detalle' }))
+
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      expect(createPlanMonth).not.toHaveBeenCalled()
+      expect(saveIncomeSource).not.toHaveBeenCalled()
+      expect(deleteIncomeSource).not.toHaveBeenCalled()
+      expect(saveAllocations).not.toHaveBeenCalled()
+      expect(savePlanLine).not.toHaveBeenCalled()
+      expect(deletePlanLine).not.toHaveBeenCalled()
     })
   })
 })

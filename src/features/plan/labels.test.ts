@@ -14,7 +14,13 @@ import {
   formatPlannedIncomeAmount,
   formatRowDiff,
   formatRowPlannedAmount,
+  formatContributionPlanned,
   formatUnassigned,
+  formatZeroBudget,
+  linesWithoutBudgetCountLabel,
+  linesWithZeroBudgetCountLabel,
+  reconciliationHeadline,
+  unlinkedCategoriesCountLabel,
   planRowDiffKind,
   planRowLabel,
   ignoredAllocationGroupsNote,
@@ -22,6 +28,7 @@ import {
   remainingTone,
   NO_ALLOCATION_LABEL,
   NO_BUDGET_LABEL,
+  NO_CONTRIBUTION_PLAN_LABEL,
   NO_PERCENT_LABEL,
   NO_PLANNED_INCOME_LABEL,
 } from './labels'
@@ -278,5 +285,99 @@ describe('reparto 50/30/20', () => {
     expect(ignoredAllocationGroupsNote(['caprichos'])).toContain('caprichos')
     expect(ignoredAllocationGroupsNote(['caprichos'])).toContain('100 %')
     expect(ignoredAllocationGroupsNote(['caprichos', 'viajes'])).toContain('viajes')
+  })
+})
+
+describe('formatContributionPlanned', () => {
+  it('sin línea de aportes dice «Sin aportes planeados», nunca «Sin presupuesto»', () => {
+    expect(formatContributionPlanned(null, COP)).toBe(NO_CONTRIBUTION_PLAN_LABEL)
+    expect(formatContributionPlanned(null, COP)).not.toBe(NO_BUDGET_LABEL)
+  })
+
+  it('conserva un 0 guardado en la línea', () => {
+    expect(formatContributionPlanned(0, COP)).toBe('COP 0')
+  })
+})
+
+describe('formatZeroBudget', () => {
+  it('dice el 0 explícito como importe, no como ausencia', () => {
+    expect(formatZeroBudget(COP)).toBe('Presupuesto en COP 0')
+    expect(formatZeroBudget(COP)).not.toContain(NO_BUDGET_LABEL)
+  })
+})
+
+describe('reconciliationHeadline', () => {
+  it('con ingreso planeado y sin exceso: asignado de ingreso, y lo que queda', () => {
+    expect(
+      reconciliationHeadline(
+        { assignedMinor: 1_750_000, incomePlannedMinor: 3_000_000, unassignedMinor: 1_250_000 },
+        COP,
+      ),
+    ).toEqual({
+      title: 'Asignado COP 1.750.000 de COP 3.000.000',
+      detail: 'Por asignar: COP 1.250.000',
+      tone: 'neutral',
+    })
+  })
+
+  it('plan exacto: por asignar vale COP 0, no una ausencia', () => {
+    const headline = reconciliationHeadline(
+      { assignedMinor: 3_000_000, incomePlannedMinor: 3_000_000, unassignedMinor: 0 },
+      COP,
+    )
+
+    expect(headline.title).toBe('Asignado COP 3.000.000 de COP 3.000.000')
+    expect(headline.detail).toBe('Por asignar: COP 0')
+  })
+
+  it('sobreasignado: el exceso es el titular, sin signo negativo', () => {
+    const headline = reconciliationHeadline(
+      { assignedMinor: 3_200_000, incomePlannedMinor: 3_000_000, unassignedMinor: -200_000 },
+      COP,
+    )
+
+    expect(headline).toEqual({
+      title: 'Sobreasignado por COP 200.000',
+      detail: 'Asignado COP 3.200.000 de COP 3.000.000. Se asignó más que el ingreso planeado.',
+      tone: 'negative',
+    })
+    expect(`${headline.title} ${headline.detail}`).not.toMatch(/-|−/)
+  })
+
+  it('sin ingreso planeado no compara ni declara exceso', () => {
+    expect(
+      reconciliationHeadline(
+        { assignedMinor: 1_750_000, incomePlannedMinor: null, unassignedMinor: null },
+        COP,
+      ),
+    ).toEqual({ title: 'Asignado COP 1.750.000', detail: NO_PLANNED_INCOME_LABEL, tone: 'neutral' })
+  })
+
+  it('con una fuente explícita de COP 0 compara contra COP 0', () => {
+    const headline = reconciliationHeadline(
+      { assignedMinor: 1_750_000, incomePlannedMinor: 0, unassignedMinor: -1_750_000 },
+      COP,
+    )
+
+    expect(headline.title).toBe('Sobreasignado por COP 1.750.000')
+    expect(headline.detail).toContain('Asignado COP 1.750.000 de COP 0')
+    expect(`${headline.title} ${headline.detail}`).not.toContain(NO_PLANNED_INCOME_LABEL)
+  })
+
+  it('con ingreso de COP 0 y nada asignado, no hay exceso', () => {
+    expect(
+      reconciliationHeadline({ assignedMinor: 0, incomePlannedMinor: 0, unassignedMinor: 0 }, COP),
+    ).toMatchObject({ title: 'Asignado COP 0 de COP 0', detail: 'Por asignar: COP 0' })
+  })
+})
+
+describe('conteos de la reconciliación', () => {
+  it('concuerdan en número', () => {
+    expect(unlinkedCategoriesCountLabel(0)).toBe('0 categorías con presupuesto sin línea')
+    expect(unlinkedCategoriesCountLabel(1)).toBe('1 categoría con presupuesto sin línea')
+    expect(linesWithoutBudgetCountLabel(1)).toBe('1 línea sin presupuesto')
+    expect(linesWithoutBudgetCountLabel(5)).toBe('5 líneas sin presupuesto')
+    expect(linesWithZeroBudgetCountLabel(1, COP)).toBe('1 línea con presupuesto en COP 0')
+    expect(linesWithZeroBudgetCountLabel(2, COP)).toBe('2 líneas con presupuesto en COP 0')
   })
 })

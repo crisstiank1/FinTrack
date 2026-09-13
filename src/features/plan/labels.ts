@@ -366,3 +366,115 @@ export function ignoredAllocationGroupsNote(ignoredGroups: readonly string[]): s
     ? `El reparto guardado incluye un grupo que no existe (${listado}); se descarta, así que los porcentajes pueden no sumar 100 %.`
     : `El reparto guardado incluye grupos que no existen (${listado}); se descartan, así que los porcentajes pueden no sumar 100 %.`
 }
+
+/* -------------------------------------------------------------------------- */
+/* Reconciliación del presupuesto                                             */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Aportes a ahorro o inversión sin línea que los planifique.
+ *
+ * No es «Sin presupuesto»: los aportes se planifican por cuenta, con importe
+ * propio en la línea, y no son presupuestos por categoría de `/budgets`.
+ */
+export const NO_CONTRIBUTION_PLAN_LABEL = 'Sin aportes planeados'
+
+/** Aporte planeado. Un `0` guardado en la línea se conserva como `0`. */
+export function formatContributionPlanned(
+  plannedMinor: number | null,
+  currencyCode: string,
+): string {
+  if (plannedMinor === null) return NO_CONTRIBUTION_PLAN_LABEL
+  return formatAmount(plannedMinor, currencyCode)
+}
+
+/**
+ * Presupuesto vigente de 0: una decisión explícita del usuario en `/budgets`.
+ *
+ * `buildBudgetProgress` lo trata como «Sin presupuesto» para no calcular
+ * umbrales contra 0, pero en la reconciliación importa la causa: una categoría
+ * que nunca tuvo presupuesto invita a completarlo, y una con 0 ya lo tiene.
+ */
+export function formatZeroBudget(currencyCode: string): string {
+  return `Presupuesto en ${formatAmount(0, currencyCode)}`
+}
+
+/**
+ * Tipo de una línea medida por categoría, en singular.
+ *
+ * `plan-line-form.tsx` guarda la misma pareja para su selector; está duplicada
+ * mientras aquel formulario no la importe de aquí.
+ */
+export const planLineKindLabel: Record<'bill' | 'variable', string> = {
+  bill: 'Factura',
+  variable: 'Gasto variable',
+}
+
+export interface ReconciliationHeadline {
+  /** Titular del bloque, visible también con el bloque plegado. */
+  title: string
+  detail: string
+  tone: PlanTone
+}
+
+export interface ReconciliationHeadlineInput {
+  assignedMinor: number
+  /** `null` cuando el mes no tiene ninguna fuente de ingreso. */
+  incomePlannedMinor: number | null
+  /** `porAsignar` de `summarizeAllocation`; `null` sin ingreso planeado. */
+  unassignedMinor: number | null
+}
+
+/**
+ * Titular de la reconciliación, con sus tres lecturas:
+ *
+ * - Sin ingreso planeado: solo lo asignado, y la ausencia dicha con palabras.
+ * - Sobreasignado: el exceso **es** el titular, en positivo y en texto.
+ * - Si no: «Asignado A de I» y lo que queda por asignar, que puede ser `0`.
+ *
+ * Una fuente de 0 es ingreso planeado: se compara contra COP 0, y cualquier
+ * asignación la supera. No recalcula `porAsignar`; lo recibe ya resuelto.
+ */
+export function reconciliationHeadline(
+  { assignedMinor, incomePlannedMinor, unassignedMinor }: ReconciliationHeadlineInput,
+  currencyCode: string,
+): ReconciliationHeadline {
+  const assigned = `Asignado ${formatAmount(assignedMinor, currencyCode)}`
+
+  if (incomePlannedMinor === null || unassignedMinor === null) {
+    return { title: assigned, detail: NO_PLANNED_INCOME_LABEL, tone: 'neutral' }
+  }
+
+  const ofIncome = `${assigned} de ${formatAmount(incomePlannedMinor, currencyCode)}`
+  const unassigned = formatUnassigned(unassignedMinor, currencyCode)
+
+  if (unassignedMinor < 0) {
+    return {
+      title: unassigned.text,
+      detail: `${ofIncome}. Se asignó más que el ingreso planeado.`,
+      tone: unassigned.tone,
+    }
+  }
+
+  return { title: ofIncome, detail: `Por asignar: ${unassigned.text}`, tone: 'neutral' }
+}
+
+/** «1 categoría con presupuesto sin línea» / «0 categorías con presupuesto sin línea». */
+export function unlinkedCategoriesCountLabel(count: number): string {
+  return count === 1
+    ? '1 categoría con presupuesto sin línea'
+    : `${count} categorías con presupuesto sin línea`
+}
+
+/** «1 línea sin presupuesto» / «5 líneas sin presupuesto». No incluye las de 0 explícito. */
+export function linesWithoutBudgetCountLabel(count: number): string {
+  return count === 1 ? '1 línea sin presupuesto' : `${count} líneas sin presupuesto`
+}
+
+/** «1 línea con presupuesto en COP 0». Solo se muestra cuando hay alguna. */
+export function linesWithZeroBudgetCountLabel(count: number, currencyCode: string): string {
+  const zero = formatAmount(0, currencyCode)
+  return count === 1
+    ? `1 línea con presupuesto en ${zero}`
+    : `${count} líneas con presupuesto en ${zero}`
+}
