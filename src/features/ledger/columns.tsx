@@ -26,9 +26,15 @@ declare module '@tanstack/react-table' {
 export interface LedgerColumnContext {
   accountsById: Map<string, Tables<'accounts'>>
   categoriesById: Map<string, Tables<'categories'>>
-  currencyCode: string
-  /** Saldo al cierre de cada día. Ausente si la columna está oculta. */
+  /** Moneda de una fila cuya cuenta no está en `accountsById`. */
+  fallbackCurrency: string
+  /**
+   * Saldo al cierre de cada día. Ausente si la columna está oculta o si las
+   * cuentas del alcance tienen monedas distintas (ver `runningBalanceCurrency`).
+   */
   balanceByDate?: Map<string, number>
+  /** Moneda de `balanceByDate`. */
+  balanceCurrency: string
   onEdit: (transaction: Transaction) => void
   onDuplicate: (transaction: Transaction) => void
   onDelete: (transaction: Transaction) => void
@@ -40,8 +46,9 @@ export function createLedgerColumns(context: LedgerColumnContext) {
   const {
     accountsById,
     categoriesById,
-    currencyCode,
+    fallbackCurrency,
     balanceByDate,
+    balanceCurrency,
     onEdit,
     onDuplicate,
     onDelete,
@@ -108,7 +115,15 @@ export function createLedgerColumns(context: LedgerColumnContext) {
       id: 'amount_minor',
       header: 'Monto',
       meta: { align: 'right', label: 'Monto' },
-      cell: ({ row }) => <AmountCell transaction={row.original} currencyCode={currencyCode} />,
+      // Cada fila en la moneda de su cuenta: el libro mezcla cuentas de monedas distintas.
+      cell: ({ row }) => (
+        <AmountCell
+          transaction={row.original}
+          currencyCode={
+            accountsById.get(row.original.account_id)?.currency_code ?? fallbackCurrency
+          }
+        />
+      ),
     }),
 
     column.display({
@@ -121,7 +136,7 @@ export function createLedgerColumns(context: LedgerColumnContext) {
 
         return (
           <span className="whitespace-nowrap tabular-nums text-muted-foreground">
-            {balance === undefined ? '—' : formatAmount(balance, currencyCode)}
+            {balance === undefined ? '—' : formatAmount(balance, balanceCurrency)}
           </span>
         )
       },

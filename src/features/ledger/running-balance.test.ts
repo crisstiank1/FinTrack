@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
-import { buildDailyBalances, type BalanceTransaction } from './running-balance'
+import {
+  buildDailyBalances,
+  runningBalanceCurrency,
+  type BalanceTransaction,
+} from './running-balance'
 
 const accounts = [
   { id: 'acc-1', initial_balance_minor: 100_000 },
@@ -97,5 +101,30 @@ describe('buildDailyBalances', () => {
 
   it('devuelve un mapa vacío sin movimientos', () => {
     expect(buildDailyBalances(accounts, []).size).toBe(0)
+  })
+})
+
+describe('runningBalanceCurrency', () => {
+  const mixed = [
+    { id: 'cop-1', currency_code: 'COP' },
+    { id: 'cop-2', currency_code: 'COP' },
+    { id: 'usd-1', currency_code: 'USD' },
+  ]
+
+  it('devuelve la moneda cuando todas las cuentas la comparten', () => {
+    expect(runningBalanceCurrency(mixed.slice(0, 2))).toBe('COP')
+  })
+
+  it('devuelve null con cuentas en varias monedas y sin filtro de cuenta', () => {
+    expect(runningBalanceCurrency(mixed)).toBeNull()
+  })
+
+  it('con una cuenta filtrada devuelve la moneda de esa cuenta', () => {
+    expect(runningBalanceCurrency(mixed, 'usd-1')).toBe('USD')
+  })
+
+  it('devuelve null sin cuentas en el alcance', () => {
+    expect(runningBalanceCurrency([])).toBeNull()
+    expect(runningBalanceCurrency(mixed, 'no-existe')).toBeNull()
   })
 })

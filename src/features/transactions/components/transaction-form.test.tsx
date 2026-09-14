@@ -20,7 +20,12 @@ describe('TransactionForm', () => {
     const onSubmit = vi.fn()
     const user = userEvent.setup()
     render(
-      <TransactionForm accounts={accounts} categories={categories} currencyCode="COP" onSubmit={onSubmit} />,
+      <TransactionForm
+        accounts={accounts}
+        categories={categories}
+        currencyCode="COP"
+        onSubmit={onSubmit}
+      />,
     )
 
     await user.click(screen.getByRole('button', { name: /guardar/i }))
@@ -35,7 +40,12 @@ describe('TransactionForm', () => {
   it('solo muestra categorías de ingreso cuando el tipo es Ingreso', async () => {
     const user = userEvent.setup()
     render(
-      <TransactionForm accounts={accounts} categories={categories} currencyCode="COP" onSubmit={vi.fn()} />,
+      <TransactionForm
+        accounts={accounts}
+        categories={categories}
+        currencyCode="COP"
+        onSubmit={vi.fn()}
+      />,
     )
 
     expect(screen.getByRole('option', { name: 'Mercado' })).toBeInTheDocument()
@@ -51,7 +61,12 @@ describe('TransactionForm', () => {
     const onSubmit = vi.fn()
     const user = userEvent.setup()
     render(
-      <TransactionForm accounts={accounts} categories={categories} currencyCode="COP" onSubmit={onSubmit} />,
+      <TransactionForm
+        accounts={accounts}
+        categories={categories}
+        currencyCode="COP"
+        onSubmit={onSubmit}
+      />,
     )
 
     await user.type(screen.getByLabelText('Descripción'), 'Mercado del mes')
@@ -70,5 +85,31 @@ describe('TransactionForm', () => {
       }),
       expect.anything(),
     )
+  })
+
+  it('muestra el equivalente en la moneda de la cuenta elegida', async () => {
+    const user = userEvent.setup()
+    const accountsWithCurrency = [
+      { id: 'acc-cop', name: 'Banco', currency_code: 'COP', is_archived: false },
+      { id: 'acc-usd', name: 'Cuenta USD', currency_code: 'USD', is_archived: false },
+    ] as Tables<'accounts'>[]
+    render(
+      <TransactionForm
+        accounts={accountsWithCurrency}
+        categories={categories}
+        currencyCode="COP"
+        onSubmit={vi.fn()}
+      />,
+    )
+
+    await user.type(screen.getByLabelText('Monto'), '1500')
+    // Sin cuenta elegida se usa la moneda que indica la página.
+    expect(screen.getByText('Equivale a COP 1.500')).toBeInTheDocument()
+
+    await user.selectOptions(screen.getByLabelText('Cuenta'), 'acc-usd')
+    expect(screen.getByText('Equivale a USD 1.500')).toBeInTheDocument()
+
+    await user.selectOptions(screen.getByLabelText('Cuenta'), 'acc-cop')
+    expect(screen.getByText('Equivale a COP 1.500')).toBeInTheDocument()
   })
 })

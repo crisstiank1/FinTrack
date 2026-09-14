@@ -28,6 +28,22 @@ function toCalculationInput(transaction: BalanceTransaction): TransactionForCalc
 }
 
 /**
+ * Moneda en la que se puede mostrar el saldo acumulado, o `null` si no hay una.
+ *
+ * El saldo suma cuentas: solo tiene sentido si todas las del alcance comparten
+ * moneda. Con cuentas en varias monedas y sin filtro de cuenta devuelve `null`,
+ * y la columna no muestra cifras en vez de sumar pesos con dólares.
+ */
+export function runningBalanceCurrency(
+  accounts: readonly { id: string; currency_code: string }[],
+  accountId?: string,
+): string | null {
+  const scoped = accountId ? accounts.filter((account) => account.id === accountId) : accounts
+  const currencies = new Set(scoped.map((account) => account.currency_code))
+  return currencies.size === 1 ? [...currencies][0] : null
+}
+
+/**
  * Saldo acumulado al cierre de cada día con movimientos.
  *
  * Se acumula por día y no por fila porque el orden de dos movimientos dentro
@@ -44,9 +60,7 @@ export function buildDailyBalances(
   accountId?: string,
 ): Map<string, number> {
   const scopedAccounts = accountId ? accounts.filter((a) => a.id === accountId) : accounts
-  const scoped = accountId
-    ? transactions.filter((t) => t.account_id === accountId)
-    : transactions
+  const scoped = accountId ? transactions.filter((t) => t.account_id === accountId) : transactions
 
   const deltaByDate = new Map<string, number>()
   for (const transaction of scoped) {
@@ -57,10 +71,7 @@ export function buildDailyBalances(
     )
   }
 
-  let balance = scopedAccounts.reduce(
-    (sum, account) => sum + account.initial_balance_minor,
-    0,
-  )
+  let balance = scopedAccounts.reduce((sum, account) => sum + account.initial_balance_minor, 0)
 
   const balanceByDate = new Map<string, number>()
   // Las fechas 'YYYY-MM-DD' ordenan lexicográficamente igual que cronológicamente.

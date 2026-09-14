@@ -1,3 +1,4 @@
+import { sortCurrencyCodes } from '@/lib/currency'
 import { supabase } from '@/lib/supabase'
 import type { Tables } from '@/types/database.types'
 
@@ -25,13 +26,30 @@ export interface LedgerPage {
   totalCount: number
 }
 
+/** Suma de un tipo de movimiento en una cuenta. */
+export interface LedgerAccountTotal {
+  type: string
+  accountId: string
+  totalMinor: number
+}
+
 export interface LedgerTotals {
+  /**
+   * Sumas por tipo y cuenta, no por tipo a secas: la moneda la define la
+   * cuenta, y agrupar solo por tipo mezclaría monedas en un mismo número.
+   */
+  byAccount: LedgerAccountTotal[]
+  count: number
+}
+
+/** Resumen del libro en una sola moneda. */
+export interface LedgerCurrencyTotals {
+  currencyCode: string
   incomeMinor: number
   expenseMinor: number
   /** Ingresos menos gastos. Las transferencias no entran. */
   balanceMinor: number
   transferMinor: number
-  count: number
 }
 
 /** Tope de seguridad para la exportación: 50 páginas de 1000 filas. */
@@ -113,14 +131,16 @@ export async function fetchLedgerPage(
 
 interface AggregateRow {
   type: string
+  account_id: string
   total: number | null
 }
 
 /**
  * Resumen del conjunto filtrado completo.
  *
- * Lo suma PostgreSQL agrupando por tipo, así que devuelve como mucho tres
- * filas sin importar cuántos movimientos haya detrás. Los tipos generados de
+ * Lo suma PostgreSQL agrupando por tipo y cuenta, así que devuelve como mucho
+ * tres filas por cuenta sin importar cuántos movimientos haya detrás. La moneda
+ * se asigna después con `groupLedgerTotalsByCurrency`. Los tipos generados de
  * Supabase no modelan funciones de agregación, de ahí el cast.
  */
 export async function fetchLedgerTotals(
@@ -130,7 +150,7 @@ export async function fetchLedgerTotals(
   const { data, error, count } = await applyFilters(
     supabase
       .from('transactions')
-      .select('type, total:amount_minor.sum()', { count: 'exact' }),
+      .select('type, account_id, total:amount_minor.sum()', { count: 'exact' }),
     userId,
     filters,
   )
@@ -138,19 +158,50 @@ export async function fetchLedgerTotals(
   if (error) throw error
 
   const rows = (data ?? []) as unknown as AggregateRow[]
-  const totalFor = (type: string) =>
-    rows.find((row) => row.type === type)?.total ?? 0
-
-  const incomeMinor = totalFor('income')
-  const expenseMinor = totalFor('expense')
 
   return {
-    incomeMinor,
-    expenseMinor,
-    balanceMinor: incomeMinor - expenseMinor,
-    transferMinor: totalFor('transfer'),
+    byAccount: rows.map((row) => ({
+      type: row.type,
+      accountId: row.account_id,
+      totalMinor: row.total ?? 0,
+    })),
     count: count ?? 0,
   }
+}
+
+/**
+ * Reparte los totales por moneda, con la principal primero.
+ *
+ * Solo aparecen las monedas con movimientos en el conjunto filtrado. Una cuenta
+ * que ya no está en `currencyByAccountId` cae en `fallbackCurrency`.
+ */
+export function groupLedgerTotalsByCurrency(
+  totals: LedgerTotals,
+  currencyByAccountId: ReadonlyMap<string, string>,
+  fallbackCurrency: string,
+  primaryCode?: string | null,
+): LedgerCurrencyTotals[] {
+  const byCurrency = new Map<string, LedgerCurrencyTotals>()
+
+  for (const row of totals.byAccount) {
+    const currencyCode = currencyByAccountId.get(row.accountId) ?? fallbackCurrency
+    const entry = byCurrency.get(currencyCode) ?? {
+      currencyCode,
+      incomeMinor: 0,
+      expenseMinor: 0,
+      balanceMinor: 0,
+      transferMinor: 0,
+    }
+
+    if (row.type === 'income') entry.incomeMinor += row.totalMinor
+    if (row.type === 'expense') entry.expenseMinor += row.totalMinor
+    if (row.type === 'transfer') entry.transferMinor += row.totalMinor
+    entry.balanceMinor = entry.incomeMinor - entry.expenseMinor
+
+    byCurrency.set(currencyCode, entry)
+  }
+
+  return sortCurrencyCodes(byCurrency.keys(), primaryCode).map((code) => byCurrency.get(code)!)
 }
 
 /**

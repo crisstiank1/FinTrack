@@ -1,4 +1,5 @@
 import {
+  calculateBalancesByCurrency,
   calculateConsolidatedBalance,
   calculateMonthlyExpense,
   calculateMonthlyIncome,
@@ -7,12 +8,8 @@ import {
   type AccountForCalculation,
   type TransactionForCalculation,
 } from '@/lib/calculations'
-import {
-  formatMonthShort,
-  monthOfIsoDate,
-  previousMonthKey,
-  recentMonthKeys,
-} from '@/lib/dates'
+import { sortCurrencyCodes } from '@/lib/currency'
+import { formatMonthShort, monthOfIsoDate, previousMonthKey, recentMonthKeys } from '@/lib/dates'
 
 /** Subconjunto de columnas que el dashboard necesita de una cuenta. */
 export interface DashboardAccount {
@@ -49,6 +46,12 @@ export interface DashboardScope {
   monthKey: string
   /** Si se indica, todo se limita a esa cuenta. */
   accountId?: string
+  /**
+   * Si se indica, solo cuentan las cuentas en esa moneda y sus movimientos.
+   * FinTrack no convierte divisas: sumar cuentas de monedas distintas daría una
+   * cifra sin sentido.
+   */
+  currencyCode?: string
 }
 
 /**
@@ -70,17 +73,27 @@ function toAccountInput(account: DashboardAccount): AccountForCalculation {
   return { id: account.id, initial_balance_minor: account.initial_balance_minor }
 }
 
-function scopeAccounts(accounts: DashboardAccount[], accountId?: string): DashboardAccount[] {
-  return accountId ? accounts.filter((account) => account.id === accountId) : accounts
+function scopeAccounts(
+  accounts: DashboardAccount[],
+  { accountId, currencyCode }: Pick<DashboardScope, 'accountId' | 'currencyCode'>,
+): DashboardAccount[] {
+  return accounts.filter(
+    (account) =>
+      (!accountId || account.id === accountId) &&
+      (!currencyCode || account.currency_code === currencyCode),
+  )
 }
 
+/** Movimientos de las cuentas del alcance. Sin filtros, todos. */
 function scopeTransactions(
   transactions: DashboardTransaction[],
-  accountId?: string,
+  accounts: DashboardAccount[],
+  filters: Pick<DashboardScope, 'accountId' | 'currencyCode'>,
 ): DashboardTransaction[] {
-  return accountId
-    ? transactions.filter((transaction) => transaction.account_id === accountId)
-    : transactions
+  if (!filters.accountId && !filters.currencyCode) return transactions
+
+  const accountIds = new Set(scopeAccounts(accounts, filters).map((account) => account.id))
+  return transactions.filter((transaction) => accountIds.has(transaction.account_id))
 }
 
 function inMonth(transactions: DashboardTransaction[], monthKey: string) {
@@ -146,13 +159,18 @@ export function buildDashboardSummary({
   transactions,
   monthKey,
   accountId,
+  currencyCode,
 }: DashboardScope): DashboardSummary {
-  const scopedAccounts = scopeAccounts(accounts, accountId).map(toAccountInput)
-  const scoped = scopeTransactions(transactions, accountId)
+  const filters = { accountId, currencyCode }
+  const scopedAccounts = scopeAccounts(accounts, filters).map(toAccountInput)
+  const scoped = scopeTransactions(transactions, accounts, filters)
   const earlierMonthKey = previousMonthKey(monthKey)
 
   const balanceAt = (key: string) =>
-    calculateConsolidatedBalance(scopedAccounts, upToEndOfMonth(scoped, key).map(toCalculationInput))
+    calculateConsolidatedBalance(
+      scopedAccounts,
+      upToEndOfMonth(scoped, key).map(toCalculationInput),
+    )
 
   const current = inMonth(scoped, monthKey)
   const previous = inMonth(scoped, earlierMonthKey).map(toCalculationInput)
@@ -208,14 +226,20 @@ const FALLBACK_SLICE_COLOR = '#94A3B8'
  * propias no es gasto.
  */
 export function buildCategoryBreakdown(
-  { transactions, categories, monthKey, accountId }: DashboardScope & {
+  {
+    accounts,
+    transactions,
+    categories,
+    monthKey,
+    accountId,
+    currencyCode,
+  }: DashboardScope & {
     categories: DashboardCategory[]
   },
   maxSlices = 5,
 ): CategorySlice[] {
-  const expenses = inMonth(scopeTransactions(transactions, accountId), monthKey).filter(
-    (transaction) => transaction.type === 'expense',
-  )
+  const scoped = scopeTransactions(transactions, accounts, { accountId, currencyCode })
+  const expenses = inMonth(scoped, monthKey).filter((transaction) => transaction.type === 'expense')
 
   const total = expenses.reduce((sum, transaction) => sum + transaction.amount_minor, 0)
   if (total === 0) return []
@@ -267,11 +291,12 @@ export interface TrendPoint {
  * Alimenta tanto el gráfico de ingresos vs gastos como la tendencia de saldo.
  */
 export function buildMonthlyTrend(
-  { accounts, transactions, monthKey, accountId }: DashboardScope,
+  { accounts, transactions, monthKey, accountId, currencyCode }: DashboardScope,
   months = 6,
 ): TrendPoint[] {
-  const scopedAccounts = scopeAccounts(accounts, accountId).map(toAccountInput)
-  const scoped = scopeTransactions(transactions, accountId)
+  const filters = { accountId, currencyCode }
+  const scopedAccounts = scopeAccounts(accounts, filters).map(toAccountInput)
+  const scoped = scopeTransactions(transactions, accounts, filters)
 
   return recentMonthKeys(monthKey, months).map((key) => {
     const monthTransactions = inMonth(scoped, key).map(toCalculationInput)
@@ -292,12 +317,44 @@ export function buildMonthlyTrend(
 /**
  * Movimientos más recientes del mes seleccionado. La consulta ya llega ordenada
  * por fecha descendente, pero se reordena para no depender de ese detalle.
+ *
+ * Ignora `currencyCode` a propósito: una lista no suma nada, y cada fila se
+ * muestra en la moneda de su propia cuenta.
  */
 export function buildRecentTransactions(
-  { transactions, monthKey, accountId }: DashboardScope,
+  { accounts, transactions, monthKey, accountId }: DashboardScope,
   limit = 5,
 ): DashboardTransaction[] {
-  return [...inMonth(scopeTransactions(transactions, accountId), monthKey)]
+  return [...inMonth(scopeTransactions(transactions, accounts, { accountId }), monthKey)]
     .sort((a, b) => b.transaction_date.localeCompare(a.transaction_date))
     .slice(0, limit)
+}
+
+export interface CurrencyBalance {
+  currencyCode: string
+  balanceMinor: number
+}
+
+/**
+ * Saldo al cierre del mes seleccionado de cada moneda en la que el usuario
+ * tiene cuentas, dentro del alcance de cuenta. Ignora `currencyCode`: sirve
+ * justamente para mostrar lo que queda fuera de la moneda de presentación.
+ *
+ * Va con la moneda principal primero y el resto en el orden fijo de monedas.
+ */
+export function buildCurrencyBalances(
+  { accounts, transactions, monthKey, accountId }: DashboardScope,
+  primaryCode?: string | null,
+): CurrencyBalance[] {
+  const scopedAccounts = scopeAccounts(accounts, { accountId })
+  const scoped = scopeTransactions(transactions, accounts, { accountId })
+  const balances = calculateBalancesByCurrency(
+    scopedAccounts,
+    upToEndOfMonth(scoped, monthKey).map(toCalculationInput),
+  )
+
+  return sortCurrencyCodes(balances.keys(), primaryCode).map((currencyCode) => ({
+    currencyCode,
+    balanceMinor: balances.get(currencyCode) ?? 0,
+  }))
 }

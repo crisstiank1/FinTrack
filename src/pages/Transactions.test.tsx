@@ -7,6 +7,7 @@ import type { Tables } from '@/types/database.types'
 import Transactions from './Transactions'
 
 const useTransactions = vi.fn()
+const usePrimaryCurrency = vi.fn()
 const mutation = () => ({ mutateAsync: vi.fn(), isPending: false })
 
 vi.mock('@/features/transactions/hooks', () => ({
@@ -21,10 +22,15 @@ vi.mock('@/features/transactions/hooks', () => ({
 const accounts = [
   { id: 'acc-bank', name: 'Banco', currency_code: 'COP', is_archived: false },
   { id: 'acc-old', name: 'Cuenta vieja', currency_code: 'COP', is_archived: true },
+  { id: 'acc-usd', name: 'Cuenta USD', currency_code: 'USD', is_archived: false },
 ] as Tables<'accounts'>[]
 
 vi.mock('@/features/accounts/hooks', () => ({
   useAccounts: () => ({ data: accounts }),
+}))
+
+vi.mock('@/features/profile/hooks', () => ({
+  usePrimaryCurrency: () => usePrimaryCurrency(),
 }))
 
 vi.mock('@/features/categories/hooks', () => ({
@@ -75,6 +81,7 @@ beforeEach(() => {
   vi.setSystemTime(new Date(2026, 8, 12))
   useTransactions.mockReset()
   useTransactions.mockReturnValue({ data: [], isLoading: false })
+  usePrimaryCurrency.mockReturnValue({ data: 'COP', isPending: false })
   currentSearch = ''
 })
 
@@ -182,5 +189,62 @@ describe('Transactions — formularios', () => {
     const dialog = screen.getByRole('dialog')
     expect(within(dialog).getByRole('heading', { name: 'Nuevo movimiento' })).toBeInTheDocument()
     expect(currentSearch).toBe('?month=2026-08')
+  })
+
+  it('el formulario usa la moneda principal hasta que se elige cuenta', () => {
+    usePrimaryCurrency.mockReturnValue({ data: 'USD', isPending: false })
+    renderTransactions('/transactions?month=2026-08')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Nuevo movimiento' }))
+
+    const dialog = within(screen.getByRole('dialog'))
+    expect(dialog.getByText('Equivale a USD 0')).toBeInTheDocument()
+
+    fireEvent.change(dialog.getByLabelText('Cuenta'), { target: { value: 'acc-bank' } })
+    expect(dialog.getByText('Equivale a COP 0')).toBeInTheDocument()
+  })
+})
+
+function row(overrides: Partial<Tables<'transactions'>>): Tables<'transactions'> {
+  return {
+    id: 't1',
+    user_id: 'user-1',
+    account_id: 'acc-bank',
+    category_id: null,
+    type: 'income',
+    transfer_direction: null,
+    transfer_group_id: null,
+    amount_minor: 0,
+    transaction_date: '2026-08-10',
+    description: 'Movimiento',
+    notes: null,
+    is_reconciled: false,
+    custom_fields: {},
+    created_at: '',
+    updated_at: '',
+    ...overrides,
+  }
+}
+
+describe('Transactions — moneda de cada fila', () => {
+  it('muestra cada movimiento en la moneda de su cuenta', () => {
+    useTransactions.mockReturnValue({
+      data: [
+        row({ id: 't-cop', amount_minor: 250_000, description: 'Salario' }),
+        row({
+          id: 't-usd',
+          account_id: 'acc-usd',
+          type: 'expense',
+          amount_minor: 40,
+          description: 'Suscripción',
+        }),
+      ],
+      isLoading: false,
+    })
+
+    renderTransactions('/transactions?month=2026-08')
+
+    expect(screen.getByText(/COP 250\.000/)).toBeInTheDocument()
+    expect(screen.getByText(/USD 40/)).toBeInTheDocument()
   })
 })

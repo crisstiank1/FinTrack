@@ -1,6 +1,14 @@
 import { useId, useMemo } from 'react'
 import { Wallet } from 'lucide-react'
-import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts'
 
 import { ChartTooltip } from '@/components/charts/chart-tooltip'
 import { useChartMotion } from '@/components/charts/use-chart-motion'
@@ -10,13 +18,18 @@ import { formatMonthLabel } from '@/lib/dates'
 import { cn } from '@/lib/utils'
 
 import { DeltaBadge } from './delta-badge'
-import type { MetricComparison, TrendPoint } from '../summary'
+import type { CurrencyBalance, MetricComparison, TrendPoint } from '../summary'
 
 interface BalanceHeroCardProps {
   balance: MetricComparison
   currencyCode: string
-  /** 'Todas las cuentas' o el nombre de la cuenta filtrada. */
+  /** 'Todas las cuentas', 'Cuentas en COP' o el nombre de la cuenta filtrada. */
   scopeLabel: string
+  /**
+   * Saldos de las monedas que no entran en la cifra principal. Se muestran
+   * aparte porque FinTrack no convierte divisas.
+   */
+  otherBalances?: CurrencyBalance[]
   /** 'Al 30 de septiembre de 2026'. */
   asOfLabel: string
   trend: TrendPoint[]
@@ -31,6 +44,7 @@ export function BalanceHeroCard({
   balance,
   currencyCode,
   scopeLabel,
+  otherBalances = [],
   asOfLabel,
   trend,
   className,
@@ -78,6 +92,17 @@ export function BalanceHeroCard({
         <DeltaBadge value={balance.deltaPercent} higherIsBetter />
         <span className="text-xs text-muted-foreground">{asOfLabel}</span>
       </div>
+
+      {otherBalances.length > 0 && (
+        <p className="relative mt-2 text-sm text-muted-foreground">
+          Otras monedas:{' '}
+          <span className="font-medium tabular-nums text-foreground">
+            {otherBalances
+              .map((other) => formatAmount(other.balanceMinor, other.currencyCode))
+              .join(' · ')}
+          </span>
+        </p>
+      )}
 
       <div className="relative mt-6 flex-1">
         <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">

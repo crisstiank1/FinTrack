@@ -28,14 +28,16 @@ import { RecentTransactions } from '@/features/dashboard/components/recent-trans
 import { useAllTransactions } from '@/features/dashboard/hooks'
 import {
   buildCategoryBreakdown,
+  buildCurrencyBalances,
   buildDashboardSummary,
   buildMonthlyTrend,
   buildRecentTransactions,
 } from '@/features/dashboard/summary'
+import { usePrimaryCurrency } from '@/features/profile/hooks'
 import { TransactionForm } from '@/features/transactions/components/transaction-form'
 import { useCreateTransaction } from '@/features/transactions/hooks'
 import type { TransactionFormValues } from '@/features/transactions/schemas'
-import { formatAmount } from '@/lib/currency'
+import { formatAmount, resolvePresentationCurrency, sortCurrencyCodes } from '@/lib/currency'
 import { currentMonthKey, formatLongDate, formatMonthLabel, monthRange } from '@/lib/dates'
 
 const TREND_MONTHS = 6
@@ -46,29 +48,56 @@ function formatRate(rate: number | null): string {
   return rate === null ? 'Sin ingresos' : `${percentFormatter.format(rate)} %`
 }
 
+/** 'USD', 'USD y ARS', 'USD, ARS y EUR'. */
+function joinCurrencyCodes(codes: string[]): string {
+  if (codes.length <= 1) return codes.join('')
+  return `${codes.slice(0, -1).join(', ')} y ${codes[codes.length - 1]}`
+}
+
 export default function Dashboard() {
   const [monthKey, setMonthKey] = useState(currentMonthKey())
   const [accountId, setAccountId] = useState<string | undefined>(undefined)
   const [isFormOpen, setFormOpen] = useState(false)
 
-  const { data: accounts = [] } = useAccounts()
+  const { data: accounts = [], isPending: accountsPending } = useAccounts()
   const { data: categories = [] } = useCategories()
   const {
     data: transactions = [],
-    isPending,
+    isPending: transactionsPending,
     isError,
     refetch,
   } = useAllTransactions()
+  const primaryCurrency = usePrimaryCurrency()
 
   const createTransaction = useCreateTransaction()
 
-  // El MVP no convierte divisas, así que se usa la moneda de la primera cuenta
-  // como moneda de presentación (mismo criterio que /transactions).
-  const currencyCode = accounts[0]?.currency_code ?? 'COP'
+  // Sin cuentas ni moneda principal no se sabe en qué moneda presentar: se
+  // espera en vez de mostrar un instante cifras en una moneda equivocada.
+  // Si el perfil falla, `isPending` pasa a false y se usa la primera cuenta.
+  const isPending = transactionsPending || accountsPending || primaryCurrency.isPending
+
+  const accountsById = useMemo(() => new Map(accounts.map((a) => [a.id, a])), [accounts])
+  const categoriesById = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories])
+  const selectedAccount = accountId ? accountsById.get(accountId) : undefined
+
+  // FinTrack no convierte divisas: los totales solo suman cuentas de una moneda.
+  // Con una cuenta elegida manda la suya; si no, la moneda de presentación.
+  const currencyCode =
+    selectedAccount?.currency_code ?? resolvePresentationCurrency(primaryCurrency.data, accounts)
+
+  const otherCurrencies = useMemo(
+    () =>
+      sortCurrencyCodes(
+        accounts.map((account) => account.currency_code),
+        primaryCurrency.data,
+      ).filter((code) => code !== currencyCode),
+    [accounts, primaryCurrency.data, currencyCode],
+  )
+  const showsCurrencySplit = !selectedAccount && otherCurrencies.length > 0
 
   const scope = useMemo(
-    () => ({ accounts, transactions, monthKey, accountId }),
-    [accounts, transactions, monthKey, accountId],
+    () => ({ accounts, transactions, monthKey, accountId, currencyCode }),
+    [accounts, transactions, monthKey, accountId, currencyCode],
   )
 
   const summary = useMemo(() => buildDashboardSummary(scope), [scope])
@@ -78,9 +107,15 @@ export default function Dashboard() {
     [scope, categories],
   )
   const recent = useMemo(() => buildRecentTransactions(scope), [scope])
-
-  const accountsById = useMemo(() => new Map(accounts.map((a) => [a.id, a])), [accounts])
-  const categoriesById = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories])
+  const otherBalances = useMemo(
+    () =>
+      showsCurrencySplit
+        ? buildCurrencyBalances(scope, primaryCurrency.data).filter(
+            (balance) => balance.currencyCode !== currencyCode,
+          )
+        : [],
+    [showsCurrencySplit, scope, primaryCurrency.data, currencyCode],
+  )
 
   // Los presupuestos no tienen dimensión de cuenta: se reparten por categoría
   // sobre todo el gasto del mes. Por eso el panel no reacciona al filtro de
@@ -138,8 +173,9 @@ export default function Dashboard() {
     [accounts],
   )
 
-  const selectedAccount = accountId ? accountsById.get(accountId) : undefined
-  const scopeLabel = selectedAccount?.name ?? 'Todas las cuentas'
+  const scopeLabel =
+    selectedAccount?.name ??
+    (showsCurrencySplit ? `Cuentas en ${currencyCode}` : 'Todas las cuentas')
   const monthLabel = formatMonthLabel(monthKey)
   const asOfLabel = `Al ${formatLongDate(monthRange(monthKey).end)}`
 
@@ -168,7 +204,15 @@ export default function Dashboard() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-foreground">Dashboard</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground first-letter:uppercase">{monthLabel}</p>
+          <p className="mt-0.5 text-sm text-muted-foreground first-letter:uppercase">
+            {monthLabel}
+          </p>
+          {showsCurrencySplit && (
+            <p className="mt-1 text-sm text-muted-foreground">
+              Cifras en {currencyCode}. Tus cuentas en {joinCurrencyCodes(otherCurrencies)} no se
+              suman: su saldo aparece aparte, sin convertir.
+            </p>
+          )}
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -206,6 +250,7 @@ export default function Dashboard() {
               balance={summary.balance}
               currencyCode={currencyCode}
               scopeLabel={scopeLabel}
+              otherBalances={otherBalances}
               asOfLabel={asOfLabel}
               trend={trend}
             />
