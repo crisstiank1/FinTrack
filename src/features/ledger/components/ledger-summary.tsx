@@ -16,8 +16,8 @@ const countFormatter = new Intl.NumberFormat('es-CO')
 /**
  * Resumen del conjunto filtrado completo, no de la página en pantalla.
  *
- * Se calcula en el servidor, así que sigue siendo correcto aunque la tabla
- * muestre 50 filas de 12.000. Con movimientos en varias monedas, cada cifra
+ * Se calcula sobre todas las filas filtradas (ver `fetchLedgerTotals`), así que
+ * sigue siendo correcto aunque la tabla muestre 50 filas de 12.000. Con movimientos en varias monedas, cada cifra
  * lleva una línea por moneda: FinTrack no convierte divisas, así que sumarlas
  * daría un número sin sentido.
  */
