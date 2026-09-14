@@ -15,9 +15,11 @@ import {
   linesWithoutBudgetCountLabel,
   linesWithZeroBudgetCountLabel,
   planLineKindLabel,
+  reconciliationDescribedLabel,
   reconciliationHeadline,
   unlinkedCategoriesCountLabel,
   ARCHIVED_NO_NEW_BUDGETS_LABEL,
+  DESCRIBE_FROM_PLAN_LINES_LABEL,
   NO_BUDGET_LABEL,
   UNASSIGNED_NOTE,
   type PlanTone,
@@ -221,12 +223,12 @@ export function BudgetReconciliationPanel({
                         {coverage.hasCategoryBudgets ? (
                           <>
                             <Row
-                              label="Descrito en facturas"
+                              label={reconciliationDescribedLabel.bill}
                               value={formatAmount(coverage.billsMinor, currencyCode)}
                               indent
                             />
                             <Row
-                              label="Descrito en gastos variables"
+                              label={reconciliationDescribedLabel.variable}
                               value={formatAmount(coverage.variablesMinor, currencyCode)}
                               indent
                             />
@@ -335,7 +337,7 @@ export function BudgetReconciliationPanel({
                         ) : (
                           hasPlan && (
                             <p className="mt-1 text-xs text-muted-foreground">
-                              Puedes describirla desde Facturas y gastos variables.
+                              {DESCRIBE_FROM_PLAN_LINES_LABEL}
                             </p>
                           )
                         )}

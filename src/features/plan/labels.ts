@@ -142,6 +142,56 @@ export const planSummaryLabel: Record<PlanSummaryCardId, string> = {
   savingsContributions: 'Aportes a ahorro',
 }
 
+/* -------------------------------------------------------------------------- */
+/* Facturas y gastos variables                                                */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * Nombres de los dos tipos de línea medidos por categoría, en todas sus formas.
+ * Las variantes —singular, plural, título, frases— son decisiones de redacción
+ * y se escriben enteras: no se derivan unas de otras con `toLowerCase()` ni
+ * pegando trozos, porque eso rompe en cuanto una cambia de forma distinta.
+ *
+ * Van antes de `planRowLabel`, que usa el plural: una constante no puede leerse
+ * antes de declararse al cargar el módulo.
+ */
+
+/**
+ * Tipo de una línea medida por categoría, en singular. Única fuente del texto:
+ * lo usan el formulario de líneas y la reconciliación.
+ */
+export const planLineKindLabel: Record<CategoryLineKind, string> = {
+  bill: 'Factura',
+  variable: 'Gasto variable',
+}
+
+/**
+ * Los mismos tipos en plural, como grupo: títulos del panel de líneas y filas
+ * del cuadro Presupuesto vs. Actual, que así no pueden decir cosas distintas.
+ */
+export const planLineKindGroupLabel: Record<CategoryLineKind, string> = {
+  bill: 'Facturas',
+  variable: 'Gastos variables',
+}
+
+/** Título del bloque de líneas. También lo nombra la reconciliación. */
+export const PLAN_LINES_TITLE = 'Facturas y gastos variables'
+
+/** Filas de la reconciliación con el presupuesto que describe cada tipo de línea. */
+export const reconciliationDescribedLabel: Record<CategoryLineKind, string> = {
+  bill: 'Descrito en facturas',
+  variable: 'Descrito en gastos variables',
+}
+
+/** Vacío del bloque de líneas: «septiembre 2026 no tiene facturas ni gastos variables descritos.» */
+export function planLinesEmptyLabel(monthLabel: string): string {
+  return `${monthLabel} no tiene facturas ni gastos variables descritos.`
+}
+
+/** Invitación de la reconciliación para una categoría presupuestada sin línea. */
+export const DESCRIBE_FROM_PLAN_LINES_LABEL =
+  'Puedes describirla desde Facturas y gastos variables.'
+
 /** Filas del cuadro Presupuesto vs. Actual en esta entrega. */
 export type PlanRowId =
   | 'income'
@@ -157,8 +207,8 @@ export type PlanRowId =
 export const planRowLabel: Record<PlanRowId, string> = {
   income: 'Ingresos',
   expensesTotal: 'Gastos totales',
-  bills: 'Facturas',
-  variables: 'Gastos variables',
+  bills: planLineKindGroupLabel.bill,
+  variables: planLineKindGroupLabel.variable,
   unplanned: 'No planeado',
   savings: 'Ahorro',
   investment: 'Inversión',
@@ -430,15 +480,6 @@ export const LINE_BUDGET_LOADING_LABEL = 'Calculando presupuesto…'
  * no se invita a completarlo. Lo usan el panel de líneas y la reconciliación.
  */
 export const ARCHIVED_NO_NEW_BUDGETS_LABEL = 'Categoría archivada: no admite presupuestos nuevos.'
-
-/**
- * Tipo de una línea medida por categoría, en singular. Única fuente del texto:
- * lo usan el formulario de líneas y la reconciliación.
- */
-export const planLineKindLabel: Record<CategoryLineKind, string> = {
-  bill: 'Factura',
-  variable: 'Gasto variable',
-}
 
 export interface ReconciliationHeadline {
   /** Titular del bloque, visible también con el bloque plegado. */

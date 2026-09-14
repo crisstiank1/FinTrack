@@ -12,8 +12,11 @@ import { cn } from '@/lib/utils'
 import { classifyLineBudget } from '../calculations/reconciliation'
 import {
   formatZeroBudget,
+  planLineKindGroupLabel,
+  planLinesEmptyLabel,
   ARCHIVED_NO_NEW_BUDGETS_LABEL,
   LINE_BUDGET_LOADING_LABEL,
+  PLAN_LINES_TITLE,
 } from '../labels'
 import { budgetsHrefForMonth } from '../links'
 import type { CategoryLineKind } from '../mutations'
@@ -94,7 +97,7 @@ export function PlanLinesPanel({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 id={titleId} className="text-base font-semibold text-foreground">
-            Facturas y gastos variables
+            {PLAN_LINES_TITLE}
           </h2>
           <p className="mt-0.5 text-sm text-muted-foreground">
             Describen en qué se va tu gasto. El importe de cada una sale de su presupuesto.
@@ -109,7 +112,7 @@ export function PlanLinesPanel({
       {isEmpty ? (
         <div className="mt-3 rounded-xl border border-dashed border-border bg-card p-6 text-center">
           <p className="text-sm text-foreground first-letter:uppercase">
-            {monthLabel} no tiene facturas ni gastos variables descritos.
+            {planLinesEmptyLabel(monthLabel)}
           </p>
           <p className="mt-1 text-sm text-muted-foreground">
             Mientras tanto, todo tu gasto aparece en «No planeado».
@@ -118,7 +121,7 @@ export function PlanLinesPanel({
       ) : (
         <div className="mt-3 flex flex-col gap-6">
           <Group
-            title="Facturas"
+            title={planLineKindGroupLabel.bill}
             lines={bills}
             emptyLabel="Todavía no has descrito ninguna factura."
             progressByCategory={progressByCategory}
@@ -130,7 +133,7 @@ export function PlanLinesPanel({
             onDelete={onDelete}
           />
           <Group
-            title="Gastos variables"
+            title={planLineKindGroupLabel.variable}
             lines={variables}
             emptyLabel="Todavía no has descrito ningún gasto variable."
             progressByCategory={progressByCategory}

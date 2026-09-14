@@ -22,7 +22,13 @@ import {
   formatContributionPlanned,
   formatUnassigned,
   formatZeroBudget,
+  planLineKindGroupLabel,
   planLineKindLabel,
+  planLinesEmptyLabel,
+  planRowGroupNote,
+  reconciliationDescribedLabel,
+  DESCRIBE_FROM_PLAN_LINES_LABEL,
+  PLAN_LINES_TITLE,
   linesWithoutBudgetCountLabel,
   linesWithZeroBudgetCountLabel,
   reconciliationHeadline,
@@ -439,6 +445,49 @@ describe('estados del presupuesto de una línea', () => {
 describe('planLineKindLabel', () => {
   it('nombra los dos tipos de línea en singular', () => {
     expect(planLineKindLabel).toEqual({ bill: 'Factura', variable: 'Gasto variable' })
+  })
+})
+
+describe('textos de facturas y gastos variables', () => {
+  it('nombra los dos tipos de línea en plural', () => {
+    expect(planLineKindGroupLabel).toEqual({ bill: 'Facturas', variable: 'Gastos variables' })
+  })
+
+  it('las filas del cuadro usan el mismo plural que los grupos del panel', () => {
+    expect(planRowLabel.bills).toBe(planLineKindGroupLabel.bill)
+    expect(planRowLabel.variables).toBe(planLineKindGroupLabel.variable)
+    expect(planRowLabel.bills).toBe('Facturas')
+    expect(planRowLabel.variables).toBe('Gastos variables')
+  })
+
+  it('el título del bloque de líneas', () => {
+    expect(PLAN_LINES_TITLE).toBe('Facturas y gastos variables')
+  })
+
+  it('las filas de la reconciliación dicen qué tipo describe cada importe', () => {
+    expect(reconciliationDescribedLabel).toEqual({
+      bill: 'Descrito en facturas',
+      variable: 'Descrito en gastos variables',
+    })
+  })
+
+  it('el vacío del bloque de líneas nombra el mes', () => {
+    expect(planLinesEmptyLabel('septiembre 2026')).toBe(
+      'septiembre 2026 no tiene facturas ni gastos variables descritos.',
+    )
+  })
+
+  it('la invitación de la reconciliación nombra el bloque de líneas', () => {
+    expect(DESCRIBE_FROM_PLAN_LINES_LABEL).toBe(
+      'Puedes describirla desde Facturas y gastos variables.',
+    )
+    expect(DESCRIBE_FROM_PLAN_LINES_LABEL).toContain(PLAN_LINES_TITLE)
+  })
+
+  it('la nota del desglose del cuadro no cambia', () => {
+    expect(planRowGroupNote.breakdown).toBe(
+      'Facturas, gastos variables y no planeado suman los gastos totales.',
+    )
   })
 })
 
