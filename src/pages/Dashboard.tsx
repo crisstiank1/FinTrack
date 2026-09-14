@@ -336,7 +336,7 @@ export default function Dashboard() {
             description={monthLabel}
             action={
               <Button asChild variant="ghost" size="sm">
-                <Link to="/transactions">Ver todos</Link>
+                <Link to={`/transactions?month=${monthKey}`}>Ver todos</Link>
               </Button>
             }
           >

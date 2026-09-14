@@ -79,6 +79,7 @@ import {
   useZeroBudgetCategoryIds,
 } from '@/features/plan/hooks'
 import { allocationGroupDiffKind, planRowDiffKind, type PlanRowId } from '@/features/plan/labels'
+import { transactionsHrefForMonth } from '@/features/plan/links'
 import {
   categoriesLinkedElsewhere,
   categoriesOfSource,
@@ -855,7 +856,7 @@ export default function Plan() {
                   Crear plan de {monthLabel.split(' ')[0]}
                 </Button>
                 <Button asChild variant="outline">
-                  <Link to="/transactions">Registrar movimiento</Link>
+                  <Link to={transactionsHrefForMonth(monthKey)}>Registrar movimiento</Link>
                 </Button>
               </div>
             </div>

@@ -186,6 +186,9 @@ Pasos:
 - Lista amigable para uso diario.
 - Crear, editar, duplicar y eliminar movimientos.
 - Filtros básicos.
+- Acepta `?month=YYYY-MM`. Sin parámetro, o con uno inválido, abre el mes
+  actual; `?month=` vacío muestra todos los meses. Cuenta y tipo no van en la
+  URL.
 - Formulario validado con Zod.
 - Transferencias entre cuentas.
 - Confirmación de eliminación.

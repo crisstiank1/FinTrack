@@ -5,8 +5,9 @@
  * que se salta tiene que abrir ese mismo mes: si no, desde agosto se acabaría
  * editando el presupuesto de septiembre sin darse cuenta.
  *
- * Solo aparecen aquí los destinos que aceptan el mes en la URL. `/transactions`
- * y `/settings` no lo aceptan, así que sus enlaces siguen siendo literales.
+ * Solo aparecen aquí los destinos que aceptan el mes en la URL: `/budgets` y
+ * `/transactions`. `/settings` no lo acepta, así que sus enlaces siguen siendo
+ * literales.
  */
 
 /**
@@ -18,4 +19,12 @@
  */
 export function budgetsHrefForMonth(monthKey: string): string {
   return `/budgets?month=${monthKey}`
+}
+
+/**
+ * Movimientos del mes indicado: `/transactions?month=YYYY-MM`. Mismo contrato
+ * y misma pureza que `budgetsHrefForMonth`.
+ */
+export function transactionsHrefForMonth(monthKey: string): string {
+  return `/transactions?month=${monthKey}`
 }

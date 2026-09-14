@@ -184,6 +184,18 @@ describe('Dashboard', () => {
     expect(panel.getByText('Salario')).toBeInTheDocument()
   })
 
+  it('«Ver todos» de los últimos movimientos abre Movimientos en el mes que se está viendo', () => {
+    renderDashboard()
+
+    fireEvent.change(screen.getByLabelText('Mes'), { target: { value: '2026-03' } })
+
+    const panel = within(screen.getByRole('region', { name: 'Últimos movimientos' }))
+    expect(panel.getByRole('link', { name: 'Ver todos' })).toHaveAttribute(
+      'href',
+      '/transactions?month=2026-03',
+    )
+  })
+
   it('recalcula todo al filtrar por una cuenta', async () => {
     const user = userEvent.setup()
     renderDashboard()

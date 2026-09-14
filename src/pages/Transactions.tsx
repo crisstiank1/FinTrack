@@ -21,11 +21,22 @@ import {
   useUpdateTransaction,
 } from '@/features/transactions/hooks'
 import type { TransactionFormValues, TransferFormValues } from '@/features/transactions/schemas'
-import { currentMonthKey } from '@/lib/dates'
+import { useOptionalMonthParam } from '@/hooks/use-month-param'
 import type { Tables } from '@/types/database.types'
 
 export default function Transactions() {
-  const [filters, setFilters] = useState<TransactionFilters>({ month: currentMonthKey() })
+  // El mes vive en la URL (`?month=YYYY-MM`) para que un enlace desde el
+  // dashboard o el plan abra el mismo mes; vaciarlo (`?month=`) muestra todos.
+  // Cuenta y tipo siguen siendo estado local: no se comparten ni sobreviven a
+  // recargar, igual que antes.
+  const [month, setMonth] = useOptionalMonthParam()
+  const [scope, setScope] = useState<Omit<TransactionFilters, 'month'>>({})
+  const filters = useMemo<TransactionFilters>(() => ({ ...scope, month }), [scope, month])
+
+  function handleFiltersChange(next: TransactionFilters) {
+    if (next.month !== month) setMonth(next.month)
+    setScope({ accountId: next.accountId, type: next.type })
+  }
 
   const { data: accounts = [] } = useAccounts()
   const { data: categories = [] } = useCategories()
@@ -162,7 +173,11 @@ export default function Transactions() {
       </div>
 
       <div className="mt-4">
-        <TransactionFiltersBar filters={filters} accounts={accounts} onChange={setFilters} />
+        <TransactionFiltersBar
+          filters={filters}
+          accounts={accounts}
+          onChange={handleFiltersChange}
+        />
       </div>
 
       <div className="mt-6 flex flex-col gap-2">

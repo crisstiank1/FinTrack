@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -18,25 +18,14 @@ import {
   useSaveBudget,
 } from '@/features/budgets/hooks'
 import { useCategories } from '@/features/categories/hooks'
+import { useMonthParam } from '@/hooks/use-month-param'
 import { currentMonthKey, formatMonthLabel, shiftMonthKey } from '@/lib/dates'
 import type { Tables } from '@/types/database.types'
 
-const MONTH_KEY = /^\d{4}-(?:0[1-9]|1[0-2])$/
-
-/**
- * El mes vive en la URL y no en el estado del componente porque las alertas
- * del dashboard enlazan a /budgets?month=YYYY-MM: sin eso, el enlace llevaría
- * siempre al mes actual y perdería la razón por la que se pulsó.
- */
-function useMonthParam(): [string, (monthKey: string) => void] {
-  const [searchParams, setSearchParams] = useSearchParams()
-  const raw = searchParams.get('month')
-  const monthKey = raw && MONTH_KEY.test(raw) ? raw : currentMonthKey()
-
-  return [monthKey, (next: string) => setSearchParams({ month: next }, { replace: true })]
-}
-
 export default function Budgets() {
+  // El mes vive en la URL y no en el estado del componente porque las alertas
+  // del dashboard enlazan a /budgets?month=YYYY-MM: sin eso, el enlace llevaría
+  // siempre al mes actual y perdería la razón por la que se pulsó.
   const [monthKey, setMonthKey] = useMonthParam()
   const [editingCategory, setEditingCategory] = useState<Tables<'categories'> | null>(null)
 

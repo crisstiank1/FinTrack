@@ -513,7 +513,33 @@ describe('Plan', () => {
 
       expect(screen.getByText(/todavía no tiene nada que comparar/)).toBeInTheDocument()
       expect(screen.queryByRole('table')).not.toBeInTheDocument()
-      expect(screen.getByRole('link', { name: 'Registrar movimiento' })).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: 'Registrar movimiento' })).toHaveAttribute(
+        'href',
+        `/transactions?month=${currentMonthKey()}`,
+      )
+    })
+
+    it('«Registrar movimiento» abre Movimientos en el mes elegido, no en el actual', async () => {
+      usePlanActuals.mockReturnValue(
+        resolved({
+          ...actuals,
+          incomeActualMinor: 0,
+          expenseActualMinor: 0,
+          byLine: { billsMinor: 0, variablesMinor: 0, unplannedMinor: 0 },
+          byGroup: { needsMinor: 0, wantsMinor: 0, debtMinor: 0, sinClasificarMinor: 0 },
+          savingsContributionsMinor: 0,
+          investmentContributionsMinor: 0,
+        }),
+      )
+      const user = userEvent.setup()
+      renderPlan()
+
+      await user.click(screen.getByRole('button', { name: /Mes anterior/ }))
+
+      expect(screen.getByRole('link', { name: 'Registrar movimiento' })).toHaveAttribute(
+        'href',
+        `/transactions?month=${shiftMonthKey(currentMonthKey(), -1)}`,
+      )
     })
   })
 
