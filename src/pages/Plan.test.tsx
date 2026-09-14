@@ -23,6 +23,7 @@ const saveIncomeSource = vi.fn()
 const deleteIncomeSource = vi.fn()
 const saveAllocations = vi.fn()
 const usePlanLineProgress = vi.fn()
+const usePlanContributionBalances = vi.fn()
 const savePlanLine = vi.fn()
 const deletePlanLine = vi.fn()
 
@@ -40,6 +41,7 @@ vi.mock('@/features/plan/hooks', () => ({
   useDeleteIncomeSource: () => ({ mutateAsync: deleteIncomeSource, isPending: false }),
   useSaveAllocations: () => ({ mutateAsync: saveAllocations, isPending: false }),
   usePlanLineProgress: (options: unknown) => usePlanLineProgress(options),
+  usePlanContributionBalances: (monthKey: unknown) => usePlanContributionBalances(monthKey),
   useSavePlanLine: () => ({ mutateAsync: savePlanLine, isPending: false }),
   useDeletePlanLine: () => ({ mutateAsync: deletePlanLine, isPending: false }),
 }))
@@ -181,6 +183,13 @@ const actuals = {
   },
 }
 
+/** Saldos al cierre del mes, como los da `usePlanContributionBalances`. */
+const contributionBalances = {
+  savings: { balanceMinor: 700_000, accountCount: 2, archivedCount: 0 },
+  investment: { balanceMinor: 0, accountCount: 0, archivedCount: 0 },
+  asOfDate: '2026-04-30',
+}
+
 function renderPlan() {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
 
@@ -227,6 +236,7 @@ beforeEach(() => {
   saveAllocations.mockReset()
   saveAllocations.mockResolvedValue(undefined)
   usePlanLineProgress.mockReturnValue(resolved(lineProgress))
+  usePlanContributionBalances.mockReturnValue(resolved(contributionBalances))
   savePlanLine.mockReset()
   savePlanLine.mockResolvedValue(undefined)
   deletePlanLine.mockReset()
@@ -1210,6 +1220,150 @@ describe('Plan', () => {
       ).toBeInTheDocument()
     })
   })
+  describe('ahorro e inversión', () => {
+    function block(): HTMLElement {
+      return screen.getByRole('region', { name: 'Ahorro e inversión' })
+    }
+
+    function sectionHeading(name: string): HTMLElement {
+      return screen.getByRole('heading', { name, level: 2 })
+    }
+
+    function follows(first: HTMLElement, second: HTMLElement): boolean {
+      return Boolean(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING)
+    }
+
+    it('va después de Facturas y gastos variables y antes de Presupuesto vs. Actual', () => {
+      renderPlan()
+
+      const bloque = sectionHeading('Ahorro e inversión')
+
+      expect(follows(sectionHeading('Facturas y gastos variables'), bloque)).toBe(true)
+      expect(follows(bloque, sectionHeading('Presupuesto vs. Actual'))).toBe(true)
+    })
+
+    it('pide el saldo del mes en pantalla, y el del mes elegido al cambiarlo', async () => {
+      const user = userEvent.setup()
+      renderPlan()
+
+      expect(usePlanContributionBalances).toHaveBeenCalledWith(currentMonthKey())
+
+      await user.click(screen.getByRole('button', { name: /Mes anterior/ }))
+
+      expect(usePlanContributionBalances).toHaveBeenLastCalledWith(
+        shiftMonthKey(currentMonthKey(), -1),
+      )
+    })
+
+    it('muestra los aportes del mes con su planeado, y el saldo como dato aparte', () => {
+      renderPlan()
+
+      const ahorro = within(block()).getByRole('region', { name: 'Ahorro' })
+      const inversion = within(block()).getByRole('region', { name: 'Inversión' })
+
+      // Los 400.000 aportados y la línea de ahorro de 400.000 del fixture.
+      expect(within(ahorro).getAllByText('COP 400.000')).toHaveLength(1)
+      expect(within(ahorro).getByText('Planeado: COP 400.000')).toBeInTheDocument()
+      expect(within(ahorro).getByText('COP 700.000')).toBeInTheDocument()
+      expect(within(inversion).getByText('Planeado: Sin aportes planeados')).toBeInTheDocument()
+      expect(within(inversion).getByText('Sin cuentas de inversión')).toBeInTheDocument()
+    })
+
+    it('el saldo no entra en el Restante ni en el cuadro', () => {
+      const { unmount } = renderPlan()
+      const restante = rowCells('Restante')
+      const ahorro = rowCells('Ahorro')
+      unmount()
+
+      usePlanContributionBalances.mockReturnValue(
+        resolved({
+          ...contributionBalances,
+          savings: { balanceMinor: 9_000_000, accountCount: 3, archivedCount: 1 },
+        }),
+      )
+      renderPlan()
+
+      expect(rowCells('Restante')).toEqual(restante)
+      expect(rowCells('Ahorro')).toEqual(ahorro)
+    })
+
+    it('si el saldo falla, la pantalla no entra en error', () => {
+      usePlanContributionBalances.mockReturnValue({
+        data: undefined,
+        isPending: false,
+        isError: true,
+        error: new Error('boom'),
+      })
+      renderPlan()
+
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+      expect(within(block()).getAllByText('No pudimos calcular el saldo.')).toHaveLength(2)
+      expect(comparisonTable()).toBeInTheDocument()
+    })
+
+    it('mientras el saldo carga, el resto del plan ya se muestra', () => {
+      usePlanContributionBalances.mockReturnValue({
+        data: undefined,
+        isPending: true,
+        isError: false,
+        error: null,
+      })
+      renderPlan()
+
+      expect(within(block()).getAllByText('Calculando saldo…')).toHaveLength(2)
+      expect(comparisonTable()).toBeInTheDocument()
+    })
+
+    it('también aparece en un mes sin plan, porque sus cifras son reales', () => {
+      usePlanMonth.mockReturnValue(resolved(null))
+      renderPlan()
+
+      expect(screen.getByText(/todavía no tiene plan/)).toBeInTheDocument()
+      expect(block()).toBeInTheDocument()
+    })
+
+    it('nunca dice «Total ahorrado» en toda la pantalla', () => {
+      renderPlan()
+
+      expect(screen.queryByText(/Total ahorrado/)).not.toBeInTheDocument()
+    })
+  })
+
+  describe('aportes sin planificar', () => {
+    beforeEach(() => {
+      usePlanLines.mockReturnValue(resolved(lines.filter((line) => line.kind !== 'savings')))
+    })
+
+    it('la tarjeta del resumen dice «Sin aportes planeados», no «Sin presupuesto»', () => {
+      renderPlan()
+
+      const summary = screen.getByRole('region', { name: 'Resumen del mes' })
+      const card = within(summary)
+        .getByRole('heading', { name: 'Aportes a ahorro' })
+        .closest('section')
+      if (!card) throw new Error('No se encontró la tarjeta de Aportes a ahorro')
+
+      expect(within(card).getByText('Planeado: Sin aportes planeados')).toBeInTheDocument()
+      expect(within(card).queryByText(/Sin presupuesto/)).not.toBeInTheDocument()
+    })
+
+    it('las filas Ahorro e Inversión del cuadro dicen lo mismo en planeado y diferencia', () => {
+      renderPlan()
+
+      for (const name of ['Ahorro', 'Inversión']) {
+        const [planned, , diff] = rowCells(name)
+        expect(planned).toBe('Sin aportes planeados')
+        expect(diff).toBe('Sin aportes planeados')
+      }
+    })
+
+    it('las filas de gasto siguen diciendo «Sin presupuesto»', () => {
+      renderPlan()
+
+      expect(rowCells('No planeado')[0]).toBe('Sin presupuesto')
+    })
+  })
+
   describe('facturas y gastos variables', () => {
     /** El panel de líneas, para no confundirlo con el cuadro comparativo. */
     function linesPanel(): HTMLElement {

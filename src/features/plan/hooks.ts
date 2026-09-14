@@ -131,12 +131,16 @@ export function planLinesQueryKey(userId: string | undefined, monthKey: string) 
  * Los identificadores se ordenan aquí, y sobre una copia: dos llamadas con las
  * mismas cuentas en distinto orden deben compartir caché, y ordenar el array
  * de quien llama sería un efecto secundario sobre datos ajenos.
+ *
+ * La fecha de corte forma parte de la clave: el historial hasta agosto y el
+ * historial hasta septiembre son dos resultados distintos.
  */
 export function transactionsByAccountsQueryKey(
   userId: string | undefined,
   accountIds: readonly string[],
+  asOfDate: string,
 ) {
-  return ['transactions', userId, 'by-accounts', [...accountIds].sort()] as const
+  return ['transactions', userId, 'by-accounts', [...accountIds].sort(), asOfDate] as const
 }
 
 /* -------------------------------------------------------------------------- */
@@ -218,13 +222,14 @@ export function usePlanLines(monthKey: string) {
  */
 export function useTransactionsByAccounts(
   accountIds: readonly string[],
+  asOfDate: string,
   options?: { enabled?: boolean },
 ) {
   const { user } = useAuth()
 
   return useQuery({
-    queryKey: transactionsByAccountsQueryKey(user?.id, accountIds),
-    queryFn: () => fetchTransactionsByAccounts(user!.id, accountIds),
+    queryKey: transactionsByAccountsQueryKey(user?.id, accountIds, asOfDate),
+    queryFn: () => fetchTransactionsByAccounts(user!.id, accountIds, asOfDate),
     enabled: !!user && (options?.enabled ?? true),
   })
 }
@@ -471,14 +476,31 @@ export function usePlanActuals({
   }
 }
 
+/** Saldo acumulado de un tipo de cuenta, con las cuentas que lo componen. */
+export interface AccountTypeBalance {
+  balanceMinor: number
+  /** Todas las cuentas del tipo, archivadas incluidas. `0` = no hay ninguna. */
+  accountCount: number
+  archivedCount: number
+}
+
 export interface ContributionBalances {
-  savingsBalanceMinor: number
-  investmentBalanceMinor: number
+  savings: AccountTypeBalance
+  investment: AccountTypeBalance
+  /** Último día del mes consultado (`YYYY-MM-DD`): el saldo es a esa fecha. */
+  asOfDate: string
 }
 
 /**
  * `saldoEnAhorro` y su equivalente de inversión: saldo acumulado de esas
- * cuentas, no un flujo del mes.
+ * cuentas **al cierre del mes consultado**, no un flujo del mes.
+ *
+ * Al cierre del mes y no a hoy: al revisar agosto, el saldo de hoy mezclaría
+ * movimientos de septiembre con un mes que ya terminó.
+ *
+ * Las cuentas archivadas cuentan. El dinero que se registró en ellas sigue
+ * ahí, y excluirlas haría que el saldo cambiase solo por archivar una cuenta;
+ * se informa cuántas son para que el total se pueda leer entero.
  *
  * Va aparte de `usePlanActuals` a propósito. Es la única lectura que recorre
  * todo el historial, y encadenarla a las cifras del mes haría esperar a la
@@ -491,9 +513,10 @@ export interface ContributionBalances {
  * aporte suele ser una cuenta corriente—. De ahí se derivan los identificadores
  * de ahorro e inversión, que son los únicos cuyo historial se pide.
  */
-export function usePlanContributionBalances(): DerivedState<ContributionBalances> {
+export function usePlanContributionBalances(monthKey: string): DerivedState<ContributionBalances> {
   const accountsQuery = useAccounts()
   const accounts = accountsQuery.data
+  const asOfDate = monthRange(monthKey).end
 
   const accountIds = useMemo(
     () =>
@@ -503,7 +526,9 @@ export function usePlanContributionBalances(): DerivedState<ContributionBalances
     [accounts],
   )
 
-  const historyQuery = useTransactionsByAccounts(accountIds, { enabled: accounts !== undefined })
+  const historyQuery = useTransactionsByAccounts(accountIds, asOfDate, {
+    enabled: accounts !== undefined,
+  })
   const history = historyQuery.data
 
   const data = useMemo<ContributionBalances | undefined>(() => {
@@ -511,11 +536,17 @@ export function usePlanContributionBalances(): DerivedState<ContributionBalances
 
     const transactions = toBalanceTransactions(history)
 
-    return {
-      savingsBalanceMinor: calculateBalanceForAccountType(accounts, transactions, 'savings'),
-      investmentBalanceMinor: calculateBalanceForAccountType(accounts, transactions, 'investment'),
+    const balanceOf = (accountType: 'savings' | 'investment'): AccountTypeBalance => {
+      const ofType = accounts.filter((account) => account.type === accountType)
+      return {
+        balanceMinor: calculateBalanceForAccountType(accounts, transactions, accountType),
+        accountCount: ofType.length,
+        archivedCount: ofType.filter((account) => account.is_archived).length,
+      }
     }
-  }, [accounts, history])
+
+    return { savings: balanceOf('savings'), investment: balanceOf('investment'), asOfDate }
+  }, [accounts, history, asOfDate])
 
   return {
     data,

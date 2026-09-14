@@ -2,8 +2,11 @@ import { describe, expect, it } from 'vitest'
 
 import { calculateDiff } from './calculations/diff'
 import {
+  accountTypeBalanceCaption,
   allocationGroupDiffKind,
   allocationGroupLabel,
+  balanceTone,
+  contributionBlockLabel,
   diffStatusLabel,
   diffStatusTone,
   formatDiff,
@@ -29,6 +32,10 @@ import {
   remainingTone,
   NO_ALLOCATION_LABEL,
   ARCHIVED_NO_NEW_BUDGETS_LABEL,
+  BALANCE_ERROR_LABEL,
+  BALANCE_LOADING_LABEL,
+  SAVINGS_INVESTMENT_NOTE,
+  SAVINGS_INVESTMENT_TITLE,
   LINE_BUDGET_LOADING_LABEL,
   NO_BUDGET_LABEL,
   NO_CONTRIBUTION_PLAN_LABEL,
@@ -76,6 +83,16 @@ describe('formatRowPlannedAmount', () => {
     expect(formatRowPlannedAmount('bills', null, COP)).toBe(NO_BUDGET_LABEL)
     expect(formatRowPlannedAmount('unplanned', null, COP)).toBe(NO_BUDGET_LABEL)
     expect(formatRowPlannedAmount('debt', null, COP)).toBe(NO_BUDGET_LABEL)
+  })
+
+  it('ahorro e inversión se miden contra aportes planeados, no contra un presupuesto', () => {
+    expect(formatRowPlannedAmount('savings', null, COP)).toBe(NO_CONTRIBUTION_PLAN_LABEL)
+    expect(formatRowPlannedAmount('investment', null, COP)).toBe(NO_CONTRIBUTION_PLAN_LABEL)
+    expect(formatRowPlannedAmount('savings', null, COP)).not.toBe(NO_BUDGET_LABEL)
+  })
+
+  it('un aporte planeado de 0 se conserva como 0', () => {
+    expect(formatRowPlannedAmount('investment', 0, COP)).toBe('COP 0')
   })
 
   it('con importe, todas las filas se escriben igual', () => {
@@ -161,8 +178,21 @@ describe('formatRowDiff', () => {
     expect(formatRowDiff('debt', sinComparacion, COP)).toBe(NO_BUDGET_LABEL)
   })
 
+  it('en ahorro e inversión la ausencia es de aportes planeados', () => {
+    expect(formatRowDiff('savings', sinComparacion, COP)).toBe(NO_CONTRIBUTION_PLAN_LABEL)
+    expect(formatRowDiff('investment', sinComparacion, COP)).toBe(NO_CONTRIBUTION_PLAN_LABEL)
+  })
+
   it('coincide con el planeado de la misma fila: una fila no dice dos cosas distintas', () => {
-    for (const rowId of ['income', 'remaining', 'bills', 'unplanned'] as const) {
+    for (const rowId of [
+      'income',
+      'remaining',
+      'bills',
+      'unplanned',
+      'debt',
+      'savings',
+      'investment',
+    ] as const) {
       expect(formatRowDiff(rowId, sinComparacion, COP)).toBe(
         formatRowPlannedAmount(rowId, null, COP),
       )
@@ -402,5 +432,99 @@ describe('estados del presupuesto de una línea', () => {
 describe('planLineKindLabel', () => {
   it('nombra los dos tipos de línea en singular', () => {
     expect(planLineKindLabel).toEqual({ bill: 'Factura', variable: 'Gasto variable' })
+  })
+})
+
+describe('ahorro e inversión', () => {
+  const FORBIDDEN = ['Total ahorrado', 'Ahorrado', 'Dinero disponible']
+
+  function allBlockTexts(): string[] {
+    return [
+      SAVINGS_INVESTMENT_TITLE,
+      SAVINGS_INVESTMENT_NOTE,
+      BALANCE_LOADING_LABEL,
+      BALANCE_ERROR_LABEL,
+      ...Object.values(contributionBlockLabel).flatMap((labels) => Object.values(labels)),
+    ]
+  }
+
+  it('usa los textos aprobados para el bloque', () => {
+    expect(SAVINGS_INVESTMENT_TITLE).toBe('Ahorro e inversión')
+    expect(SAVINGS_INVESTMENT_NOTE).toBe(
+      'Los aportes son transferencias registradas en el mes hacia tus cuentas de ahorro o inversión. El saldo es lo acumulado en esas cuentas y no se suma a las cifras del mes.',
+    )
+    expect(contributionBlockLabel).toEqual({
+      savings: {
+        title: 'Ahorro',
+        contributions: 'Aportes a ahorro del mes',
+        balance: 'Saldo en cuentas de ahorro',
+        noAccounts: 'Sin cuentas de ahorro',
+        createAccount: 'Crear una cuenta de ahorro',
+      },
+      investment: {
+        title: 'Inversión',
+        contributions: 'Aportes a inversión del mes',
+        balance: 'Saldo en cuentas de inversión',
+        noAccounts: 'Sin cuentas de inversión',
+        createAccount: 'Crear una cuenta de inversión',
+      },
+    })
+  })
+
+  it('nunca dice «Total ahorrado», «Ahorrado» ni «Dinero disponible»', () => {
+    for (const text of allBlockTexts()) {
+      for (const forbidden of FORBIDDEN) {
+        expect(text).not.toContain(forbidden)
+      }
+    }
+  })
+
+  it('aportes y saldo nunca comparten nombre', () => {
+    for (const labels of Object.values(contributionBlockLabel)) {
+      expect(labels.contributions).not.toBe(labels.balance)
+      expect(labels.contributions).toContain('del mes')
+      expect(labels.balance).toContain('Saldo en cuentas')
+    }
+  })
+
+  it('mientras carga o si falla no afirma un saldo', () => {
+    expect(BALANCE_LOADING_LABEL).toBe('Calculando saldo…')
+    expect(BALANCE_ERROR_LABEL).toBe('No pudimos calcular el saldo.')
+    expect(BALANCE_LOADING_LABEL).not.toContain('0')
+    expect(BALANCE_ERROR_LABEL).not.toContain('0')
+  })
+
+  describe('accountTypeBalanceCaption', () => {
+    it('fecha de corte y número de cuentas, en singular', () => {
+      expect(accountTypeBalanceCaption('2026-09-30', 1, 0)).toBe(
+        'Al 30 de septiembre de 2026 · 1 cuenta',
+      )
+    })
+
+    it('en plural, y sin mencionar archivadas cuando no hay', () => {
+      expect(accountTypeBalanceCaption('2026-09-30', 2, 0)).toBe(
+        'Al 30 de septiembre de 2026 · 2 cuentas',
+      )
+    })
+
+    it('nombra las archivadas incluidas en el saldo, en singular y en plural', () => {
+      expect(accountTypeBalanceCaption('2026-09-30', 2, 1)).toBe(
+        'Al 30 de septiembre de 2026 · 2 cuentas · 1 archivada',
+      )
+      expect(accountTypeBalanceCaption('2026-08-31', 3, 2)).toBe(
+        'Al 31 de agosto de 2026 · 3 cuentas · 2 archivadas',
+      )
+    })
+  })
+
+  describe('balanceTone', () => {
+    it('un saldo negativo se destaca', () => {
+      expect(balanceTone(-50_000)).toBe('negative')
+    })
+
+    it('cero y positivo son neutros', () => {
+      expect(balanceTone(0)).toBe('neutral')
+      expect(balanceTone(700_000)).toBe('neutral')
+    })
   })
 })

@@ -1,5 +1,6 @@
 import { classificationGroupLabel } from '@/features/categories/classifications/labels'
 import { formatAmount } from '@/lib/currency'
+import { formatLongDate } from '@/lib/dates'
 
 import type { AllocationGroup } from './calculations/allocation'
 import type { Diff, DiffRowKind } from './calculations/diff'
@@ -181,10 +182,23 @@ function isIncomeMeasuredRow(rowId: PlanRowId): boolean {
 }
 
 /**
+ * Filas que se planifican por cuenta, con importe propio en la línea: ahorro e
+ * inversión. Su ausencia es «Sin aportes planeados», no «Sin presupuesto»,
+ * porque no son presupuestos por categoría de `/budgets`. Mismo criterio que
+ * la reconciliación, en planeado y en diferencia.
+ */
+const CONTRIBUTION_ROWS: readonly PlanRowId[] = ['savings', 'investment']
+
+function isContributionRow(rowId: PlanRowId): boolean {
+  return CONTRIBUTION_ROWS.includes(rowId)
+}
+
+/**
  * «Planeado» de una fila del cuadro.
  *
- * Ingresos y restante se miden contra el ingreso planeado; el resto, contra un
- * presupuesto. Cuando falta, cada uno lo dice a su manera.
+ * Ingresos y restante se miden contra el ingreso planeado; ahorro e inversión,
+ * contra sus aportes planeados; el resto, contra un presupuesto. Cuando falta,
+ * cada uno lo dice a su manera.
  */
 export function formatRowPlannedAmount(
   rowId: PlanRowId,
@@ -194,6 +208,9 @@ export function formatRowPlannedAmount(
   if (isIncomeMeasuredRow(rowId)) {
     return formatPlannedIncomeAmount(plannedMinor, currencyCode)
   }
+  if (isContributionRow(rowId)) {
+    return formatContributionPlanned(plannedMinor, currencyCode)
+  }
   return formatPlannedAmount(plannedMinor, currencyCode)
 }
 
@@ -202,10 +219,12 @@ export function formatRowPlannedAmount(
  *
  * `calculateDiff` devuelve `no_budget` siempre que no hay nada que comparar,
  * sin saber por qué falta. Aquí se nombra la causa real de cada fila: en
- * ingresos y restante lo que falta es el ingreso planeado, no un presupuesto.
+ * ingresos y restante lo que falta es el ingreso planeado, y en ahorro e
+ * inversión, los aportes planeados; no un presupuesto.
  */
 export function formatRowDiff(rowId: PlanRowId, diff: Diff, currencyCode: string): string {
   if (diff.status === 'no_budget' && isIncomeMeasuredRow(rowId)) return NO_PLANNED_INCOME_LABEL
+  if (diff.status === 'no_budget' && isContributionRow(rowId)) return NO_CONTRIBUTION_PLAN_LABEL
   return formatDiff(diff, currencyCode)
 }
 
@@ -490,4 +509,82 @@ export function linesWithZeroBudgetCountLabel(count: number, currencyCode: strin
   return count === 1
     ? `1 línea con presupuesto en ${zero}`
     : `${count} líneas con presupuesto en ${zero}`
+}
+
+/* -------------------------------------------------------------------------- */
+/* Ahorro e inversión                                                         */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * Dos cifras por tipo de cuenta, y nunca con el mismo nombre: los **aportes del
+ * mes** son un flujo y el **saldo en cuentas** es un stock
+ * (docs/09-plan-mensual.md, «Las tres cifras de ahorro»). Por eso aquí no hay
+ * «Total ahorrado», ni «Ahorrado» a secas, ni «Dinero disponible».
+ */
+
+export const SAVINGS_INVESTMENT_TITLE = 'Ahorro e inversión'
+
+/** Nota fija del bloque. No es un tooltip: se lee siempre. */
+export const SAVINGS_INVESTMENT_NOTE =
+  'Los aportes son transferencias registradas en el mes hacia tus cuentas de ahorro o inversión. El saldo es lo acumulado en esas cuentas y no se suma a las cifras del mes.'
+
+export type ContributionAccountType = 'savings' | 'investment'
+
+export interface ContributionBlockLabels {
+  title: string
+  contributions: string
+  balance: string
+  /** No existe ninguna cuenta del tipo. Distinto de un saldo de 0. */
+  noAccounts: string
+  createAccount: string
+}
+
+export const contributionBlockLabel: Record<ContributionAccountType, ContributionBlockLabels> = {
+  savings: {
+    title: 'Ahorro',
+    contributions: 'Aportes a ahorro del mes',
+    balance: 'Saldo en cuentas de ahorro',
+    noAccounts: 'Sin cuentas de ahorro',
+    createAccount: 'Crear una cuenta de ahorro',
+  },
+  investment: {
+    title: 'Inversión',
+    contributions: 'Aportes a inversión del mes',
+    balance: 'Saldo en cuentas de inversión',
+    noAccounts: 'Sin cuentas de inversión',
+    createAccount: 'Crear una cuenta de inversión',
+  },
+}
+
+/** El saldo todavía no llegó. No se escribe un 0 que aún no se sabe. */
+export const BALANCE_LOADING_LABEL = 'Calculando saldo…'
+
+/** Falló solo el saldo: el resto del bloque y de la pantalla sigue siendo válido. */
+export const BALANCE_ERROR_LABEL = 'No pudimos calcular el saldo.'
+
+/**
+ * Pie del saldo: «Al 30 de septiembre de 2026 · 2 cuentas · 1 archivada».
+ *
+ * La fecha dice a qué día corresponde el stock, con el mismo formato que el
+ * dashboard. Las archivadas solo se nombran cuando hay alguna: están sumadas en
+ * el saldo, y quien lo lee tiene derecho a saberlo.
+ */
+export function accountTypeBalanceCaption(
+  asOfDate: string,
+  accountCount: number,
+  archivedCount: number,
+): string {
+  const parts = [
+    `Al ${formatLongDate(asOfDate)}`,
+    accountCount === 1 ? '1 cuenta' : `${accountCount} cuentas`,
+  ]
+  if (archivedCount > 0) {
+    parts.push(archivedCount === 1 ? '1 archivada' : `${archivedCount} archivadas`)
+  }
+  return parts.join(' · ')
+}
+
+/** Un saldo negativo se destaca; el signo sigue estando en el texto. */
+export function balanceTone(balanceMinor: number): PlanTone {
+  return balanceMinor < 0 ? 'negative' : 'neutral'
 }

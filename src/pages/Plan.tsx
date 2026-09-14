@@ -57,6 +57,7 @@ import { PlanLineForm, type PlanLineFormSubmit } from '@/features/plan/component
 import { PlanLinesPanel, type PlanLineItem } from '@/features/plan/components/plan-lines-panel'
 import { PlanHeader } from '@/features/plan/components/plan-header'
 import { PlanSummary } from '@/features/plan/components/plan-summary'
+import { SavingsInvestmentPanel } from '@/features/plan/components/savings-investment-panel'
 import type { BudgetProgress } from '@/features/budgets/progress'
 import { PlanError } from '@/features/plan/errors'
 import {
@@ -65,6 +66,7 @@ import {
   useEffectiveCategoryBudgets,
   usePlanActuals,
   usePlanAllocations,
+  usePlanContributionBalances,
   usePlanIncomeSourceCategories,
   usePlanIncomeSources,
   usePlanLines,
@@ -97,8 +99,8 @@ import type { Tables } from '@/types/database.types'
 
 /**
  * Plan mensual: resumen del mes, fuentes de ingreso, reparto 50/30/20,
- * reconciliación del presupuesto, facturas y gastos variables, y cuadro
- * Presupuesto vs. Actual.
+ * reconciliación del presupuesto, facturas y gastos variables, ahorro e
+ * inversión, y cuadro Presupuesto vs. Actual.
  *
  * Lo editable es **solo lo planeado**: las fuentes de ingreso y los cinco
  * porcentajes del reparto. Ningún valor «Actual» es editable en ninguna parte,
@@ -217,6 +219,9 @@ export default function Plan() {
   const incomeSourcesQuery = usePlanIncomeSources(planMonthId)
   const allocationsQuery = usePlanAllocations(planMonthId)
   const incomeSourceCategoriesQuery = usePlanIncomeSourceCategories(planMonthId)
+  // Saldo al cierre del mes. Fuera de `isPending` e `isError` a propósito: es
+  // contexto, y su bloque dice por su cuenta si carga o si falló.
+  const contributionBalancesQuery = usePlanContributionBalances(monthKey)
 
   const createPlanMonth = useCreatePlanMonth()
   const saveIncomeSource = useSaveIncomeSource()
@@ -402,6 +407,18 @@ export default function Plan() {
       contributionsPlanned: {
         savingsMinor: savingsPlannedMinor,
         investmentMinor: investmentPlannedMinor,
+      },
+      // Aportes del mes, reales y planeados, para el bloque Ahorro e inversión.
+      // Son las mismas cifras de las filas Ahorro e Inversión del cuadro.
+      contributions: {
+        savings: {
+          contributionsMinor: actuals.savingsContributionsMinor,
+          plannedMinor: savingsPlannedMinor,
+        },
+        investment: {
+          contributionsMinor: actuals.investmentContributionsMinor,
+          plannedMinor: investmentPlannedMinor,
+        },
       },
       allocation: {
         rows: allocationRows,
@@ -913,6 +930,15 @@ export default function Plan() {
                   onDelete={setDeletingLineId}
                 />
               )}
+
+              {/* También sin plan: aportes y saldo son cifras reales del mes. */}
+              <SavingsInvestmentPanel
+                currencyCode={currencyCode}
+                savings={model.contributions.savings}
+                investment={model.contributions.investment}
+                balances={contributionBalancesQuery.data}
+                isBalanceError={contributionBalancesQuery.isError}
+              />
 
               <BudgetVsActualTable
                 groups={model.groups}

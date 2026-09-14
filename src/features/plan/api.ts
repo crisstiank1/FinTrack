@@ -176,12 +176,18 @@ const HISTORY_MAX_PAGES = 50
 const BALANCE_COLUMNS = 'account_id, amount_minor, type, transfer_direction'
 
 /**
- * Historial completo de unas cuentas concretas, para `saldoEnAhorro`.
+ * Historial de unas cuentas concretas hasta una fecha, para `saldoEnAhorro`.
  *
  * Es la única lectura del Plan que mira más allá del mes, y es inevitable: el
  * saldo de una cuenta parte de su saldo inicial y acumula cada movimiento
  * posterior, así que no se puede calcular mirando solo el mes en pantalla
  * (docs/09-plan-mensual.md: «es un saldo acumulado, no un flujo del mes»).
+ *
+ * **Se corta en `asOfDate`, inclusive**, que es el último día del mes
+ * consultado: el saldo de agosto no debe incluir lo que ocurrió en septiembre.
+ * El corte va en la consulta y no en el cliente para no descargar movimientos
+ * que después habría que descartar. `transaction_date` es `date`, así que
+ * comparar contra `YYYY-MM-DD` no depende de la zona horaria.
  *
  * Acotada a `accountIds` en vez de reutilizar la descarga completa del
  * dashboard: aquí solo interesan las cuentas de ahorro e inversión, que son
@@ -200,6 +206,7 @@ const BALANCE_COLUMNS = 'account_id, amount_minor, type, transfer_direction'
 export async function fetchTransactionsByAccounts(
   userId: string,
   accountIds: readonly string[],
+  asOfDate: string,
 ): Promise<PlanBalanceTransaction[]> {
   if (accountIds.length === 0) return []
 
@@ -213,6 +220,7 @@ export async function fetchTransactionsByAccounts(
       .select(BALANCE_COLUMNS)
       .eq('user_id', userId)
       .in('account_id', [...accountIds])
+      .lte('transaction_date', asOfDate)
       .order('id', { ascending: true })
       .range(from, from + HISTORY_PAGE_SIZE - 1)
 
