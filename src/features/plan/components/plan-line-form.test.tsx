@@ -10,11 +10,14 @@ const onSubmit = vi.fn()
 const categories = [
   { id: 'cat-vivienda', name: 'Vivienda' },
   { id: 'cat-mercado', name: 'Alimentación' },
+  { id: 'cat-ocio', name: 'Entretenimiento' },
 ]
 
 const budgets: Record<string, number | null> = {
   'cat-vivienda': 900_000,
   'cat-mercado': null,
+  // Presupuesto explícito de 0 este mes.
+  'cat-ocio': 0,
 }
 
 function renderForm(props: Partial<Parameters<typeof PlanLineForm>[0]> = {}) {
@@ -163,6 +166,17 @@ describe('PlanLineForm', () => {
 
     expect(screen.getByText('Sin presupuesto este mes')).toBeInTheDocument()
     expect(screen.queryByText('COP 0')).not.toBeInTheDocument()
+    expect(screen.queryByText(/Presupuesto en COP 0/)).not.toBeInTheDocument()
+  })
+
+  it('dice «Presupuesto en COP 0» cuando el presupuesto es un 0 explícito', async () => {
+    const user = userEvent.setup()
+    renderForm()
+
+    await user.selectOptions(screen.getByLabelText('Categoría'), 'cat-ocio')
+
+    expect(screen.getByText('Presupuesto en COP 0')).toBeInTheDocument()
+    expect(screen.queryByText(/Sin presupuesto/)).not.toBeInTheDocument()
   })
 
   it('enlaza a Presupuestos del mes del plan, que es donde se cambia la cifra', () => {

@@ -321,6 +321,46 @@ export function useEffectiveCategoryBudgets(
   }
 }
 
+/**
+ * Categorías cuyo presupuesto del mes se resuelve en un 0 explícito.
+ *
+ * Es la otra mitad de `useEffectiveCategoryBudgets`: aquel omite los 0 para que
+ * no se comparen como objetivos, y aquí se recuperan para poder **decirlos**.
+ * Sin esto, una categoría con presupuesto de 0 y otra sin ninguno serían
+ * indistinguibles fuera de las líneas, que traen su propio progreso.
+ *
+ * Misma lectura cacheada de `budgets` y misma `resolveBudget`: no hay consulta
+ * ni fórmula nuevas.
+ */
+export function useZeroBudgetCategoryIds(monthKey: string): DerivedState<ReadonlySet<string>> {
+  const budgetsQuery = useBudgets()
+  const budgets = budgetsQuery.data
+
+  const data = useMemo(() => {
+    if (!budgets) return undefined
+
+    const zero = new Set<string>()
+    const seen = new Set<string>()
+
+    for (const budget of budgets) {
+      if (seen.has(budget.category_id)) continue
+      seen.add(budget.category_id)
+
+      const resolved = resolveBudget(budgets, budget.category_id, monthKey)
+      if (resolved !== null && resolved.amountMinor === 0) zero.add(budget.category_id)
+    }
+
+    return zero
+  }, [budgets, monthKey])
+
+  return {
+    data,
+    isPending: budgetsQuery.isPending,
+    isError: budgetsQuery.isError,
+    error: budgetsQuery.error,
+  }
+}
+
 export interface UsePlanLineProgressOptions {
   monthKey: string
   /** Categorías de las líneas a evaluar, de `planLineCategoryIds`. */

@@ -494,8 +494,10 @@ saldoEnAhorro = Σ sobre cuentas type = 'savings' de
 ```
 
 `saldoEnAhorro` es un saldo acumulado, no un flujo del mes. Se muestra como
-dato de contexto y **nunca** entra en el cuadro Presupuesto vs. Actual ni en el
-Restante: mezclar un stock con flujos es el error clásico de estas plantillas.
+dato de contexto en el bloque «Ahorro e inversión», **al cierre del mes
+consultado** y con las cuentas archivadas incluidas (se indica cuántas), y
+**nunca** entra en el cuadro Presupuesto vs. Actual ni en el Restante: mezclar
+un stock con flujos es el error clásico de estas plantillas.
 
 Contar solo la pata entrante es lo que impide sumar dos veces el mismo
 movimiento, ya que una transferencia son dos filas. Excluir el caso en que el
@@ -586,7 +588,13 @@ coherente con el criterio de `docs/06-presupuestos.md`, donde el 100% exacto es
 `warning_90` y no `over`: superado significa estrictamente gastar más.
 
 Sin presupuesto, la diferencia es nula y se etiqueta «Sin presupuesto», nunca
-`0`. La etiqueta se escribe **en texto**; el color solo acompaña.
+`0`. En Ahorro e Inversión la ausencia es de aportes planeados y se etiqueta
+«Sin aportes planeados», en planeado y en diferencia. La etiqueta se escribe
+**en texto**; el color solo acompaña.
+
+Una fila agregada cuyo presupuesto es todo 0 se muestra «Sin presupuesto»: el
+0 explícito no se compara como objetivo, y la fila no puede enunciarlo
+categoría por categoría.
 
 ### Estados
 
@@ -705,6 +713,11 @@ Reglas de presentación:
   Una línea sin presupuesto **es válida**: solo no suma a lo asignado.
 - Un presupuesto resuelto en 0 se dice «Presupuesto en COP 0», nunca «Sin
   presupuesto»: es una decisión explícita del usuario, no una ausencia.
+- El formulario de líneas dice «Ahora mismo: Presupuesto en COP 0» para un 0
+  explícito, y «Sin presupuesto este mes» cuando no hay ninguno.
+- Si todos los presupuestos por categoría del mes son 0, «Presupuesto por
+  categorías» dice «Sin presupuesto», y una categoría en 0 sin línea no aparece
+  en ningún listado del bloque.
 - Sin líneas de ahorro o inversión, esas filas dicen «Sin aportes planeados».
   No son presupuestos por categoría, así que no se dice «Sin presupuesto».
 - «Por asignar» negativo se etiqueta **«Sobreasignado»** en texto, explicando
@@ -790,7 +803,7 @@ importe separado que pueda contradecirlo.
 
 ## Migraciones previstas
 
-Sin SQL todavía. Tres migraciones, en este orden:
+Aplicadas. Tres migraciones, en este orden:
 
 | Orden | Migración | Contenido | Depende de |
 | --- | --- | --- | --- |

@@ -7,10 +7,11 @@ import { Link } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { NO_BUDGET_THIS_MONTH_LABEL } from '@/features/budgets/labels'
 import { formatAmount } from '@/lib/currency'
 import { monthRange } from '@/lib/dates'
 
-import { planLineKindLabel } from '../labels'
+import { formatZeroBudget, planLineKindLabel } from '../labels'
 import { budgetsHrefForMonth } from '../links'
 import { CATEGORY_LINE_KINDS, type CategoryLineKind } from '../mutations'
 import { buildPlanLineSchema, type PlanLineFormInput, type PlanLineFormValues } from '../schemas'
@@ -38,7 +39,10 @@ interface PlanLineFormProps {
   monthKey: string
   /** Categorías de gasto activas y libres este mes. Vacío al editar. */
   categories: SelectableLineCategory[]
-  /** Presupuesto efectivo de una categoría, o `null` si no tiene este mes. */
+  /**
+   * Presupuesto efectivo de una categoría este mes. `null` si no tiene ninguno;
+   * `0` si su presupuesto es un 0 explícito, que se dice distinto.
+   */
   budgetForCategory: (categoryId: string) => number | null
   currencyCode: string
   /** Al editar: los valores actuales, con la categoría y el tipo ya fijados. */
@@ -246,8 +250,10 @@ export function PlanLineForm({
             Ahora mismo:{' '}
             <span className="font-medium text-foreground">
               {budgetMinor === null
-                ? 'Sin presupuesto este mes'
-                : formatAmount(budgetMinor, currencyCode)}
+                ? NO_BUDGET_THIS_MONTH_LABEL
+                : budgetMinor === 0
+                  ? formatZeroBudget(currencyCode)
+                  : formatAmount(budgetMinor, currencyCode)}
             </span>
             .{' '}
           </>

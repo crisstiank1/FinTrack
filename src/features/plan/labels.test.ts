@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
+import { formatZeroBudget as formatBudgetsZero } from '@/features/budgets/labels'
+
 import { calculateDiff } from './calculations/diff'
 import {
   accountTypeBalanceCaption,
@@ -336,6 +338,11 @@ describe('formatZeroBudget', () => {
   it('dice el 0 explícito como importe, no como ausencia', () => {
     expect(formatZeroBudget(COP)).toBe('Presupuesto en COP 0')
     expect(formatZeroBudget(COP)).not.toContain(NO_BUDGET_LABEL)
+  })
+
+  it('es el mismo texto que usa /budgets para el mismo presupuesto', () => {
+    expect(formatZeroBudget(COP)).toBe(formatBudgetsZero(COP))
+    expect(formatZeroBudget('USD')).toBe(formatBudgetsZero('USD'))
   })
 })
 

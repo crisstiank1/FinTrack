@@ -408,16 +408,14 @@ export function formatContributionPlanned(
   return formatAmount(plannedMinor, currencyCode)
 }
 
-/**
- * Presupuesto vigente de 0: una decisión explícita del usuario en `/budgets`.
- *
- * `buildBudgetProgress` lo trata como «Sin presupuesto» para no calcular
- * umbrales contra 0, pero en la reconciliación importa la causa: una categoría
- * que nunca tuvo presupuesto invita a completarlo, y una con 0 ya lo tiene.
+/*
+ * Presupuesto vigente de 0 («Presupuesto en COP 0»): una decisión explícita del
+ * usuario en `/budgets`. `buildBudgetProgress` no calcula umbrales contra 0,
+ * pero la causa importa: una categoría que nunca tuvo presupuesto invita a
+ * completarlo, y una con 0 ya lo tiene. Se reexporta el texto de `/budgets`
+ * para que las dos pantallas digan lo mismo del mismo presupuesto.
  */
-export function formatZeroBudget(currencyCode: string): string {
-  return `Presupuesto en ${formatAmount(0, currencyCode)}`
-}
+export { formatZeroBudget } from '@/features/budgets/labels'
 
 /**
  * Presupuesto de una línea mientras su progreso todavía no llegó.

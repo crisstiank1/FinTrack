@@ -317,16 +317,17 @@ hay nada que marcar como leído ni tabla que mantener.
 Es una decisión válida, no un campo sin llenar, y la interfaz lo trata en dos
 momentos:
 
-- **Al escribirlo**, antes de guardar, aparece la advertencia: *"Un presupuesto
-  de COP 0 significa que esta categoría no tendrá presupuesto en el periodo
-  elegido"*. El campo del monto es de texto justamente por esto: un campo
-  numérico convertiría el vacío en 0 y guardaría una decisión que nadie tomó.
-  Vacío es error; 0 es una elección.
+- **Al escribirlo**, antes de guardar, aparece la advertencia: *"Con COP 0,
+  esta categoría queda con presupuesto en COP 0 en el periodo elegido: no
+  tendrá barra, porcentaje ni alertas."* El campo del monto es de texto
+  justamente por esto: un campo numérico convertiría el vacío en 0 y guardaría
+  una decisión que nadie tomó. Vacío es error; 0 es una elección.
 - **Al mostrarlo**, no se dibuja barra ni porcentaje. Una barra al 0% junto a un
   gasto real sugeriría "vas bien", que es lo contrario de lo que pasa: no hay
-  con qué comparar. En su lugar se dice «Sin presupuesto este mes» —añadiendo
-  «excepción de este mes» cuando el 0 fue deliberado para ese mes— y el gasto
-  real se muestra aparte.
+  con qué comparar. En su lugar se dice «Presupuesto en COP 0» —añadiendo
+  «excepción de este mes» cuando el 0 es una excepción— y el gasto real se
+  muestra aparte. La ausencia de presupuesto sigue diciéndose «Sin presupuesto
+  este mes».
 
 ---
 

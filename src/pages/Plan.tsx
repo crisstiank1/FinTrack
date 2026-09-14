@@ -76,6 +76,7 @@ import {
   useSaveAllocations,
   useSaveIncomeSource,
   useSavePlanLine,
+  useZeroBudgetCategoryIds,
 } from '@/features/plan/hooks'
 import { allocationGroupDiffKind, planRowDiffKind, type PlanRowId } from '@/features/plan/labels'
 import {
@@ -215,6 +216,8 @@ export default function Plan() {
   const linesQuery = usePlanLines(monthKey)
   const classificationsQuery = useCategoryClassifications()
   const budgetsQuery = useEffectiveCategoryBudgets(monthKey)
+  // Solo para la nota del formulario de líneas: no bloquea la pantalla.
+  const { data: zeroBudgetCategoryIds } = useZeroBudgetCategoryIds(monthKey)
   const actualsQuery = usePlanActuals({ monthKey, planMonthId })
   const incomeSourcesQuery = usePlanIncomeSources(planMonthId)
   const allocationsQuery = usePlanAllocations(planMonthId)
@@ -644,9 +647,15 @@ export default function Plan() {
     [categories, planLines],
   )
 
-  /** Presupuesto efectivo de una categoría, para la nota del formulario. */
+  /**
+   * Presupuesto efectivo de una categoría, para la nota del formulario. El mapa
+   * omite los 0 explícitos, así que se recuperan aparte: devolver `null` para
+   * ellos haría decir «Sin presupuesto» de un presupuesto que sí existe.
+   */
   function budgetForCategory(categoryId: string): number | null {
-    return budgetsByCategory?.[categoryId] ?? null
+    const budget = budgetsByCategory?.[categoryId]
+    if (budget !== undefined) return budget
+    return zeroBudgetCategoryIds?.has(categoryId) ? 0 : null
   }
 
   const hasAllocation = model?.allocation.hasAllocation ?? false

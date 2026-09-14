@@ -1,7 +1,7 @@
 import { formatAmount } from '@/lib/currency'
 import { cn } from '@/lib/utils'
 
-import { budgetStatusTone, formatBudgetPercent } from '../labels'
+import { budgetStatusTone, formatBudgetPercent, formatBudgetWithoutBar } from '../labels'
 import type { BudgetProgress } from '../progress'
 
 interface BudgetProgressBarProps {
@@ -27,10 +27,11 @@ const TONE_TEXT: Record<string, string> = {
 /**
  * Progreso de una categoría en un mes.
  *
- * Sin presupuesto no se dibuja barra. Una barra al 0% junto a un gasto real
- * sugeriría "vas bien", que es lo contrario de lo que ocurre: no hay nada con
- * qué comparar. En su lugar se dice explícitamente que no hay presupuesto y se
- * muestra el gasto por separado.
+ * Sin presupuesto, o con uno de 0, no se dibuja barra. Una barra al 0% junto a
+ * un gasto real sugeriría "vas bien", que es lo contrario de lo que ocurre: no
+ * hay nada con qué comparar. En su lugar se dice con palabras cuál de los dos
+ * casos es —«Sin presupuesto este mes» o «Presupuesto en COP 0»— y se muestra
+ * el gasto por separado.
  */
 export function BudgetProgressBar({
   progress,
@@ -42,12 +43,10 @@ export function BudgetProgressBar({
   if (progress.budgetMinor === null) {
     return (
       <div className="flex flex-col gap-1">
+        {/* Con `budgetMinor` nulo, un `source` presente significa que un 0
+            deliberado resolvió el mes: es un presupuesto, no su ausencia. */}
         <p className="text-sm text-muted-foreground">
-          Sin presupuesto este mes
-          {/* `source` solo puede ser 'exception' aquí si el usuario fijó un 0
-              deliberado para este mes: conviene distinguirlo de "nunca se
-              configuró", porque se deshace de formas distintas. */}
-          {progress.source === 'exception' && ' · excepción de este mes'}
+          {formatBudgetWithoutBar(progress, currencyCode)}
         </p>
         <p className="text-sm text-foreground">
           Gastado: <span className="font-medium">{spent}</span>

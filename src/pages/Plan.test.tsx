@@ -24,6 +24,7 @@ const deleteIncomeSource = vi.fn()
 const saveAllocations = vi.fn()
 const usePlanLineProgress = vi.fn()
 const usePlanContributionBalances = vi.fn()
+const useZeroBudgetCategoryIds = vi.fn()
 const savePlanLine = vi.fn()
 const deletePlanLine = vi.fn()
 
@@ -42,6 +43,7 @@ vi.mock('@/features/plan/hooks', () => ({
   useSaveAllocations: () => ({ mutateAsync: saveAllocations, isPending: false }),
   usePlanLineProgress: (options: unknown) => usePlanLineProgress(options),
   usePlanContributionBalances: (monthKey: unknown) => usePlanContributionBalances(monthKey),
+  useZeroBudgetCategoryIds: (monthKey: unknown) => useZeroBudgetCategoryIds(monthKey),
   useSavePlanLine: () => ({ mutateAsync: savePlanLine, isPending: false }),
   useDeletePlanLine: () => ({ mutateAsync: deletePlanLine, isPending: false }),
 }))
@@ -237,6 +239,7 @@ beforeEach(() => {
   saveAllocations.mockResolvedValue(undefined)
   usePlanLineProgress.mockReturnValue(resolved(lineProgress))
   usePlanContributionBalances.mockReturnValue(resolved(contributionBalances))
+  useZeroBudgetCategoryIds.mockReturnValue(resolved(new Set<string>()))
   savePlanLine.mockReset()
   savePlanLine.mockResolvedValue(undefined)
   deletePlanLine.mockReset()
@@ -1445,6 +1448,33 @@ describe('Plan', () => {
         dueDate: null,
         lines,
       })
+    })
+
+    it('el formulario dice «Presupuesto en COP 0» de una categoría con 0 explícito', async () => {
+      useZeroBudgetCategoryIds.mockReturnValue(resolved(new Set(['cat-salud'])))
+      const user = userEvent.setup()
+      renderPlan()
+
+      expect(useZeroBudgetCategoryIds).toHaveBeenCalledWith(currentMonthKey())
+
+      await user.click(within(linesPanel()).getByRole('button', { name: 'Añadir línea' }))
+      const dialog = await screen.findByRole('dialog')
+      await user.selectOptions(within(dialog).getByLabelText('Categoría'), 'cat-salud')
+
+      expect(within(dialog).getByText('Presupuesto en COP 0')).toBeInTheDocument()
+      expect(within(dialog).queryByText(/Sin presupuesto/)).not.toBeInTheDocument()
+    })
+
+    it('el formulario sigue diciendo «Sin presupuesto este mes» cuando no hay ninguno', async () => {
+      const user = userEvent.setup()
+      renderPlan()
+
+      await user.click(within(linesPanel()).getByRole('button', { name: 'Añadir línea' }))
+      const dialog = await screen.findByRole('dialog')
+      await user.selectOptions(within(dialog).getByLabelText('Categoría'), 'cat-salud')
+
+      expect(within(dialog).getByText('Sin presupuesto este mes')).toBeInTheDocument()
+      expect(within(dialog).queryByText(/Presupuesto en COP 0/)).not.toBeInTheDocument()
     })
 
     it('el selector no ofrece categorías que ya tienen línea', async () => {

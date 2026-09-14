@@ -184,10 +184,15 @@ describe('Budgets — presupuesto de cero', () => {
     renderBudgets()
 
     const fun = row('Entretenimiento')
-    expect(fun.getByText(/Sin presupuesto este mes/)).toBeInTheDocument()
-    expect(fun.getByText(/excepción de este mes/)).toBeInTheDocument()
+    expect(fun.getByText('Presupuesto en COP 0 · excepción de este mes')).toBeInTheDocument()
     expect(fun.queryByRole('progressbar')).not.toBeInTheDocument()
     expect(fun.getByText('COP 30.000')).toBeInTheDocument()
+  })
+
+  it('un 0 explícito nunca se dice «Sin presupuesto»', () => {
+    renderBudgets()
+
+    expect(row('Entretenimiento').queryByText(/Sin presupuesto/)).not.toBeInTheDocument()
   })
 })
 
