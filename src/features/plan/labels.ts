@@ -627,3 +627,64 @@ export function accountTypeBalanceCaption(
 export function balanceTone(balanceMinor: number): PlanTone {
   return balanceMinor < 0 ? 'negative' : 'neutral'
 }
+
+/* -------------------------------------------------------------------------- */
+/* Líneas de aporte                                                           */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * Textos de las líneas de aporte planeado, dentro de cada tarjeta del bloque
+ * «Ahorro e inversión». Siempre dicen «aporte»: una línea de aporte no es un
+ * gasto y no vive en «Facturas y gastos variables». Frases completas, como el
+ * resto del archivo.
+ */
+
+export interface ContributionLineLabels {
+  /** Nombre accesible de la lista de líneas del tipo. */
+  list: string
+  addButton: string
+  dialogTitleNew: string
+  accountField: string
+  /** No existe ninguna cuenta activa del tipo: no se puede planificar. */
+  noAccounts: string
+  /** Todas las cuentas activas del tipo ya tienen un aporte este mes (U11). */
+  accountsExhausted: string
+}
+
+export const contributionLineLabel: Record<ContributionAccountType, ContributionLineLabels> = {
+  savings: {
+    list: 'Aportes a ahorro planeados',
+    addButton: 'Añadir aporte a ahorro',
+    dialogTitleNew: 'Nuevo aporte a ahorro',
+    accountField: 'Cuenta de ahorro',
+    noAccounts: 'Necesitas una cuenta de ahorro para planificar un aporte.',
+    accountsExhausted: 'Todas tus cuentas de ahorro ya tienen un aporte planeado este mes.',
+  },
+  investment: {
+    list: 'Aportes a inversión planeados',
+    addButton: 'Añadir aporte a inversión',
+    dialogTitleNew: 'Nuevo aporte a inversión',
+    accountField: 'Cuenta de inversión',
+    noAccounts: 'Necesitas una cuenta de inversión para planificar un aporte.',
+    accountsExhausted: 'Todas tus cuentas de inversión ya tienen un aporte planeado este mes.',
+  },
+}
+
+export const CONTRIBUTION_LINE_NAME_LABEL = 'Nombre'
+
+export const CONTRIBUTION_LINE_NAME_PLACEHOLDER = 'Ej. Fondo de emergencia'
+
+export const CONTRIBUTION_LINE_AMOUNT_LABEL = 'Importe planeado'
+
+/** Marca de una línea cuya cuenta se archivó después de crearla. */
+export const ARCHIVED_ACCOUNT_BADGE = 'Archivada'
+
+/** Al editar, la cuenta se enuncia en vez de ofrecerse: cambiarla es otro aporte. */
+export function lockedContributionAccountLabel(accountName: string): string {
+  return `Cuenta: ${accountName}. Para cambiarla, elimina el aporte y crea otro.`
+}
+
+export const DELETE_CONTRIBUTION_TITLE = 'Eliminar aporte'
+
+export const DELETE_CONTRIBUTION_DESCRIPTION =
+  'Se eliminará el aporte planeado. La cuenta y sus movimientos no se tocan.'

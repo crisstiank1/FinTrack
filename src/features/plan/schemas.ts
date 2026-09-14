@@ -257,3 +257,30 @@ export type PlanLineFormValues = z.output<ReturnType<typeof buildPlanLineSchema>
 
 /** Lo que maneja el formulario mientras se escribe. */
 export type PlanLineFormInput = z.input<ReturnType<typeof buildPlanLineSchema>>
+
+/* -------------------------------------------------------------------------- */
+/* Líneas de aporte a ahorro e inversión                                      */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Contrato del formulario de aportes planeados.
+ *
+ * Aquí **sí hay importe**, y es obligatorio: un aporte se mide por cuenta, así
+ * que su cifra planeada vive en la propia línea (C7). Reutiliza
+ * `budgetAmountSchema`, igual que las fuentes de ingreso: el vacío es un error
+ * y el 0 es un valor válido, «planeo aportar cero», que se muestra como COP 0.
+ *
+ * No hay tipo: lo fija el botón que abre el formulario. Tampoco fecha, que C3
+ * reserva a las facturas.
+ */
+export const contributionLineSchema = z.object({
+  name: planLineNameSchema,
+  accountId: z.string().min(1, 'Elige una cuenta'),
+  plannedAmount: budgetAmountSchema,
+})
+
+/** Valores ya validados: `plannedAmount` es un entero. */
+export type ContributionLineFormValues = z.output<typeof contributionLineSchema>
+
+/** Lo que maneja el formulario mientras se escribe: el importe sigue siendo texto. */
+export type ContributionLineFormInput = z.input<typeof contributionLineSchema>

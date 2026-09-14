@@ -53,11 +53,18 @@ import {
   IncomeSourcesPanel,
   type IncomeSourceItem,
 } from '@/features/plan/components/income-sources-panel'
+import {
+  ContributionLineForm,
+  type ContributionLineFormSubmit,
+} from '@/features/plan/components/contribution-line-form'
 import { PlanLineForm, type PlanLineFormSubmit } from '@/features/plan/components/plan-line-form'
 import { PlanLinesPanel, type PlanLineItem } from '@/features/plan/components/plan-lines-panel'
 import { PlanHeader } from '@/features/plan/components/plan-header'
 import { PlanSummary } from '@/features/plan/components/plan-summary'
-import { SavingsInvestmentPanel } from '@/features/plan/components/savings-investment-panel'
+import {
+  SavingsInvestmentPanel,
+  type ContributionPlanning,
+} from '@/features/plan/components/savings-investment-panel'
 import type { BudgetProgress } from '@/features/budgets/progress'
 import { PlanError } from '@/features/plan/errors'
 import {
@@ -75,18 +82,30 @@ import {
   useDeletePlanLine,
   useSaveAllocations,
   useSaveIncomeSource,
+  useSaveContributionLine,
   useSavePlanLine,
   useZeroBudgetCategoryIds,
 } from '@/features/plan/hooks'
-import { allocationGroupDiffKind, planRowDiffKind, type PlanRowId } from '@/features/plan/labels'
+import {
+  allocationGroupDiffKind,
+  contributionLineLabel,
+  planRowDiffKind,
+  DELETE_CONTRIBUTION_DESCRIPTION,
+  DELETE_CONTRIBUTION_TITLE,
+  type PlanRowId,
+} from '@/features/plan/labels'
 import { transactionsHrefForMonth } from '@/features/plan/links'
 import {
   categoriesLinkedElsewhere,
   categoriesOfSource,
   selectAvailableLineCategories,
+  selectAvailableContributionAccounts,
   selectLinkableIncomeCategories,
+  usedLineAccountIds,
   usedLineCategoryIds,
+  CONTRIBUTION_LINE_KINDS,
   type CategoryLineKind,
+  type ContributionLineKind,
 } from '@/features/plan/mutations'
 import {
   buildAllocationPercentages,
@@ -206,6 +225,12 @@ export default function Plan() {
   // `null` = ninguno abierto; `'new'` = alta; un id = edicion de esa linea.
   const [editingLineId, setEditingLineId] = useState<string | null>(null)
   const [deletingLineId, setDeletingLineId] = useState<string | null>(null)
+  // Aportes: el tipo lo fija el botón pulsado; `lineId` es `'new'` al crear.
+  const [editingContribution, setEditingContribution] = useState<{
+    kind: ContributionLineKind
+    lineId: string
+  } | null>(null)
+  const [deletingContributionId, setDeletingContributionId] = useState<string | null>(null)
   const queryClient = useQueryClient()
 
   const { data: accounts = [] } = useAccounts()
@@ -233,6 +258,7 @@ export default function Plan() {
   const saveAllocations = useSaveAllocations()
   const savePlanLine = useSavePlanLine()
   const deletePlanLine = useDeletePlanLine()
+  const saveContributionLine = useSaveContributionLine()
 
   // Sin `plan_month_id` la consulta de fuentes queda deshabilitada, y una
   // consulta deshabilitada se queda en `pending` para siempre. Un mes sin plan
@@ -659,6 +685,49 @@ export default function Plan() {
     return zeroBudgetCategoryIds?.has(categoryId) ? 0 : null
   }
 
+  /*
+   * Aportes planeados. Solo con plan del mes: sin `plan_month_id` no hay dónde
+   * guardar una línea. Las cuentas ocupadas se calculan sobre todas las líneas
+   * del mes, porque U11 no distingue `kind`.
+   */
+  const usedAccountIds = usedLineAccountIds(planLines)
+  const accountById = new Map(accounts.map((account) => [account.id, account]))
+
+  function contributionPlanningFor(kind: ContributionLineKind): ContributionPlanning {
+    const lines = kind === 'savings' ? linePartition.savings : linePartition.investments
+
+    return {
+      lines: lines.map((line) => {
+        const account = line.account_id ? accountById.get(line.account_id) : undefined
+        return {
+          id: line.id,
+          name: line.name,
+          accountName: account?.name ?? 'Cuenta no disponible',
+          isAccountArchived: account?.is_archived ?? false,
+          plannedMinor: line.planned_minor ?? 0,
+        }
+      }),
+      hasActiveAccounts: accounts.some((account) => account.type === kind && !account.is_archived),
+      availableAccountCount: selectAvailableContributionAccounts(accounts, kind, usedAccountIds)
+        .length,
+      isBusy: saveContributionLine.isPending || deletePlanLine.isPending,
+      onAdd: () => setEditingContribution({ kind, lineId: 'new' }),
+      onEdit: (lineId) => setEditingContribution({ kind, lineId }),
+      onDelete: setDeletingContributionId,
+    }
+  }
+
+  const contributionPlanning = hasPlan
+    ? (Object.fromEntries(
+        CONTRIBUTION_LINE_KINDS.map((kind) => [kind, contributionPlanningFor(kind)]),
+      ) as Record<ContributionLineKind, ContributionPlanning>)
+    : undefined
+
+  const editingContributionLine =
+    editingContribution && editingContribution.lineId !== 'new'
+      ? planLines.find((line) => line.id === editingContribution.lineId)
+      : undefined
+
   const hasAllocation = model?.allocation.hasAllocation ?? false
 
   /**
@@ -775,6 +844,40 @@ export default function Plan() {
       reportPlanError(error, 'No se pudo eliminar la línea')
     } finally {
       setDeletingLineId(null)
+    }
+  }
+
+  async function handleSaveContributionLine(values: ContributionLineFormSubmit) {
+    if (!planMonthId || !editingContribution) return
+
+    try {
+      await saveContributionLine.mutateAsync({
+        planMonthId,
+        monthKey,
+        lineId: editingContributionLine?.id,
+        kind: editingContribution.kind,
+        name: values.name,
+        accountId: values.accountId,
+        plannedMinor: values.plannedMinor,
+        lines: planLines,
+      })
+      toast.success(editingContributionLine ? 'Aporte actualizado' : 'Aporte añadido')
+      setEditingContribution(null)
+    } catch (error) {
+      // El diálogo sigue abierto: si la cuenta se ocupó entre medias, el
+      // usuario tiene que poder elegir otra sin volver a escribirlo todo.
+      reportPlanError(error, 'No se pudo guardar el aporte')
+    }
+  }
+
+  async function handleDeleteContributionLine(lineId: string) {
+    try {
+      await deletePlanLine.mutateAsync({ lineId, monthKey })
+      toast.success('Aporte eliminado')
+    } catch (error) {
+      reportPlanError(error, 'No se pudo eliminar el aporte')
+    } finally {
+      setDeletingContributionId(null)
     }
   }
 
@@ -948,6 +1051,7 @@ export default function Plan() {
                 investment={model.contributions.investment}
                 balances={contributionBalancesQuery.data}
                 isBalanceError={contributionBalancesQuery.isError}
+                planning={contributionPlanning}
               />
 
               <BudgetVsActualTable
@@ -1038,6 +1142,67 @@ export default function Plan() {
           )}
         </DialogContent>
       </Dialog>
+
+      <Dialog
+        open={editingContribution !== null}
+        onOpenChange={(open) => !open && setEditingContribution(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {editingContributionLine
+                ? `Editar ${editingContributionLine.name}`
+                : editingContribution
+                  ? contributionLineLabel[editingContribution.kind].dialogTitleNew
+                  : ''}
+            </DialogTitle>
+          </DialogHeader>
+          {editingContribution !== null && (
+            <ContributionLineForm
+              key={`${editingContribution.kind}-${editingContribution.lineId}`}
+              kind={editingContribution.kind}
+              accounts={
+                editingContributionLine
+                  ? []
+                  : selectAvailableContributionAccounts(
+                      accounts,
+                      editingContribution.kind,
+                      usedAccountIds,
+                    )
+              }
+              defaultValues={
+                editingContributionLine
+                  ? {
+                      name: editingContributionLine.name,
+                      accountId: editingContributionLine.account_id ?? '',
+                      plannedMinor: editingContributionLine.planned_minor ?? 0,
+                    }
+                  : undefined
+              }
+              lockedAccountName={
+                editingContributionLine?.account_id
+                  ? (accountById.get(editingContributionLine.account_id)?.name ??
+                    'Cuenta no disponible')
+                  : undefined
+              }
+              submitLabel={editingContributionLine ? 'Guardar cambios' : 'Añadir aporte'}
+              isSubmitting={saveContributionLine.isPending}
+              onSubmit={handleSaveContributionLine}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <ConfirmDialog
+        open={deletingContributionId !== null}
+        onOpenChange={(open) => !open && setDeletingContributionId(null)}
+        title={DELETE_CONTRIBUTION_TITLE}
+        description={DELETE_CONTRIBUTION_DESCRIPTION}
+        confirmLabel="Eliminar"
+        onConfirm={() =>
+          deletingContributionId && handleDeleteContributionLine(deletingContributionId)
+        }
+      />
 
       <ConfirmDialog
         open={deletingLineId !== null}

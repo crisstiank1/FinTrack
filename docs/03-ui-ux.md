@@ -273,7 +273,8 @@ es un medio para pagar:** no inicia ni ejecuta ningún movimiento de dinero.
 - Reparto 50/30/20.
 - Reconciliación del presupuesto.
 - Facturas y gastos variables.
-- Ahorro e inversión: aportes del mes y saldo en cuentas al cierre del mes.
+- Ahorro e inversión: aportes del mes, aportes planeados y saldo en cuentas al
+  cierre del mes.
 - Cuadro Presupuesto vs. Actual.
 
 La deuda no tiene bloque de planificación propio: se planifica como cualquier
@@ -300,6 +301,15 @@ fila del cuadro Presupuesto vs. Actual.
   gastos. Los dos bloques van visualmente separados y la pantalla lo explica.
 - Aportes del mes y saldo en cuentas nunca comparten nombre; nunca «Total
   ahorrado», «Ahorrado» ni «Dinero disponible».
+- Los aportes planeados se crean, editan y borran **solo** desde su tarjeta de
+  «Ahorro e inversión» («Añadir aporte a ahorro» / «Añadir aporte a
+  inversión»), nunca desde «Facturas y gastos variables»: no son gasto. Cada
+  fila dice «{nombre} · {cuenta} · COP X», con «Archivada» si su cuenta se
+  archivó después. Sin plan del mes no hay lista ni botones.
+- Sin cuentas activas del tipo, en lugar del botón se dice «Necesitas una cuenta
+  de ahorro para planificar un aporte.» con enlace a Cuentas; con todas ya
+  ocupadas este mes, «Todas tus cuentas de ahorro ya tienen un aporte planeado
+  este mes.».
 - La reconciliación del presupuesto es plegable y nace plegada, con su titular
   visible; los demás bloques se muestran abiertos.
 - Compatible con ambos temas.

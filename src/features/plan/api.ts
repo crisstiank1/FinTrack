@@ -423,7 +423,52 @@ export async function updatePlanLine(
   return data
 }
 
-/** Borra una línea. No toca la categoría, su presupuesto ni sus movimientos. */
+/**
+ * Crea una línea de aporte, medida por cuenta.
+ *
+ * Misma escritura que `insertPlanLine`, pero traducida como aporte: aquí un
+ * `23505` es la cuenta ya usada este mes (U11) y un error del trigger habla de
+ * cuentas, no de categorías. La fila llega ya construida por
+ * `buildContributionLineRow`.
+ */
+export async function insertContributionLine(
+  row: TablesInsert<'plan_lines'>,
+): Promise<Tables<'plan_lines'>> {
+  const { data, error } = await supabase.from('plan_lines').insert(row).select().single()
+
+  if (error) throw toPlanError(error, 'save_contribution_line')
+  return data
+}
+
+/**
+ * Solo `name` y `planned_minor`, y el tipo del parámetro lo impone.
+ *
+ * Ni `account_id` ni `kind`, por las mismas razones que en `updatePlanLine`:
+ * T3 los trata como **estrenar** el destino y volvería a exigir una cuenta
+ * activa del tipo correcto, y cambiar de cuenta cambiaría en silencio qué
+ * transferencias mide el aporte. Corregir la cuenta o el tipo es borrar la
+ * línea y crear otra. El importe sí se edita: T3 no lo mira, así que se puede
+ * corregir aunque la cuenta se haya archivado después.
+ */
+export async function updateContributionLine(
+  id: string,
+  patch: Pick<TablesUpdate<'plan_lines'>, 'name' | 'planned_minor'>,
+): Promise<Tables<'plan_lines'>> {
+  const { data, error } = await supabase
+    .from('plan_lines')
+    .update(patch)
+    .eq('id', id)
+    .select()
+    .single()
+
+  if (error) throw toPlanError(error, 'save_contribution_line')
+  return data
+}
+
+/**
+ * Borra una línea, de gasto o de aporte. No toca la categoría, su presupuesto,
+ * la cuenta ni ningún movimiento.
+ */
 export async function deletePlanLine(id: string): Promise<void> {
   const { error } = await supabase.from('plan_lines').delete().eq('id', id)
   if (error) throw toPlanError(error, 'delete_plan_line')

@@ -1,6 +1,8 @@
+import { Pencil, Plus, Trash2 } from 'lucide-react'
 import { useId } from 'react'
 import { Link } from 'react-router-dom'
 
+import { Button } from '@/components/ui/button'
 import { formatAmount } from '@/lib/currency'
 import { getIcon } from '@/lib/icons'
 import { cn } from '@/lib/utils'
@@ -10,7 +12,9 @@ import {
   accountTypeBalanceCaption,
   balanceTone,
   contributionBlockLabel,
+  contributionLineLabel,
   formatContributionPlanned,
+  ARCHIVED_ACCOUNT_BADGE,
   BALANCE_ERROR_LABEL,
   BALANCE_LOADING_LABEL,
   SAVINGS_INVESTMENT_NOTE,
@@ -27,6 +31,29 @@ export interface ContributionFigures {
   plannedMinor: number | null
 }
 
+/** Línea de aporte tal como la pinta la tarjeta, con su cuenta ya resuelta. */
+export interface ContributionLineItem {
+  id: string
+  name: string
+  accountName: string
+  /** La cuenta se archivó después de crear la línea. */
+  isAccountArchived: boolean
+  plannedMinor: number
+}
+
+/** Lo necesario para planificar aportes de un tipo en el mes. */
+export interface ContributionPlanning {
+  lines: ContributionLineItem[]
+  /** Hay al menos una cuenta del tipo sin archivar. */
+  hasActiveAccounts: boolean
+  /** Cuentas del tipo sin archivar y sin aporte este mes (U11). */
+  availableAccountCount: number
+  isBusy?: boolean
+  onAdd: () => void
+  onEdit: (lineId: string) => void
+  onDelete: (lineId: string) => void
+}
+
 interface SavingsInvestmentPanelProps {
   currencyCode: string
   savings: ContributionFigures
@@ -34,6 +61,12 @@ interface SavingsInvestmentPanelProps {
   /** Saldos al cierre del mes; `undefined` mientras se calculan. */
   balances: ContributionBalances | undefined
   isBalanceError: boolean
+  /**
+   * Líneas de aporte y sus acciones, por tipo. `undefined` en un mes sin plan:
+   * sin `plan_month_id` no hay dónde guardar una línea, así que la tarjeta
+   * muestra solo aportes y saldo.
+   */
+  planning?: Record<ContributionAccountType, ContributionPlanning>
 }
 
 const ICON_KEY: Record<ContributionAccountType, string> = {
@@ -48,7 +81,11 @@ const TONE_STYLES: Record<PlanTone, string> = {
 }
 
 /**
- * Ahorro e inversión del mes, de solo lectura.
+ * Ahorro e inversión del mes.
+ *
+ * Las cifras son de solo lectura; lo único que se edita son los **aportes
+ * planeados**, líneas medidas por cuenta con importe propio. Viven aquí y no en
+ * «Facturas y gastos variables» porque no son gasto.
  *
  * Cada tarjeta separa dos cifras que no se pueden sumar entre sí: los
  * **aportes del mes**, que son transferencias registradas hacia cuentas de ese
@@ -65,6 +102,7 @@ export function SavingsInvestmentPanel({
   investment,
   balances,
   isBalanceError,
+  planning,
 }: SavingsInvestmentPanelProps) {
   const titleId = useId()
 
@@ -85,6 +123,7 @@ export function SavingsInvestmentPanel({
           asOfDate={balances?.asOfDate}
           isBalanceError={isBalanceError}
           currencyCode={currencyCode}
+          planning={planning?.savings}
         />
         <ContributionCard
           type="investment"
@@ -94,6 +133,7 @@ export function SavingsInvestmentPanel({
           asOfDate={balances?.asOfDate}
           isBalanceError={isBalanceError}
           currencyCode={currencyCode}
+          planning={planning?.investment}
         />
       </div>
     </section>
@@ -109,6 +149,7 @@ interface ContributionCardProps {
   asOfDate: string | undefined
   isBalanceError: boolean
   currencyCode: string
+  planning: ContributionPlanning | undefined
 }
 
 function ContributionCard({
@@ -119,6 +160,7 @@ function ContributionCard({
   asOfDate,
   isBalanceError,
   currencyCode,
+  planning,
 }: ContributionCardProps) {
   const titleId = useId()
   const labels = contributionBlockLabel[type]
@@ -149,6 +191,11 @@ function ContributionCard({
           <dd className="mt-1 text-xs text-muted-foreground">
             Planeado: {formatContributionPlanned(figures.plannedMinor, currencyCode)}
           </dd>
+          {planning && (
+            <dd className="mt-3">
+              <ContributionLines type={type} planning={planning} currencyCode={currencyCode} />
+            </dd>
+          )}
         </div>
 
         {/* Stock al cierre del mes. Sin cuentas no hay saldo: no se dice COP 0. */}
@@ -218,5 +265,102 @@ function BalanceFigure({ labels, balance, asOfDate, isError, currencyCode }: Bal
         {accountTypeBalanceCaption(asOfDate, balance.accountCount, balance.archivedCount)}
       </dd>
     </>
+  )
+}
+
+interface ContributionLinesProps {
+  type: ContributionAccountType
+  planning: ContributionPlanning
+  currencyCode: string
+}
+
+/**
+ * Aportes planeados de un tipo y la acción para añadir otro.
+ *
+ * Cada fila muestra solo lo planeado: el real se mide por tipo de cuenta y ya
+ * está arriba, en «Aportes del mes». La acción solo aparece cuando el servidor
+ * aceptaría una línea nueva; si no, se dice por qué con palabras.
+ */
+function ContributionLines({ type, planning, currencyCode }: ContributionLinesProps) {
+  const labels = contributionLineLabel[type]
+
+  return (
+    <div className="flex flex-col gap-2">
+      {planning.lines.length > 0 && (
+        <ul aria-label={labels.list} className="flex flex-col gap-1.5">
+          {planning.lines.map((line) => (
+            <li
+              key={line.id}
+              className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-sm"
+            >
+              <p className="min-w-0 flex-1 text-foreground">
+                <span className="font-medium">{line.name}</span>
+                <span className="text-muted-foreground"> · {line.accountName}</span>
+                <span className="tabular-nums">
+                  {' '}
+                  · {formatAmount(line.plannedMinor, currencyCode)}
+                </span>
+                {line.isAccountArchived && (
+                  <span className="ml-2 rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground">
+                    {ARCHIVED_ACCOUNT_BADGE}
+                  </span>
+                )}
+              </p>
+              <div className="flex items-center gap-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-8"
+                  onClick={() => planning.onEdit(line.id)}
+                  disabled={planning.isBusy}
+                  aria-label={`Editar ${line.name}`}
+                >
+                  <Pencil className="size-4" aria-hidden="true" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-8"
+                  onClick={() => planning.onDelete(line.id)}
+                  disabled={planning.isBusy}
+                  aria-label={`Eliminar ${line.name}`}
+                >
+                  <Trash2 className="size-4" aria-hidden="true" />
+                </Button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {!planning.hasActiveAccounts ? (
+        <p className="text-xs text-muted-foreground">
+          {labels.noAccounts}{' '}
+          <Link
+            to="/accounts"
+            className="font-medium text-primary underline-offset-4 hover:underline"
+          >
+            {contributionBlockLabel[type].createAccount}
+          </Link>
+        </p>
+      ) : planning.availableAccountCount === 0 ? (
+        <p className="text-xs text-muted-foreground">{labels.accountsExhausted}</p>
+      ) : (
+        <div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={planning.onAdd}
+            disabled={planning.isBusy}
+          >
+            <Plus className="size-4" aria-hidden="true" />
+            {labels.addButton}
+          </Button>
+        </div>
+      )}
+    </div>
   )
 }

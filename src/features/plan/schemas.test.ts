@@ -4,6 +4,7 @@ import { ALLOCATION_GROUPS } from './calculations/allocation'
 import {
   allocationFormSchema,
   buildPlanLineSchema,
+  contributionLineSchema,
   planIncomeSourceSchema,
   ALLOCATION_PRESET,
   ALLOCATION_SUM_ERROR,
@@ -277,5 +278,54 @@ describe('buildPlanLineSchema', () => {
       'kind',
       'name',
     ])
+  })
+})
+
+describe('contributionLineSchema', () => {
+  function parseContribution(values: Record<string, string> = {}) {
+    return contributionLineSchema.safeParse({
+      name: 'Fondo de emergencia',
+      accountId: 'acc-fondo',
+      plannedAmount: '500.000',
+      ...values,
+    })
+  }
+
+  it('acepta un aporte completo y convierte el importe a entero', () => {
+    const result = parseContribution()
+
+    expect(result.success && result.data).toEqual({
+      name: 'Fondo de emergencia',
+      accountId: 'acc-fondo',
+      plannedAmount: 500_000,
+    })
+  })
+
+  it('un importe de 0 es válido: se planea aportar cero', () => {
+    const result = parseContribution({ plannedAmount: '0' })
+
+    expect(result.success && result.data.plannedAmount).toBe(0)
+  })
+
+  it('el importe vacío es un error, no un 0', () => {
+    expect(parseContribution({ plannedAmount: '' }).success).toBe(false)
+  })
+
+  it('rechaza un importe negativo o no numérico', () => {
+    expect(parseContribution({ plannedAmount: '-100' }).success).toBe(false)
+    expect(parseContribution({ plannedAmount: 'abc' }).success).toBe(false)
+  })
+
+  it('exige una cuenta', () => {
+    const result = parseContribution({ accountId: '' })
+
+    expect(result.success).toBe(false)
+    expect(!result.success && result.error.issues[0].message).toBe('Elige una cuenta')
+  })
+
+  it('exige un nombre de 1 a 80 caracteres', () => {
+    expect(parseContribution({ name: '   ' }).success).toBe(false)
+    expect(parseContribution({ name: 'x'.repeat(81) }).success).toBe(false)
+    expect(parseContribution({ name: 'x'.repeat(80) }).success).toBe(true)
   })
 })

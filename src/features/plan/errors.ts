@@ -23,6 +23,7 @@ export type PlanOperation =
   | 'delete_income_source'
   | 'save_allocations'
   | 'save_plan_line'
+  | 'save_contribution_line'
   | 'delete_plan_line'
 
 export type PlanErrorCode =
@@ -44,6 +45,14 @@ export type PlanErrorCode =
   | 'category_archived'
   /** La categoría no existe, no es del usuario o dejó de estar visible. */
   | 'category_missing'
+  /** U11: esa cuenta ya tiene una línea de aporte en este mes. */
+  | 'line_account_taken'
+  /** T3: la cuenta de un aporte está archivada. */
+  | 'account_archived'
+  /** T3: la cuenta no es del tipo del aporte (ahorro o inversión). */
+  | 'account_wrong_type'
+  /** La cuenta no existe, no es del usuario o dejó de estar visible. */
+  | 'account_missing'
   /** La fila que se editaba o borraba ya no está. */
   | 'row_missing'
   /** CHECK del esquema: importe negativo o nombre fuera de rango. */
@@ -74,6 +83,12 @@ const MESSAGES: Record<PlanErrorCode, string> = {
   category_not_income: 'Solo puedes vincular categorías de ingreso.',
   category_archived: 'No se puede vincular una categoría archivada.',
   category_missing: 'Esa categoría ya no está disponible.',
+  line_account_taken:
+    'Esa cuenta ya tiene un aporte planeado este mes. Edita el que existe o elige otra cuenta.',
+  account_archived: 'No se puede planificar un aporte sobre una cuenta archivada.',
+  account_wrong_type:
+    'Un aporte a ahorro va a una cuenta de ahorro, y un aporte a inversión, a una cuenta de inversión.',
+  account_missing: 'Esa cuenta ya no está disponible.',
   row_missing: 'Lo que intentas modificar ya no existe. Refresca la pantalla.',
   invalid_input: 'Revisa el nombre y el monto: el monto debe ser un entero de cero o más.',
   allocation_sum: 'Los porcentajes deben sumar exactamente 100 %.',
@@ -143,6 +158,9 @@ const UNIQUE_VIOLATION: Record<PlanOperation, PlanErrorCode> = {
   // comparten SQLSTATE, así que lo resuelve `mapLineUniqueViolation` mirando el
   // texto, y este valor es su respaldo.
   save_plan_line: 'conflict',
+  // Igual que las líneas de gasto, U11 y U12 comparten SQLSTATE: lo resuelve
+  // `mapContributionUniqueViolation`, y este valor es su respaldo.
+  save_contribution_line: 'conflict',
   delete_plan_line: 'unknown',
 }
 
@@ -188,6 +206,44 @@ function mapTriggerMessage(message: string): PlanErrorCode {
   // T3 sobre `plan_lines`: «solo puede apuntar a categorías de gasto».
   if (text.includes('de gasto')) return 'category_not_expense'
   if (text.includes('no existe')) return 'category_missing'
+
+  return 'unknown'
+}
+
+/**
+ * Cuál de los dos índices únicos salta al guardar un aporte: U11
+ * —`(plan_month_id, account_id)`, la cuenta ya tiene aporte este mes— o U12
+ * —`(plan_month_id, position)`, otra pestaña insertó antes—. Mismo criterio y
+ * misma fragilidad que `mapLineUniqueViolation`: sin texto reconocible, cae a
+ * `conflict`.
+ */
+function mapContributionUniqueViolation(message: string): PlanErrorCode {
+  const text = message.toLowerCase()
+
+  if (text.includes('account')) return 'line_account_taken'
+
+  return 'conflict'
+}
+
+/**
+ * Los tres mensajes de T3 sobre la cuenta de un aporte, que llegan con el mismo
+ * `P0001`:
+ *
+ * - «No se puede planificar sobre una cuenta archivada.»
+ * - «Una línea de ahorro requiere una cuenta de tipo savings; …» (y su
+ *   equivalente de inversión).
+ * - «La cuenta indicada no existe o no pertenece al usuario.»
+ *
+ * Van aparte de `mapTriggerMessage` porque los fragmentos se parecen —«archivada»
+ * y «no existe» aparecen en los dos triggers— y la operación ya dice que se
+ * guardaba una cuenta, no una categoría. Sin texto reconocible, `unknown`.
+ */
+function mapContributionTriggerMessage(message: string): PlanErrorCode {
+  const text = message.toLowerCase()
+
+  if (text.includes('archivada')) return 'account_archived'
+  if (text.includes('requiere una cuenta de tipo')) return 'account_wrong_type'
+  if (text.includes('no existe')) return 'account_missing'
 
   return 'unknown'
 }
@@ -258,22 +314,31 @@ export function toPlanError(error: unknown, operation: PlanOperation): PlanError
       // mapeo—. Zod debería haberlo atajado antes; esto cubre una petición
       // antigua, dos pestañas o una regresión del cliente.
       if (operation === 'save_allocations') return new PlanError('allocation_sum')
+      if (operation === 'save_contribution_line') {
+        return new PlanError(mapContributionTriggerMessage(error.message ?? ''))
+      }
       return new PlanError(mapTriggerMessage(error.message ?? ''))
 
     case '23505':
       if (operation === 'save_plan_line') {
         return new PlanError(mapLineUniqueViolation(error.message ?? ''))
       }
+      if (operation === 'save_contribution_line') {
+        return new PlanError(mapContributionUniqueViolation(error.message ?? ''))
+      }
       return new PlanError(UNIQUE_VIOLATION[operation])
 
     // Clave foránea compuesta. Al ser diferida puede llegar en el commit y no
-    // en la sentencia, pero el SQLSTATE es el mismo.
+    // en la sentencia, pero el SQLSTATE es el mismo. Un aporte apunta a una
+    // cuenta, no a una categoría.
     case '23503':
+      if (operation === 'save_contribution_line') return new PlanError('account_missing')
       return new PlanError('category_missing')
 
     // CHECK del esquema. Zod debería haberlos atajado antes; lo que cambia es
     // qué campos nombra el mensaje, y eso sí depende de qué se estaba
-    // guardando: una línea no tiene monto, y una fuente no tiene fecha.
+    // guardando: una línea de gasto no tiene monto, y una fuente no tiene
+    // fecha. Un aporte sí tiene nombre e importe, como una fuente.
     case '23514':
       if (operation === 'save_plan_line') return new PlanError('invalid_line')
       return new PlanError('invalid_input')

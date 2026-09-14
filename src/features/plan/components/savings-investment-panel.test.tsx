@@ -1,10 +1,11 @@
 import { render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import type { ContributionBalances } from '../hooks'
 
-import { SavingsInvestmentPanel } from './savings-investment-panel'
+import { SavingsInvestmentPanel, type ContributionPlanning } from './savings-investment-panel'
 
 const balances: ContributionBalances = {
   savings: { balanceMinor: 700_000, accountCount: 2, archivedCount: 0 },
@@ -196,5 +197,165 @@ describe('SavingsInvestmentPanel', () => {
     for (const forbidden of ['Total ahorrado', 'Ahorrado', 'ahorrado', 'Dinero disponible']) {
       expect(text).not.toContain(forbidden)
     }
+  })
+})
+
+describe('SavingsInvestmentPanel — aportes planeados', () => {
+  function planningFor(overrides: Partial<ContributionPlanning> = {}): ContributionPlanning {
+    return {
+      lines: [],
+      hasActiveAccounts: true,
+      availableAccountCount: 1,
+      onAdd: vi.fn(),
+      onEdit: vi.fn(),
+      onDelete: vi.fn(),
+      ...overrides,
+    }
+  }
+
+  const fondo = {
+    id: 'line-fondo',
+    name: 'Fondo de emergencia',
+    accountName: 'Fondo',
+    isAccountArchived: false,
+    plannedMinor: 400_000,
+  }
+
+  it('sin plan no hay lista ni botones: solo aportes y saldo', () => {
+    renderPanel()
+
+    expect(within(block()).queryByRole('button')).not.toBeInTheDocument()
+    expect(within(block()).queryByRole('list')).not.toBeInTheDocument()
+  })
+
+  it('lista cada aporte con nombre, cuenta e importe planeado', () => {
+    renderPanel({
+      planning: {
+        savings: planningFor({
+          lines: [
+            fondo,
+            { ...fondo, id: 'line-cero', name: 'Viaje', accountName: 'Reserva', plannedMinor: 0 },
+          ],
+        }),
+        investment: planningFor(),
+      },
+    })
+
+    const lista = within(card('Ahorro')).getByRole('list', { name: 'Aportes a ahorro planeados' })
+    const filas = within(lista)
+      .getAllByRole('listitem')
+      .map((item) => within(item).getByText((_, element) => element?.tagName === 'P').textContent)
+
+    expect(filas).toEqual(['Fondo de emergencia · Fondo · COP 400.000', 'Viaje · Reserva · COP 0'])
+  })
+
+  it('marca como archivada la cuenta de una línea que ya existía', () => {
+    renderPanel({
+      planning: {
+        savings: planningFor({ lines: [{ ...fondo, isAccountArchived: true }] }),
+        investment: planningFor(),
+      },
+    })
+
+    const fila = within(card('Ahorro')).getByRole('listitem')
+    expect(within(fila).getByText('Archivada')).toBeInTheDocument()
+  })
+
+  it('el botón añade un aporte del tipo de su tarjeta', async () => {
+    const savings = planningFor()
+    const investment = planningFor()
+    const user = userEvent.setup()
+    renderPanel({ planning: { savings, investment } })
+
+    await user.click(within(card('Ahorro')).getByRole('button', { name: 'Añadir aporte a ahorro' }))
+    await user.click(
+      within(card('Inversión')).getByRole('button', { name: 'Añadir aporte a inversión' }),
+    )
+
+    expect(savings.onAdd).toHaveBeenCalledTimes(1)
+    expect(investment.onAdd).toHaveBeenCalledTimes(1)
+  })
+
+  it('editar y eliminar actúan sobre su línea', async () => {
+    const savings = planningFor({ lines: [fondo] })
+    const user = userEvent.setup()
+    renderPanel({ planning: { savings, investment: planningFor() } })
+
+    await user.click(
+      within(card('Ahorro')).getByRole('button', { name: 'Editar Fondo de emergencia' }),
+    )
+    await user.click(
+      within(card('Ahorro')).getByRole('button', { name: 'Eliminar Fondo de emergencia' }),
+    )
+
+    expect(savings.onEdit).toHaveBeenCalledWith('line-fondo')
+    expect(savings.onDelete).toHaveBeenCalledWith('line-fondo')
+  })
+
+  it('sin cuentas activas del tipo no hay botón: se dice qué falta y se enlaza a Cuentas', () => {
+    renderPanel({
+      planning: {
+        savings: planningFor(),
+        investment: planningFor({ hasActiveAccounts: false, availableAccountCount: 0 }),
+      },
+    })
+
+    const inversion = card('Inversión')
+    expect(
+      within(inversion).queryByRole('button', { name: /Añadir aporte/ }),
+    ).not.toBeInTheDocument()
+    expect(
+      within(inversion).getByText(/Necesitas una cuenta de inversión para planificar un aporte\./),
+    ).toBeInTheDocument()
+    const enlaces = within(inversion).getAllByRole('link', {
+      name: 'Crear una cuenta de inversión',
+    })
+    expect(enlaces.length).toBeGreaterThan(0)
+    for (const enlace of enlaces) expect(enlace).toHaveAttribute('href', '/accounts')
+  })
+
+  it('con todas las cuentas del tipo ocupadas este mes no hay botón (U11)', () => {
+    renderPanel({
+      planning: {
+        savings: planningFor({ lines: [fondo], availableAccountCount: 0 }),
+        investment: planningFor(),
+      },
+    })
+
+    const ahorro = card('Ahorro')
+    expect(within(ahorro).queryByRole('button', { name: /Añadir aporte/ })).not.toBeInTheDocument()
+    expect(
+      within(ahorro).getByText(
+        'Todas tus cuentas de ahorro ya tienen un aporte planeado este mes.',
+      ),
+    ).toBeInTheDocument()
+  })
+
+  it('mientras se guarda o borra, las acciones se deshabilitan', () => {
+    renderPanel({
+      planning: {
+        savings: planningFor({ lines: [fondo], isBusy: true }),
+        investment: planningFor(),
+      },
+    })
+
+    for (const button of within(card('Ahorro')).getAllByRole('button')) {
+      expect(button).toBeDisabled()
+    }
+  })
+
+  it('las líneas de aporte no cambian las cifras de la tarjeta', () => {
+    renderPanel({
+      planning: { savings: planningFor({ lines: [fondo] }), investment: planningFor() },
+    })
+
+    expect(figure(card('Ahorro'), 'Aportes a ahorro del mes').slice(0, 2)).toEqual([
+      'COP 500.000',
+      'Planeado: Sin aportes planeados',
+    ])
+    expect(figure(card('Ahorro'), 'Saldo en cuentas de ahorro')).toEqual([
+      'COP 700.000',
+      'Al 30 de septiembre de 2026 · 2 cuentas',
+    ])
   })
 })

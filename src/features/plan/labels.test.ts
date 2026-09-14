@@ -9,6 +9,14 @@ import {
   allocationGroupLabel,
   balanceTone,
   contributionBlockLabel,
+  contributionLineLabel,
+  lockedContributionAccountLabel,
+  ARCHIVED_ACCOUNT_BADGE,
+  CONTRIBUTION_LINE_AMOUNT_LABEL,
+  CONTRIBUTION_LINE_NAME_LABEL,
+  CONTRIBUTION_LINE_NAME_PLACEHOLDER,
+  DELETE_CONTRIBUTION_DESCRIPTION,
+  DELETE_CONTRIBUTION_TITLE,
   diffStatusLabel,
   diffStatusTone,
   formatDiff,
@@ -582,5 +590,57 @@ describe('ahorro e inversión', () => {
       expect(balanceTone(0)).toBe('neutral')
       expect(balanceTone(700_000)).toBe('neutral')
     })
+  })
+})
+
+describe('líneas de aporte', () => {
+  it('usa los textos aprobados para cada tipo', () => {
+    expect(contributionLineLabel).toEqual({
+      savings: {
+        list: 'Aportes a ahorro planeados',
+        addButton: 'Añadir aporte a ahorro',
+        dialogTitleNew: 'Nuevo aporte a ahorro',
+        accountField: 'Cuenta de ahorro',
+        noAccounts: 'Necesitas una cuenta de ahorro para planificar un aporte.',
+        accountsExhausted: 'Todas tus cuentas de ahorro ya tienen un aporte planeado este mes.',
+      },
+      investment: {
+        list: 'Aportes a inversión planeados',
+        addButton: 'Añadir aporte a inversión',
+        dialogTitleNew: 'Nuevo aporte a inversión',
+        accountField: 'Cuenta de inversión',
+        noAccounts: 'Necesitas una cuenta de inversión para planificar un aporte.',
+        accountsExhausted: 'Todas tus cuentas de inversión ya tienen un aporte planeado este mes.',
+      },
+    })
+  })
+
+  it('campos, marca de archivada y borrado', () => {
+    expect(CONTRIBUTION_LINE_NAME_LABEL).toBe('Nombre')
+    expect(CONTRIBUTION_LINE_NAME_PLACEHOLDER).toBe('Ej. Fondo de emergencia')
+    expect(CONTRIBUTION_LINE_AMOUNT_LABEL).toBe('Importe planeado')
+    expect(ARCHIVED_ACCOUNT_BADGE).toBe('Archivada')
+    expect(DELETE_CONTRIBUTION_TITLE).toBe('Eliminar aporte')
+    expect(DELETE_CONTRIBUTION_DESCRIPTION).toBe(
+      'Se eliminará el aporte planeado. La cuenta y sus movimientos no se tocan.',
+    )
+  })
+
+  it('al editar, la cuenta se enuncia y se dice cómo cambiarla', () => {
+    expect(lockedContributionAccountLabel('Fondo')).toBe(
+      'Cuenta: Fondo. Para cambiarla, elimina el aporte y crea otro.',
+    )
+  })
+
+  it('siempre hablan de aportes, nunca de gasto ni de «Total ahorrado»', () => {
+    const texts = [
+      ...Object.values(contributionLineLabel).flatMap((labels) => Object.values(labels)),
+      DELETE_CONTRIBUTION_TITLE,
+      DELETE_CONTRIBUTION_DESCRIPTION,
+    ]
+
+    for (const text of texts) {
+      expect(text).not.toMatch(/gasto|Total ahorrado/i)
+    }
   })
 })

@@ -275,6 +275,38 @@ Las líneas `bill` y `variable` son **descriptivas**: aportan nombre,
 agrupación, fecha esperada y estado. No aportan una cifra. La cifra está en
 `budgets` y solo ahí.
 
+### Líneas de aporte en la interfaz
+
+Las líneas `savings` e `investment` **sí** llevan cifra: su importe planeado
+vive en la propia línea. En `/plan` se gestionan desde la tarjeta de su tipo en
+el bloque «Ahorro e inversión», y solo con plan del mes:
+
+- **Crear.** El botón fija el tipo. El formulario pide nombre (obligatorio, sin
+  valor por defecto), cuenta e importe planeado. El selector ofrece solo cuentas
+  del tipo, sin archivar y sin aporte este mes: exactamente lo que T3 y U11
+  aceptan. Una cuenta tiene como mucho un aporte al mes; varias líneas del mismo
+  tipo exigen cuentas distintas.
+- **Editar.** Solo nombre e importe. Ni la cuenta ni el tipo: T3 los trata como
+  estrenar el destino, y cambiar de cuenta cambiaría qué transferencias se
+  miden. Corregirlos es borrar la línea y crear otra. El importe se puede
+  corregir aunque la cuenta se haya archivado después.
+- **Borrar.** «Se eliminará el aporte planeado. La cuenta y sus movimientos no se
+  tocan.»
+- **Importe 0.** Válido: se muestra «COP 0» y suma 0 a Asignado; nunca «Sin
+  aportes planeados».
+- **Efecto.** `ahorroPlan` e `inversionPlan` suben al momento, y con ellos
+  Asignado, Por asignar, el Restante planeado, «Planificado por cuenta» de la
+  reconciliación y las filas Ahorro e Inversión del cuadro.
+- **Errores.** U11 y los mensajes de T3 sobre la cuenta se traducen como errores
+  de cuenta («Esa cuenta ya tiene un aporte planeado este mes…», «No se puede
+  planificar un aporte sobre una cuenta archivada.»), nunca como errores de
+  categoría.
+
+Límites conocidos de esta entrega: cada fila muestra solo lo planeado, porque
+el real se mide por tipo de cuenta y no por cuenta ni por línea; y si una
+cuenta cambia de tipo después de crear su aporte, la línea sigue contando por
+su `kind` mientras el real deja de medir esa cuenta.
+
 ---
 
 ## Restricciones

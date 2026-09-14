@@ -27,6 +27,7 @@ const usePlanContributionBalances = vi.fn()
 const useZeroBudgetCategoryIds = vi.fn()
 const savePlanLine = vi.fn()
 const deletePlanLine = vi.fn()
+const saveContributionLine = vi.fn()
 
 vi.mock('@/features/plan/hooks', () => ({
   usePlanMonth: () => usePlanMonth(),
@@ -46,6 +47,7 @@ vi.mock('@/features/plan/hooks', () => ({
   useZeroBudgetCategoryIds: (monthKey: unknown) => useZeroBudgetCategoryIds(monthKey),
   useSavePlanLine: () => ({ mutateAsync: savePlanLine, isPending: false }),
   useDeletePlanLine: () => ({ mutateAsync: deletePlanLine, isPending: false }),
+  useSaveContributionLine: () => ({ mutateAsync: saveContributionLine, isPending: false }),
 }))
 
 vi.mock('@/features/categories/hooks', () => ({
@@ -66,7 +68,7 @@ vi.mock('sonner', () => ({
 }))
 
 vi.mock('@/features/accounts/hooks', () => ({
-  useAccounts: () => ({ data: [{ id: 'acc-1', currency_code: 'COP' }] }),
+  useAccounts: () => ({ data: planAccounts }),
 }))
 
 const toastError = vi.fn()
@@ -75,6 +77,19 @@ const toastSuccess = vi.fn()
 const CAT_RENT = 'cat-rent'
 const CAT_FOOD = 'cat-food'
 const CAT_LOAN = 'cat-loan'
+const ACC_SAVINGS = 'acc-ahorro'
+
+/**
+ * Cuentas del usuario. La primera fija la moneda de presentación; la de ahorro
+ * alimenta la línea de aporte del fixture; la archivada no se ofrece para
+ * aportes nuevos. No hay ninguna de inversión.
+ */
+const planAccounts = [
+  { id: 'acc-1', name: 'Banco', type: 'checking', is_archived: false, currency_code: 'COP' },
+  { id: ACC_SAVINGS, name: 'Fondo', type: 'savings', is_archived: false, currency_code: 'COP' },
+  { id: 'acc-reserva', name: 'Reserva', type: 'savings', is_archived: false, currency_code: 'COP' },
+  { id: 'acc-vieja', name: 'Vieja', type: 'savings', is_archived: true, currency_code: 'COP' },
+] as Tables<'accounts'>[]
 
 /** Estado de una consulta resuelta con éxito. */
 function resolved<T>(data: T) {
@@ -106,6 +121,7 @@ const lines = [
     id: 'l3',
     kind: 'savings',
     category_id: null,
+    account_id: ACC_SAVINGS,
     planned_minor: 400_000,
     name: 'Ahorro',
     due_date: null,
@@ -244,6 +260,8 @@ beforeEach(() => {
   savePlanLine.mockResolvedValue(undefined)
   deletePlanLine.mockReset()
   deletePlanLine.mockResolvedValue(undefined)
+  saveContributionLine.mockReset()
+  saveContributionLine.mockResolvedValue(undefined)
   toastError.mockClear()
   toastSuccess.mockClear()
 })
@@ -1390,6 +1408,208 @@ describe('Plan', () => {
       renderPlan()
 
       expect(rowCells('No planeado')[0]).toBe('Sin presupuesto')
+    })
+  })
+
+  describe('aportes planeados', () => {
+    function savingsCard(): HTMLElement {
+      const block = screen.getByRole('region', { name: 'Ahorro e inversión' })
+      return within(block).getByRole('region', { name: 'Ahorro' })
+    }
+
+    function investmentCard(): HTMLElement {
+      const block = screen.getByRole('region', { name: 'Ahorro e inversión' })
+      return within(block).getByRole('region', { name: 'Inversión' })
+    }
+
+    function summaryCard(name: string): HTMLElement {
+      const summary = screen.getByRole('region', { name: 'Resumen del mes' })
+      const card = within(summary).getByRole('heading', { name }).closest('section')
+      if (!card) throw new Error(`No se encontró la tarjeta «${name}»`)
+      return card
+    }
+
+    it('lista la línea de aporte del mes en su tarjeta, con cuenta e importe', () => {
+      renderPlan()
+
+      const lista = within(savingsCard()).getByRole('list', { name: 'Aportes a ahorro planeados' })
+      expect(within(lista).getByRole('listitem')).toHaveTextContent('Ahorro · Fondo · COP 400.000')
+    })
+
+    it('no mezcla los aportes con las facturas y los gastos variables', () => {
+      renderPlan()
+
+      const lineas = screen.getByRole('region', { name: 'Facturas y gastos variables' })
+      expect(within(lineas).queryByText('Ahorro')).not.toBeInTheDocument()
+      expect(within(lineas).queryByText(/Fondo/)).not.toBeInTheDocument()
+    })
+
+    it('ofrece añadir aportes a ahorro y explica por qué no a inversión', () => {
+      renderPlan()
+
+      expect(
+        within(savingsCard()).getByRole('button', { name: 'Añadir aporte a ahorro' }),
+      ).toBeInTheDocument()
+      expect(
+        within(investmentCard()).queryByRole('button', { name: /Añadir aporte/ }),
+      ).not.toBeInTheDocument()
+      expect(
+        within(investmentCard()).getByText(
+          /Necesitas una cuenta de inversión para planificar un aporte\./,
+        ),
+      ).toBeInTheDocument()
+    })
+
+    it('crea un aporte con su tipo, la cuenta elegida y el importe', async () => {
+      const user = userEvent.setup()
+      renderPlan()
+
+      await user.click(
+        within(savingsCard()).getByRole('button', { name: 'Añadir aporte a ahorro' }),
+      )
+
+      const dialog = await screen.findByRole('dialog')
+      expect(
+        within(dialog).getByRole('heading', { name: 'Nuevo aporte a ahorro' }),
+      ).toBeInTheDocument()
+
+      // Fondo ya tiene aporte, Vieja está archivada y Banco no es de ahorro.
+      const selector = within(dialog).getByLabelText('Cuenta de ahorro')
+      expect(
+        within(selector)
+          .getAllByRole('option')
+          .map((option) => option.textContent),
+      ).toEqual(['Selecciona una cuenta', 'Reserva'])
+
+      await user.type(within(dialog).getByLabelText('Nombre'), 'Colchón')
+      await user.selectOptions(selector, 'acc-reserva')
+      await user.type(within(dialog).getByLabelText('Importe planeado'), '150.000')
+      await user.click(within(dialog).getByRole('button', { name: 'Añadir aporte' }))
+
+      await waitFor(() => expect(saveContributionLine).toHaveBeenCalled())
+      expect(saveContributionLine.mock.calls[0][0]).toMatchObject({
+        planMonthId: 'plan-month-1',
+        monthKey: currentMonthKey(),
+        lineId: undefined,
+        kind: 'savings',
+        name: 'Colchón',
+        accountId: 'acc-reserva',
+        plannedMinor: 150_000,
+        lines,
+      })
+      expect(toastSuccess).toHaveBeenCalledWith('Aporte añadido')
+    })
+
+    it('al editar solo cambia nombre e importe, con la cuenta fija', async () => {
+      const user = userEvent.setup()
+      renderPlan()
+
+      await user.click(within(savingsCard()).getByRole('button', { name: 'Editar Ahorro' }))
+
+      const dialog = await screen.findByRole('dialog')
+      expect(within(dialog).getByRole('heading', { name: 'Editar Ahorro' })).toBeInTheDocument()
+      expect(within(dialog).queryByLabelText('Cuenta de ahorro')).not.toBeInTheDocument()
+      expect(
+        within(dialog).getByText('Cuenta: Fondo. Para cambiarla, elimina el aporte y crea otro.'),
+      ).toBeInTheDocument()
+
+      const importe = within(dialog).getByLabelText('Importe planeado')
+      await user.clear(importe)
+      await user.type(importe, '0')
+      await user.click(within(dialog).getByRole('button', { name: 'Guardar cambios' }))
+
+      await waitFor(() => expect(saveContributionLine).toHaveBeenCalled())
+      expect(saveContributionLine.mock.calls[0][0]).toMatchObject({
+        lineId: 'l3',
+        name: 'Ahorro',
+        plannedMinor: 0,
+      })
+      expect(savePlanLine).not.toHaveBeenCalled()
+    })
+
+    it('borrar pide confirmación con el texto de aporte, no el de gasto', async () => {
+      const user = userEvent.setup()
+      renderPlan()
+
+      await user.click(within(savingsCard()).getByRole('button', { name: 'Eliminar Ahorro' }))
+
+      expect(screen.getByText('Eliminar aporte')).toBeInTheDocument()
+      expect(
+        screen.getByText(
+          'Se eliminará el aporte planeado. La cuenta y sus movimientos no se tocan.',
+        ),
+      ).toBeInTheDocument()
+      expect(screen.queryByText(/No planeado»/)).not.toBeInTheDocument()
+      expect(deletePlanLine).not.toHaveBeenCalled()
+
+      await user.click(screen.getByRole('button', { name: 'Eliminar' }))
+
+      await waitFor(() =>
+        expect(deletePlanLine).toHaveBeenCalledWith({ lineId: 'l3', monthKey: currentMonthKey() }),
+      )
+      expect(toastSuccess).toHaveBeenCalledWith('Aporte eliminado')
+    })
+
+    it('el aporte planeado suma a Asignado, resta de Por asignar y llena el cuadro', () => {
+      const { unmount } = renderPlan()
+
+      // 810.000 de presupuestos por categoría + 400.000 del aporte planeado.
+      expect(
+        within(summaryCard('Presupuesto asignado')).getByText('COP 1.210.000'),
+      ).toBeInTheDocument()
+      expect(within(summaryCard('Por asignar')).getByText('COP 190.000')).toBeInTheDocument()
+      expect(rowCells('Ahorro')[0]).toBe('COP 400.000')
+      unmount()
+
+      usePlanLines.mockReturnValue(resolved(lines.filter((line) => line.kind !== 'savings')))
+      renderPlan()
+
+      expect(
+        within(summaryCard('Presupuesto asignado')).getByText('COP 810.000'),
+      ).toBeInTheDocument()
+      expect(within(summaryCard('Por asignar')).getByText('COP 590.000')).toBeInTheDocument()
+      expect(rowCells('Ahorro')[0]).toBe('Sin aportes planeados')
+    })
+
+    it('un aporte planeado de 0 se muestra como COP 0 y no como ausencia', () => {
+      usePlanLines.mockReturnValue(
+        resolved(
+          lines.map((line) => (line.kind === 'savings' ? { ...line, planned_minor: 0 } : line)),
+        ),
+      )
+      renderPlan()
+
+      expect(rowCells('Ahorro')[0]).toBe('COP 0')
+      expect(within(savingsCard()).getByText('Planeado: COP 0')).toBeInTheDocument()
+    })
+
+    it('un error de cuenta se muestra traducido y el diálogo sigue abierto', async () => {
+      saveContributionLine.mockRejectedValue(new PlanError('line_account_taken'))
+      const user = userEvent.setup()
+      renderPlan()
+
+      await user.click(within(savingsCard()).getByRole('button', { name: 'Editar Ahorro' }))
+      const dialog = await screen.findByRole('dialog')
+      await user.click(within(dialog).getByRole('button', { name: 'Guardar cambios' }))
+
+      await waitFor(() => expect(toastError).toHaveBeenCalled())
+      const [fallback, options] = toastError.mock.calls[0] as [string, { description?: string }]
+      expect(fallback).toBe('No se pudo guardar el aporte')
+      expect(options.description).toBe(
+        'Esa cuenta ya tiene un aporte planeado este mes. Edita el que existe o elige otra cuenta.',
+      )
+      expect(`${fallback} ${options.description}`).not.toMatch(/categor|23505|_key/i)
+      expect(screen.getByRole('dialog')).toBeInTheDocument()
+      expect(toastSuccess).not.toHaveBeenCalled()
+    })
+
+    it('en un mes sin plan no se ofrece añadir aportes', () => {
+      usePlanMonth.mockReturnValue(resolved(null))
+      usePlanLines.mockReturnValue(resolved([]))
+      renderPlan()
+
+      expect(screen.queryByRole('button', { name: /Añadir aporte/ })).not.toBeInTheDocument()
+      expect(screen.queryByRole('list', { name: /Aportes a/ })).not.toBeInTheDocument()
     })
   })
 

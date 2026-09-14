@@ -11,7 +11,9 @@ import {
   fetchPlanLines,
   fetchPlanMonth,
   fetchTransactionsByAccounts,
+  insertContributionLine,
   insertPlanLine,
+  updateContributionLine,
   updatePlanLine,
 } from './api'
 import { PlanError } from './errors'
@@ -469,6 +471,76 @@ describe('updatePlanLine', () => {
     await updatePlanLine('line-1', { name: 'Arriendo', due_date: null })
 
     expect(calls).toContainEqual({ method: 'eq', args: ['id', 'line-1'] })
+  })
+})
+
+describe('insertContributionLine', () => {
+  const row = {
+    user_id: USER_ID,
+    plan_month_id: PLAN_MONTH_ID,
+    period_month: FIRST_DAY,
+    kind: 'savings',
+    name: 'Fondo de emergencia',
+    account_id: 'acc-fondo',
+    planned_minor: 500_000,
+    position: 0,
+  }
+
+  it('inserta la fila tal como la construyó mutations, sin completarla', async () => {
+    const { calls, tables } = mockQueries({ data: { id: 'line-1' }, error: null })
+
+    await insertContributionLine(row)
+
+    expect(tables).toEqual(['plan_lines'])
+    expect(rows(calls, 'insert')).toEqual([[row]])
+  })
+
+  it('traduce la cuenta ya usada este mes como aporte, no como categoría', async () => {
+    mockQueries({
+      data: null,
+      error: {
+        code: '23505',
+        message:
+          'duplicate key value violates unique constraint "plan_lines_plan_month_id_account_id_key"',
+      },
+    })
+
+    await expect(insertContributionLine(row)).rejects.toMatchObject({ code: 'line_account_taken' })
+  })
+})
+
+describe('updateContributionLine', () => {
+  it('envía solo name y planned_minor', async () => {
+    const { calls } = mockQueries({ data: { id: 'line-1' }, error: null })
+
+    await updateContributionLine('line-1', { name: 'Fondo', planned_minor: 0 })
+
+    const [[patch]] = rows(calls, 'update') as [Record<string, unknown>][]
+
+    expect(patch).toEqual({ name: 'Fondo', planned_minor: 0 })
+    expect(patch).not.toHaveProperty('account_id')
+    expect(patch).not.toHaveProperty('kind')
+    expect(patch).not.toHaveProperty('category_id')
+    expect(patch).not.toHaveProperty('position')
+  })
+
+  it('localiza la fila por su identificador', async () => {
+    const { calls } = mockQueries({ data: { id: 'line-1' }, error: null })
+
+    await updateContributionLine('line-1', { name: 'Fondo', planned_minor: 1 })
+
+    expect(calls).toContainEqual({ method: 'eq', args: ['id', 'line-1'] })
+  })
+
+  it('traduce un error del trigger como error de cuenta', async () => {
+    mockQueries({
+      data: null,
+      error: { code: 'P0001', message: 'No se puede planificar sobre una cuenta archivada.' },
+    })
+
+    await expect(
+      updateContributionLine('line-1', { name: 'Fondo', planned_minor: 1 }),
+    ).rejects.toMatchObject({ code: 'account_archived' })
   })
 })
 

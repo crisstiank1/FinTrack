@@ -22,10 +22,12 @@ import {
   fetchPlanMonth,
   fetchTransactionsByAccounts,
   deletePlanLine,
+  insertContributionLine,
   insertPlanAllocations,
   insertPlanIncomeSource,
   insertPlanIncomeSourceCategories,
   insertPlanLine,
+  updateContributionLine,
   updatePlanIncomeSource,
   updatePlanLine,
   upsertPlanAllocations,
@@ -44,11 +46,13 @@ import {
 import { PlanError } from './errors'
 import {
   buildAllocationRows,
+  buildContributionLineRow,
   buildPlanLineRow,
   diffIncomeSourceCategories,
   nextPosition,
   type AllocationPercentInput,
   type CategoryLineKind,
+  type ContributionLineKind,
   type PositionedRow,
 } from './mutations'
 import {
@@ -807,6 +811,61 @@ export function useSavePlanLine() {
           name: input.name,
           categoryId: input.categoryId,
           dueDate: input.dueDate,
+          lines: input.lines,
+        }),
+      )
+    },
+    onSuccess: (_data, input) => {
+      queryClient.invalidateQueries({ queryKey: planLinesQueryKey(user?.id, input.monthKey) })
+    },
+  })
+}
+
+export interface SaveContributionLineInput {
+  planMonthId: string
+  monthKey: string
+  /** `undefined` al crear; el identificador de la línea al editar. */
+  lineId?: string
+  kind: ContributionLineKind
+  name: string
+  accountId: string
+  plannedMinor: number
+  /** Todas las líneas del mes ya cargadas, para elegir la siguiente posición. */
+  lines: PositionedRow[]
+}
+
+/**
+ * Crea o edita una línea de aporte a ahorro o inversión.
+ *
+ * Al editar se manda **solo** nombre e importe; ni la cuenta ni el tipo viajan,
+ * por las razones que documenta `updateContributionLine`.
+ *
+ * Invalida solo las líneas del mes, como `useSavePlanLine`. Asignado, Por
+ * asignar, la reconciliación y el cuadro se recalculan solos, porque derivan de
+ * esa misma consulta.
+ */
+export function useSaveContributionLine() {
+  const { user } = useAuth()
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (input: SaveContributionLineInput) => {
+      if (input.lineId) {
+        return updateContributionLine(input.lineId, {
+          name: input.name,
+          planned_minor: input.plannedMinor,
+        })
+      }
+
+      return insertContributionLine(
+        buildContributionLineRow({
+          userId: user!.id,
+          planMonthId: input.planMonthId,
+          periodMonth: monthRange(input.monthKey).start,
+          kind: input.kind,
+          name: input.name,
+          accountId: input.accountId,
+          plannedMinor: input.plannedMinor,
           lines: input.lines,
         }),
       )
