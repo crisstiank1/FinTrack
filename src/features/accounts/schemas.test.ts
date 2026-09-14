@@ -6,13 +6,19 @@ import { ACCOUNT_TYPES, accountSchema, accountTypeOptions } from './schemas'
 
 const validAccount = {
   name: 'Cuenta de prueba',
+  type: 'cash',
   initialBalance: 0,
   currencyCode: 'COP',
   icon: 'wallet',
   color: '#E83E8C',
 }
 
-const validDraft = { name: 'Cuenta de prueba', initialBalance: 0 }
+const validDraft = {
+  name: 'Cuenta de prueba',
+  type: 'cash',
+  initialBalance: 0,
+  currencyCode: 'COP',
+}
 
 describe('accountSchema — tipo', () => {
   it('acepta investment', () => {
@@ -33,6 +39,28 @@ describe('accountSchema — tipo', () => {
   })
 })
 
+describe('accountSchema — moneda', () => {
+  it('acepta las monedas del catálogo seleccionable', () => {
+    for (const currencyCode of ['COP', 'USD', 'ARS']) {
+      expect(accountSchema.safeParse({ ...validAccount, currencyCode }).success).toBe(true)
+    }
+  })
+
+  it('acepta EUR al editar una cuenta heredada', () => {
+    expect(accountSchema.safeParse({ ...validAccount, currencyCode: 'EUR' })).toMatchObject({
+      success: true,
+      data: { currencyCode: 'EUR' },
+    })
+  })
+
+  it('rechaza una moneda desconocida', () => {
+    expect(accountSchema.safeParse({ ...validAccount, currencyCode: 'PEN' })).toMatchObject({
+      success: false,
+      error: expect.anything(),
+    })
+  })
+})
+
 describe('draftAccountSchema — tipo', () => {
   it('acepta investment', () => {
     expect(draftAccountSchema.safeParse({ ...validDraft, type: 'investment' })).toMatchObject({
@@ -47,6 +75,26 @@ describe('draftAccountSchema — tipo', () => {
 
   it('admite exactamente los mismos tipos que accountSchema', () => {
     expect(draftAccountSchema.shape.type.options).toEqual(accountSchema.shape.type.options)
+  })
+})
+
+describe('draftAccountSchema — moneda por cuenta', () => {
+  it('acepta una moneda elegida por cuenta (COP, USD o ARS)', () => {
+    for (const currencyCode of ['COP', 'USD', 'ARS']) {
+      expect(draftAccountSchema.safeParse({ ...validDraft, currencyCode }).success).toBe(true)
+    }
+  })
+
+  it('rechaza una moneda fuera del onboarding (EUR)', () => {
+    expect(draftAccountSchema.safeParse({ ...validDraft, currencyCode: 'EUR' }).success).toBe(false)
+  })
+
+  it('rechaza una moneda desconocida', () => {
+    expect(draftAccountSchema.safeParse({ ...validDraft, currencyCode: 'PEN' }).success).toBe(false)
+  })
+
+  it('las monedas del onboarding son exactamente las seleccionables', () => {
+    expect(draftAccountSchema.shape.currencyCode.options).toEqual(['COP', 'USD', 'ARS'])
   })
 })
 

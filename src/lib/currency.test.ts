@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
-import { formatAmount, resolvePresentationCurrency, sortCurrencyCodes } from './currency'
+import {
+  CURRENCIES,
+  CURRENCY_CODES,
+  formatAmount,
+  currencyOptions,
+  resolvePresentationCurrency,
+  sortCurrencyCodes,
+} from './currency'
 
 describe('formatAmount', () => {
   it('formatea unidades enteras de COP con separador de miles', () => {
@@ -17,6 +24,57 @@ describe('formatAmount', () => {
 
   it('respeta el código de moneda indicado', () => {
     expect(formatAmount(1200000, 'USD')).toBe('USD 1.200.000')
+  })
+})
+
+describe('catálogo de monedas', () => {
+  it('incluye ARS y conserva las monedas anteriores, con sus etiquetas', () => {
+    expect(CURRENCIES).toEqual([
+      { code: 'COP', label: 'Peso colombiano (COP)' },
+      { code: 'USD', label: 'Dólar estadounidense (USD)' },
+      { code: 'ARS', label: 'Peso argentino (ARS)' },
+      { code: 'EUR', label: 'Euro (EUR)' },
+      { code: 'MXN', label: 'Peso mexicano (MXN)' },
+    ])
+  })
+
+  it('CURRENCY_CODES mantiene el mismo orden que el catálogo', () => {
+    expect(CURRENCY_CODES).toEqual(['COP', 'USD', 'ARS', 'EUR', 'MXN'])
+  })
+
+  it('formatea montos en ARS', () => {
+    expect(formatAmount(1250, 'ARS')).toBe('ARS 1.250')
+  })
+})
+
+describe('currencyOptions', () => {
+  it('sin moneda heredada ofrece solo COP, USD y ARS con sus etiquetas', () => {
+    expect(currencyOptions()).toEqual([
+      { code: 'COP', label: 'Peso colombiano (COP)' },
+      { code: 'USD', label: 'Dólar estadounidense (USD)' },
+      { code: 'ARS', label: 'Peso argentino (ARS)' },
+    ])
+  })
+
+  it('añade al final la moneda heredada fuera del catálogo ofrecido', () => {
+    expect(currencyOptions('EUR')).toEqual([
+      { code: 'COP', label: 'Peso colombiano (COP)' },
+      { code: 'USD', label: 'Dólar estadounidense (USD)' },
+      { code: 'ARS', label: 'Peso argentino (ARS)' },
+      { code: 'EUR', label: 'Euro (EUR)' },
+    ])
+  })
+
+  it('no duplica la moneda heredada cuando ya está ofrecida', () => {
+    expect(currencyOptions('USD')).toEqual([
+      { code: 'COP', label: 'Peso colombiano (COP)' },
+      { code: 'USD', label: 'Dólar estadounidense (USD)' },
+      { code: 'ARS', label: 'Peso argentino (ARS)' },
+    ])
+  })
+
+  it('ignora una moneda heredada desconocida', () => {
+    expect(currencyOptions('PEN')).toEqual(currencyOptions())
   })
 })
 

@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+import { CURRENCY_CODES } from '@/lib/currency'
+
 /**
  * Dominio de `accounts.type`, en el mismo orden que `accounts_type_check`. Es
  * la única lista de tipos del cliente: los esquemas de cuentas y de onboarding
@@ -38,7 +40,9 @@ export const accountSchema = z.object({
     .number()
     .int('El saldo debe ser un número entero')
     .nonnegative('El saldo no puede ser negativo'),
-  currencyCode: z.string().min(1, 'Selecciona una moneda'),
+  // Acepta el catálogo completo (EUR y MXN incluidos) para no romper la edición
+  // de cuentas que ya están en esas monedas; el formulario no las ofrece al crear.
+  currencyCode: z.enum(CURRENCY_CODES, 'Selecciona una moneda'),
   icon: z.string().min(1, 'Selecciona un ícono'),
   color: z.string().min(1, 'Selecciona un color'),
 })

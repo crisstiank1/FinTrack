@@ -67,6 +67,31 @@ Estilo: negro y morado profesional, alto contraste, especialmente para tablas, m
 
 ---
 
+## Monedas
+
+FinTrack **no convierte divisas ni usa tipos de cambio** (decisión M1, sin
+cambio en M2). Reglas de presentación de monedas:
+
+- **Todo importe se muestra con su código de moneda** (por ejemplo `USD 1.250`),
+  incluido en ejes de gráficos y filas del Libro financiero (M1).
+- **Los totales solo suman cuentas de una misma moneda.** Las pantallas eligen
+  una moneda de presentación: la principal del perfil si el usuario tiene alguna
+  cuenta en ella; si no, la de la primera cuenta (`resolvePresentationCurrency`).
+- Las cuentas en otras monedas **no se suman**: su saldo aparece aparte, en su
+  propia moneda, sin convertir. El Dashboard lo explica en pantalla: «Tus
+  cuentas en … no se suman: su saldo aparece aparte, sin convertir.» (M1).
+- **Catálogo:** COP, USD y ARS son las monedas seleccionables para cuentas
+  nuevas y para el onboarding. EUR y MXN son solo lectura: se formatean y pueden
+  conservarse al editar una cuenta que ya las tenga, pero no se ofrecen al crear
+  (D1 y D2).
+- **Moneda principal del perfil:** COP, USD o ARS, con COP por defecto. Se elige
+  durante el onboarding (D3) y hoy no se puede cambiar desde Settings (D7).
+- **Cambiar la moneda de una cuenta:** bloqueado si la cuenta ya tiene
+  movimientos (D6); permitido sin movimientos. Las líneas de aporte del Plan no
+  se comprueban (limitación hasta M5).
+
+---
+
 ## Categorías predeterminadas
 
 Durante onboarding, crear las categorías por usuario mediante una estrategia segura y repetible (con `is_system = true` según corresponda).
@@ -161,6 +186,13 @@ Pasos:
 5. Creación de categorías predeterminadas.
 6. Posibilidad de agregar otra cuenta.
 7. Confirmación y redirección a `/dashboard`.
+
+**Monedas en el onboarding (M2):** la moneda principal se elige entre COP,
+USD y ARS, con COP por defecto (D3). Cada cuenta elige su propia moneda del
+mismo catálogo, con la moneda principal preseleccionada (D4). Si una cuenta
+queda en otra moneda que la principal, debajo de su selector se muestra:
+«Esta cuenta no se sumará a tus totales en {principal}: su saldo aparecerá
+aparte» (D5, sin banner). La confirmación muestra cada saldo en su moneda.
 
 ### `/dashboard`
 
@@ -336,6 +368,16 @@ Modelo, fórmulas y reglas: `docs/09-plan-mensual.md`.
 - Listar saldos.
 - No eliminar cuentas con movimientos.
 
+**Moneda de las cuentas (M2):** al crear se ofrecen COP, USD y ARS, con sus
+etiquetas completas («Peso colombiano (COP)», «Dólar estadounidense (USD)»,
+«Peso argentino (ARS)»). EUR y MXN son solo lectura: se siguen formateando y,
+al editar una cuenta que ya está en esas monedas, aparecen como opción heredada
+para poder guardar sin perder la moneda (D1); no se ofrecen para cuentas
+nuevas. Cambiar la moneda de una cuenta existente está bloqueado si la cuenta
+ya tiene movimientos, con el texto «La moneda no se puede cambiar porque la
+cuenta ya tiene movimientos» (D6). Sin movimientos, el cambio se permite. Las
+líneas de aporte del Plan no se comprueban (limitación hasta M5).
+
 ### `/settings`
 
 - Perfil.
@@ -347,6 +389,9 @@ Modelo, fórmulas y reglas: `docs/09-plan-mensual.md`.
 - Dejar documentadas, pero **no implementar sin aprobación**:
   - Exportación completa de datos.
   - Eliminación de cuenta.
+
+**Moneda principal (D7):** hoy no se puede cambiar desde Ajustes; se cambia
+solo durante el onboarding. El cambio desde Settings queda fuera de M2.
 
 ---
 

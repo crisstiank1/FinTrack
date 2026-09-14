@@ -32,7 +32,7 @@
 | --- | --- | --- |
 | `id` | UUID | PK. Referencia `auth.users(id)`. |
 | `display_name` | TEXT | |
-| `currency_code` | TEXT | Valor predeterminado `COP`. |
+| `currency_code` | TEXT | Valor predeterminado `COP`. Moneda principal, elegida en el onboarding entre COP, USD y ARS (D3); no se puede cambiar desde Ajustes todavía (D7). |
 | `timezone` | TEXT | Valor predeterminado `America/Bogota`. |
 | `theme_preference` | TEXT | `light`, `dark` o `system`. |
 | `onboarding_completed` | BOOLEAN | Valor predeterminado `false`. |
@@ -48,7 +48,7 @@
 | `name` | TEXT | |
 | `type` | TEXT | `cash`, `checking`, `savings`, `digital_wallet`, `credit_card`. |
 | `initial_balance_minor` | BIGINT | |
-| `currency_code` | TEXT | |
+| `currency_code` | TEXT | Sin restricción de valores en la base. El catálogo del cliente lo limita al crear (COP, USD, ARS) y conserva EUR/MXN solo al editar cuentas heredadas (M2). |
 | `color` | TEXT | |
 | `icon` | TEXT | |
 | `is_archived` | BOOLEAN | Valor predeterminado `false`. |
@@ -143,6 +143,28 @@
 9. No crear “Ahorro” como gasto predeterminado:
    - Ahorrar se modela como **transferencia** a una cuenta de ahorro.
    - Las metas se crearán en una fase posterior.
+
+---
+
+## Monedas
+
+Reglas de moneda vigentes (M1 y M2):
+
+- FinTrack **no convierte divisas ni usa tipos de cambio.** Cada importe se
+  guarda en su moneda y se muestra con su código (`USD 1.250`), sin convertir.
+- **Catálogo de monedas:** el dominio vive solo en el cliente
+  (`src/lib/currency.ts`). COP, USD y ARS se ofrecen al crear cuentas y durante
+  el onboarding; EUR y MXN son solo lectura: se formatean y pueden conservarse
+  al editar una cuenta que ya las tenga, pero no se ofrecen para cuentas nuevas.
+- **Moneda principal (`profiles.currency_code`):** COP, USD o ARS, con COP por
+  defecto. Se elige en el onboarding y no se puede cambiar desde Ajustes todavía.
+- **Totales por moneda:** los totales solo suman cuentas de una misma moneda.
+  La moneda de presentación es la principal del perfil si hay alguna cuenta en
+  ella; si no, la de la primera cuenta. Las cuentas en otras monedas se listan
+  aparte, sin sumarse ni convertirse (M1).
+- **Cambio de moneda de una cuenta:** bloqueado en la UI si la cuenta ya tiene
+  movimientos, permitido si no los tiene. Las líneas de aporte del Plan no se
+  comprueban (limitación hasta M5).
 
 ---
 

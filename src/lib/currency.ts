@@ -30,14 +30,52 @@ export function formatCompactAmount(amountMinor: number): string {
   }).format(amountMinor)
 }
 
-export const CURRENCIES = [
-  { code: 'COP', label: 'Peso colombiano (COP)' },
-  { code: 'USD', label: 'Dólar estadounidense (USD)' },
-  { code: 'EUR', label: 'Euro (EUR)' },
-  { code: 'MXN', label: 'Peso mexicano (MXN)' },
-] as const
+/** Códigos del catálogo completo de monedas de FinTrack. */
+export const CURRENCY_CODES = ['COP', 'USD', 'ARS', 'EUR', 'MXN'] as const
 
-export type CurrencyCode = (typeof CURRENCIES)[number]['code']
+export type CurrencyCode = (typeof CURRENCY_CODES)[number]
+
+// Un Record y no un array: si se añade una moneda sin etiqueta, falla la compilación.
+const CURRENCY_LABELS: Record<CurrencyCode, string> = {
+  COP: 'Peso colombiano (COP)',
+  USD: 'Dólar estadounidense (USD)',
+  ARS: 'Peso argentino (ARS)',
+  EUR: 'Euro (EUR)',
+  MXN: 'Peso mexicano (MXN)',
+}
+
+/** Catálogo completo: monedas que FinTrack sabe formatear. */
+export const CURRENCIES: readonly { code: CurrencyCode; label: string }[] = CURRENCY_CODES.map(
+  (code) => ({ code, label: CURRENCY_LABELS[code] }),
+)
+
+/**
+ * Monedas que se ofrecen al crear cuentas y en el onboarding. EUR y MXN son
+ * solo lectura: se siguen formateando y pueden conservarse al editar una cuenta
+ * que ya las tenga, pero no se ofrecen para cuentas nuevas.
+ */
+export const SELECTABLE_CURRENCY_CODES = ['COP', 'USD', 'ARS'] as const
+
+export type SelectableCurrencyCode = (typeof SELECTABLE_CURRENCY_CODES)[number]
+
+const SELECTABLE = new Set<string>(SELECTABLE_CURRENCY_CODES)
+
+/**
+ * Opciones de un selector de moneda. Al crear ofrecen COP, USD y ARS; al editar
+ * añaden al final la moneda heredada de la cuenta si está fuera de las
+ * ofrecidas (por ejemplo EUR o MXN), para que esas cuentas sigan siendo
+ * editables.
+ */
+export function currencyOptions(
+  inheritedCode?: string | null,
+): readonly { code: CurrencyCode; label: string }[] {
+  const selectable = CURRENCIES.filter((currency) => SELECTABLE.has(currency.code))
+  const inherited = inheritedCode
+    ? CURRENCIES.find((currency) => currency.code === inheritedCode)
+    : undefined
+  if (!inherited || selectable.includes(inherited)) return selectable
+  return [...selectable, inherited]
+}
 
 /**
  * Orden en que se listan varias monedas a la vez. La moneda principal va
