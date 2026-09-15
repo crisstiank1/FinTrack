@@ -4,6 +4,7 @@ import { formatAmount } from '@/lib/currency'
 import { cn } from '@/lib/utils'
 
 import {
+  formatContributionPlanned,
   formatPlannedAmount,
   formatPlannedIncomeAmount,
   formatUnassigned,
@@ -90,10 +91,6 @@ export function PlanSummary({
   const titleId = useId()
   const unassigned = formatUnassigned(unassignedMinor, currencyCode)
 
-  /** Contrapunto planeado de un gasto o un aporte. */
-  const planned = (plannedMinor: number | null) =>
-    `Planeado: ${formatPlannedAmount(plannedMinor, currencyCode)}`
-
   /** Contrapunto de las cifras que se miden contra el ingreso planeado. */
   const plannedIncome = (plannedMinor: number | null) =>
     `Planeado: ${formatPlannedIncomeAmount(plannedMinor, currencyCode)}`
@@ -141,12 +138,13 @@ export function PlanSummary({
           tone={remainingTone(remainingActualMinor)}
         />
         {/* «Aportes a ahorro», nunca «Total ahorrado»: es el flujo del mes, no
-            el saldo acumulado de las cuentas de ahorro. */}
+            el saldo acumulado de las cuentas de ahorro. Sin línea de aportes
+            se dice «Sin aportes planeados»: no es un presupuesto por categoría. */}
         <SummaryCard
           index={5}
           label={planSummaryLabel.savingsContributions}
           value={formatAmount(savingsContributionsMinor, currencyCode)}
-          caption={planned(savingsPlannedMinor)}
+          caption={`Planeado: ${formatContributionPlanned(savingsPlannedMinor, currencyCode)}`}
           tone="neutral"
         />
       </div>

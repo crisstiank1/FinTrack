@@ -24,6 +24,7 @@ const useAccounts = vi.fn()
 const useCategories = vi.fn()
 const useBudgets = vi.fn()
 const useBudgetProgress = vi.fn()
+const usePrimaryCurrency = vi.fn()
 const createTransactionMutate = vi.fn()
 
 vi.mock('@/features/dashboard/hooks', () => ({
@@ -38,6 +39,9 @@ vi.mock('@/features/accounts/hooks', () => ({
 }))
 vi.mock('@/features/categories/hooks', () => ({
   useCategories: () => useCategories(),
+}))
+vi.mock('@/features/profile/hooks', () => ({
+  usePrimaryCurrency: () => usePrimaryCurrency(),
 }))
 vi.mock('@/features/transactions/hooks', () => ({
   useCreateTransaction: () => ({ mutateAsync: createTransactionMutate, isPending: false }),
@@ -141,6 +145,7 @@ const budgetRows = [
 beforeEach(() => {
   vi.clearAllMocks()
   useAccounts.mockReturnValue({ data: accounts })
+  usePrimaryCurrency.mockReturnValue({ data: 'COP', isPending: false })
   useCategories.mockReturnValue({ data: categories })
   useBudgets.mockReturnValue({ data: [], isPending: false, isError: false })
   useBudgetProgress.mockReturnValue({ data: [], isPending: false, isError: false })
@@ -164,6 +169,14 @@ describe('Dashboard', () => {
     expect(kpi('Tasa de ahorro').getByText('50 %')).toBeInTheDocument()
   })
 
+  it('con una sola moneda no añade notas ni saldos aparte', () => {
+    renderDashboard()
+
+    expect(kpi('Saldo consolidado').getByText('Todas las cuentas')).toBeInTheDocument()
+    expect(screen.queryByText(/Otras monedas/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Cifras en/)).not.toBeInTheDocument()
+  })
+
   it('reparte el gasto del mes por categoría', () => {
     renderDashboard()
 
@@ -182,6 +195,18 @@ describe('Dashboard', () => {
     expect(panel.getByText('Cine')).toBeInTheDocument()
     expect(panel.getByText('Mercado del mes')).toBeInTheDocument()
     expect(panel.getByText('Salario')).toBeInTheDocument()
+  })
+
+  it('«Ver todos» de los últimos movimientos abre Movimientos en el mes que se está viendo', () => {
+    renderDashboard()
+
+    fireEvent.change(screen.getByLabelText('Mes'), { target: { value: '2026-03' } })
+
+    const panel = within(screen.getByRole('region', { name: 'Últimos movimientos' }))
+    expect(panel.getByRole('link', { name: 'Ver todos' })).toHaveAttribute(
+      'href',
+      '/transactions?month=2026-03',
+    )
   })
 
   it('recalcula todo al filtrar por una cuenta', async () => {
@@ -362,6 +387,14 @@ describe('Dashboard', () => {
     expect(panel.queryByText(/más de lo que ingresaste/)).not.toBeInTheDocument()
   })
 
+  it('muestra el estado de carga mientras llega la moneda principal', () => {
+    usePrimaryCurrency.mockReturnValue({ data: undefined, isPending: true })
+
+    renderDashboard()
+
+    expect(screen.queryByRole('region', { name: 'Saldo consolidado' })).not.toBeInTheDocument()
+  })
+
   it('ofrece reintentar cuando la consulta falla', async () => {
     const refetch = vi.fn()
     useAllTransactions.mockReturnValue({
@@ -378,5 +411,120 @@ describe('Dashboard', () => {
 
     await user.click(screen.getByRole('button', { name: 'Reintentar' }))
     expect(refetch).toHaveBeenCalledOnce()
+  })
+
+  describe('con cuentas en varias monedas', () => {
+    const usdAccount = {
+      id: 'acc-usd',
+      name: 'Cuenta USD',
+      currency_code: 'USD',
+      initial_balance_minor: 1_000,
+      is_archived: false,
+    } as Tables<'accounts'>
+    const arsAccount = {
+      id: 'acc-ars',
+      name: 'Cuenta ARS',
+      currency_code: 'ARS',
+      initial_balance_minor: 20_000,
+      is_archived: true,
+    } as Tables<'accounts'>
+
+    beforeEach(() => {
+      useAccounts.mockReturnValue({ data: [...accounts, usdAccount, arsAccount] })
+      useAllTransactions.mockReturnValue({
+        data: [
+          ...transactions,
+          transaction({
+            type: 'income',
+            account_id: 'acc-usd',
+            category_id: 'cat-salary',
+            amount_minor: 500,
+            description: 'Pago en dólares',
+          }),
+          transaction({
+            account_id: 'acc-usd',
+            category_id: 'cat-fun',
+            amount_minor: 200,
+            description: 'Suscripción',
+          }),
+        ],
+        isPending: false,
+        isError: false,
+        refetch: vi.fn(),
+      })
+    })
+
+    it('calcula los KPIs solo con las cuentas de la moneda principal', () => {
+      renderDashboard()
+
+      // Las mismas cifras que sin la cuenta en USD: 500 y 200 no se suman a COP.
+      expect(kpi('Saldo consolidado').getByText('COP 300.000')).toBeInTheDocument()
+      expect(kpi('Ingresos del mes').getByText('COP 300.000')).toBeInTheDocument()
+      expect(kpi('Gastos del mes').getByText('COP 150.000')).toBeInTheDocument()
+      expect(kpi('Tasa de ahorro').getByText('50 %')).toBeInTheDocument()
+
+      const panel = within(screen.getByRole('region', { name: 'Gasto por categoría' }))
+      expect(panel.getByText('COP 30.000')).toBeInTheDocument()
+    })
+
+    it('muestra aparte el saldo de las otras monedas, incluidas cuentas archivadas', () => {
+      renderDashboard()
+
+      const hero = kpi('Saldo consolidado')
+      expect(hero.getByText('Cuentas en COP')).toBeInTheDocument()
+      // USD: 1.000 + 500 - 200. ARS: saldo inicial de una cuenta archivada.
+      expect(hero.getByText('USD 1.300 · ARS 20.000')).toBeInTheDocument()
+      expect(
+        screen.getByText(
+          'Cifras en COP. Tus cuentas en USD y ARS no se suman: su saldo aparece aparte, sin convertir.',
+        ),
+      ).toBeInTheDocument()
+    })
+
+    it('los últimos movimientos incluyen todas las monedas, cada uno en la suya', () => {
+      renderDashboard()
+
+      const panel = within(screen.getByRole('region', { name: 'Últimos movimientos' }))
+      expect(panel.getByText('Pago en dólares')).toBeInTheDocument()
+      expect(panel.getByText(/USD 500/)).toBeInTheDocument()
+    })
+
+    it('presenta en la moneda principal del perfil aunque no sea la de la primera cuenta', () => {
+      usePrimaryCurrency.mockReturnValue({ data: 'USD', isPending: false })
+
+      renderDashboard()
+
+      expect(kpi('Saldo consolidado').getByText('USD 1.300')).toBeInTheDocument()
+      expect(kpi('Ingresos del mes').getByText('USD 500')).toBeInTheDocument()
+      expect(kpi('Saldo consolidado').getByText('COP 300.000 · ARS 20.000')).toBeInTheDocument()
+    })
+
+    it('usa la primera cuenta si no hay cuentas en la moneda principal', () => {
+      usePrimaryCurrency.mockReturnValue({ data: 'EUR', isPending: false })
+
+      renderDashboard()
+
+      expect(kpi('Ingresos del mes').getByText('COP 300.000')).toBeInTheDocument()
+    })
+
+    it('usa la primera cuenta si no se pudo leer la moneda principal', () => {
+      usePrimaryCurrency.mockReturnValue({ data: undefined, isPending: false, isError: true })
+
+      renderDashboard()
+
+      expect(kpi('Ingresos del mes').getByText('COP 300.000')).toBeInTheDocument()
+    })
+
+    it('al elegir una cuenta en otra moneda todo pasa a esa moneda, sin saldos aparte', async () => {
+      const user = userEvent.setup()
+      renderDashboard()
+
+      await user.selectOptions(screen.getByLabelText('Cuenta'), 'acc-usd')
+
+      expect(kpi('Saldo consolidado').getByText('USD 1.300')).toBeInTheDocument()
+      expect(kpi('Gastos del mes').getByText('USD 200')).toBeInTheDocument()
+      expect(screen.queryByText(/Otras monedas/)).not.toBeInTheDocument()
+      expect(screen.queryByText(/Cifras en/)).not.toBeInTheDocument()
+    })
   })
 })

@@ -7,9 +7,12 @@ import { Link } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { NO_BUDGET_THIS_MONTH_LABEL } from '@/features/budgets/labels'
 import { formatAmount } from '@/lib/currency'
 import { monthRange } from '@/lib/dates'
 
+import { formatZeroBudget, planLineKindLabel } from '../labels'
+import { budgetsHrefForMonth } from '../links'
 import { CATEGORY_LINE_KINDS, type CategoryLineKind } from '../mutations'
 import { buildPlanLineSchema, type PlanLineFormInput, type PlanLineFormValues } from '../schemas'
 
@@ -26,11 +29,6 @@ export interface SelectableLineCategory {
   name: string
 }
 
-const KIND_LABEL: Record<CategoryLineKind, string> = {
-  bill: 'Factura',
-  variable: 'Gasto variable',
-}
-
 const KIND_HINT: Record<CategoryLineKind, string> = {
   bill: 'Un gasto que se repite y tiene una fecha esperada.',
   variable: 'Un gasto que varía cada mes y no tiene fecha fija.',
@@ -41,7 +39,10 @@ interface PlanLineFormProps {
   monthKey: string
   /** Categorías de gasto activas y libres este mes. Vacío al editar. */
   categories: SelectableLineCategory[]
-  /** Presupuesto efectivo de una categoría, o `null` si no tiene este mes. */
+  /**
+   * Presupuesto efectivo de una categoría este mes. `null` si no tiene ninguno;
+   * `0` si su presupuesto es un 0 explícito, que se dice distinto.
+   */
   budgetForCategory: (categoryId: string) => number | null
   currencyCode: string
   /** Al editar: los valores actuales, con la categoría y el tipo ya fijados. */
@@ -64,7 +65,7 @@ interface PlanLineFormProps {
  * **No tiene campo de importe.** C7 prohíbe que una línea medida por categoría
  * lleve cifra propia: la suya vive en `budgets` y solo ahí. En su lugar, el
  * formulario muestra el presupuesto efectivo ya resuelto y enlaza a
- * `/budgets`, para que quede claro dónde se cambia.
+ * `/budgets` en el mismo mes del plan, para que quede claro dónde se cambia.
  *
  * Tampoco tiene campo «Actual»: ese valor no se guarda, se calcula desde
  * `transactions`.
@@ -143,7 +144,7 @@ export function PlanLineForm({
           cambiarlo es estrenar el destino y hay que borrar y crear. */}
       {isEditing ? (
         <p className="text-sm text-muted-foreground">
-          Tipo: <span className="font-medium text-foreground">{KIND_LABEL[kind]}</span>. Para
+          Tipo: <span className="font-medium text-foreground">{planLineKindLabel[kind]}</span>. Para
           cambiarlo, elimina la línea y crea otra.
         </p>
       ) : (
@@ -167,7 +168,7 @@ export function PlanLineForm({
                       onChange={() => field.onChange(option)}
                     />
                     <span>
-                      <span className="block text-foreground">{KIND_LABEL[option]}</span>
+                      <span className="block text-foreground">{planLineKindLabel[option]}</span>
                       <span className="block text-xs text-muted-foreground">
                         {KIND_HINT[option]}
                       </span>
@@ -249,13 +250,18 @@ export function PlanLineForm({
             Ahora mismo:{' '}
             <span className="font-medium text-foreground">
               {budgetMinor === null
-                ? 'Sin presupuesto este mes'
-                : formatAmount(budgetMinor, currencyCode)}
+                ? NO_BUDGET_THIS_MONTH_LABEL
+                : budgetMinor === 0
+                  ? formatZeroBudget(currencyCode)
+                  : formatAmount(budgetMinor, currencyCode)}
             </span>
             .{' '}
           </>
         ) : null}
-        <Link to="/budgets" className="font-medium text-primary underline underline-offset-4">
+        <Link
+          to={budgetsHrefForMonth(monthKey)}
+          className="font-medium text-primary underline underline-offset-4"
+        >
           Editar en Presupuestos
         </Link>
       </p>

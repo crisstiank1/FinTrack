@@ -38,3 +38,38 @@ export const CURRENCIES = [
 ] as const
 
 export type CurrencyCode = (typeof CURRENCIES)[number]['code']
+
+/**
+ * Orden en que se listan varias monedas a la vez. La moneda principal va
+ * siempre primero; las que no aparecen aquí van al final, alfabéticamente.
+ */
+const CURRENCY_DISPLAY_ORDER: readonly string[] = ['COP', 'USD', 'ARS', 'EUR', 'MXN']
+
+/** Códigos únicos ordenados para mostrarse: la principal primero y luego el orden fijo. */
+export function sortCurrencyCodes(codes: Iterable<string>, primaryCode?: string | null): string[] {
+  const rank = (code: string) => {
+    if (code === primaryCode) return -1
+    const index = CURRENCY_DISPLAY_ORDER.indexOf(code)
+    return index === -1 ? CURRENCY_DISPLAY_ORDER.length : index
+  }
+
+  return [...new Set(codes)].sort((a, b) => rank(a) - rank(b) || a.localeCompare(b))
+}
+
+/**
+ * Moneda en la que se presentan las cifras agregadas de una pantalla.
+ *
+ * FinTrack no convierte divisas, así que un total solo puede sumar cuentas de
+ * una misma moneda. Se usa la moneda principal del perfil si el usuario tiene
+ * alguna cuenta en ella; si no, la de la primera cuenta, que es el criterio que
+ * la app usaba antes de separar monedas.
+ */
+export function resolvePresentationCurrency(
+  primaryCode: string | null | undefined,
+  accounts: readonly { currency_code: string }[],
+): string {
+  if (primaryCode && accounts.some((account) => account.currency_code === primaryCode)) {
+    return primaryCode
+  }
+  return accounts[0]?.currency_code ?? primaryCode ?? 'COP'
+}

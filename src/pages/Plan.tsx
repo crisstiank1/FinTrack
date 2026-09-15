@@ -20,6 +20,7 @@ import {
 import { calculateDiff } from '@/features/plan/calculations/diff'
 import { calculateRemaining } from '@/features/plan/calculations/remaining'
 import {
+  buildBudgetCoverage,
   sumBudgetsForCategories,
   sumEffectiveCategoryBudgets,
   sumPlannedIncome,
@@ -35,6 +36,11 @@ import {
   type AllocationFormSubmit,
 } from '@/features/plan/components/allocation-form'
 import {
+  BudgetReconciliationPanel,
+  type ReconciliationCategoryItem,
+  type ReconciliationLineItem,
+} from '@/features/plan/components/budget-reconciliation-panel'
+import {
   BudgetVsActualTable,
   type PlanComparisonGroup,
   type PlanComparisonRow,
@@ -47,10 +53,18 @@ import {
   IncomeSourcesPanel,
   type IncomeSourceItem,
 } from '@/features/plan/components/income-sources-panel'
+import {
+  ContributionLineForm,
+  type ContributionLineFormSubmit,
+} from '@/features/plan/components/contribution-line-form'
 import { PlanLineForm, type PlanLineFormSubmit } from '@/features/plan/components/plan-line-form'
 import { PlanLinesPanel, type PlanLineItem } from '@/features/plan/components/plan-lines-panel'
 import { PlanHeader } from '@/features/plan/components/plan-header'
 import { PlanSummary } from '@/features/plan/components/plan-summary'
+import {
+  SavingsInvestmentPanel,
+  type ContributionPlanning,
+} from '@/features/plan/components/savings-investment-panel'
 import type { BudgetProgress } from '@/features/budgets/progress'
 import { PlanError } from '@/features/plan/errors'
 import {
@@ -59,6 +73,7 @@ import {
   useEffectiveCategoryBudgets,
   usePlanActuals,
   usePlanAllocations,
+  usePlanContributionBalances,
   usePlanIncomeSourceCategories,
   usePlanIncomeSources,
   usePlanLines,
@@ -67,16 +82,30 @@ import {
   useDeletePlanLine,
   useSaveAllocations,
   useSaveIncomeSource,
+  useSaveContributionLine,
   useSavePlanLine,
+  useZeroBudgetCategoryIds,
 } from '@/features/plan/hooks'
-import { allocationGroupDiffKind, planRowDiffKind, type PlanRowId } from '@/features/plan/labels'
+import {
+  allocationGroupDiffKind,
+  contributionLineLabel,
+  planRowDiffKind,
+  DELETE_CONTRIBUTION_DESCRIPTION,
+  DELETE_CONTRIBUTION_TITLE,
+  type PlanRowId,
+} from '@/features/plan/labels'
+import { transactionsHrefForMonth } from '@/features/plan/links'
 import {
   categoriesLinkedElsewhere,
   categoriesOfSource,
   selectAvailableLineCategories,
+  selectAvailableContributionAccounts,
   selectLinkableIncomeCategories,
+  usedLineAccountIds,
   usedLineCategoryIds,
+  CONTRIBUTION_LINE_KINDS,
   type CategoryLineKind,
+  type ContributionLineKind,
 } from '@/features/plan/mutations'
 import {
   buildAllocationPercentages,
@@ -90,8 +119,9 @@ import { currentMonthKey, formatMonthLabel } from '@/lib/dates'
 import type { Tables } from '@/types/database.types'
 
 /**
- * Plan mensual: resumen del mes, cuadro Presupuesto vs. Actual, fuentes de
- * ingreso y reparto 50/30/20.
+ * Plan mensual: resumen del mes, fuentes de ingreso, reparto 50/30/20,
+ * reconciliación del presupuesto, facturas y gastos variables, ahorro e
+ * inversión, y cuadro Presupuesto vs. Actual.
  *
  * Lo editable es **solo lo planeado**: las fuentes de ingreso y los cinco
  * porcentajes del reparto. Ningún valor «Actual» es editable en ninguna parte,
@@ -195,6 +225,12 @@ export default function Plan() {
   // `null` = ninguno abierto; `'new'` = alta; un id = edicion de esa linea.
   const [editingLineId, setEditingLineId] = useState<string | null>(null)
   const [deletingLineId, setDeletingLineId] = useState<string | null>(null)
+  // Aportes: el tipo lo fija el botón pulsado; `lineId` es `'new'` al crear.
+  const [editingContribution, setEditingContribution] = useState<{
+    kind: ContributionLineKind
+    lineId: string
+  } | null>(null)
+  const [deletingContributionId, setDeletingContributionId] = useState<string | null>(null)
   const queryClient = useQueryClient()
 
   const { data: accounts = [] } = useAccounts()
@@ -206,10 +242,15 @@ export default function Plan() {
   const linesQuery = usePlanLines(monthKey)
   const classificationsQuery = useCategoryClassifications()
   const budgetsQuery = useEffectiveCategoryBudgets(monthKey)
+  // Solo para la nota del formulario de líneas: no bloquea la pantalla.
+  const { data: zeroBudgetCategoryIds } = useZeroBudgetCategoryIds(monthKey)
   const actualsQuery = usePlanActuals({ monthKey, planMonthId })
   const incomeSourcesQuery = usePlanIncomeSources(planMonthId)
   const allocationsQuery = usePlanAllocations(planMonthId)
   const incomeSourceCategoriesQuery = usePlanIncomeSourceCategories(planMonthId)
+  // Saldo al cierre del mes. Fuera de `isPending` e `isError` a propósito: es
+  // contexto, y su bloque dice por su cuenta si carga o si falló.
+  const contributionBalancesQuery = usePlanContributionBalances(monthKey)
 
   const createPlanMonth = useCreatePlanMonth()
   const saveIncomeSource = useSaveIncomeSource()
@@ -217,6 +258,7 @@ export default function Plan() {
   const saveAllocations = useSaveAllocations()
   const savePlanLine = useSavePlanLine()
   const deletePlanLine = useDeletePlanLine()
+  const saveContributionLine = useSaveContributionLine()
 
   // Sin `plan_month_id` la consulta de fuentes queda deshabilitada, y una
   // consulta deshabilitada se queda en `pending` para siempre. Un mes sin plan
@@ -390,6 +432,24 @@ export default function Plan() {
 
     return {
       groups,
+      // Aportes planeados por cuenta: los mismos que entran en `asignado`. La
+      // reconciliación los muestra para que su suma se pueda leer entera.
+      contributionsPlanned: {
+        savingsMinor: savingsPlannedMinor,
+        investmentMinor: investmentPlannedMinor,
+      },
+      // Aportes del mes, reales y planeados, para el bloque Ahorro e inversión.
+      // Son las mismas cifras de las filas Ahorro e Inversión del cuadro.
+      contributions: {
+        savings: {
+          contributionsMinor: actuals.savingsContributionsMinor,
+          plannedMinor: savingsPlannedMinor,
+        },
+        investment: {
+          contributionsMinor: actuals.investmentContributionsMinor,
+          plannedMinor: investmentPlannedMinor,
+        },
+      },
       allocation: {
         rows: allocationRows,
         hasAllocation,
@@ -524,6 +584,82 @@ export default function Plan() {
     [linePartition, categoryById],
   )
 
+  const lineProgress = lineProgressQuery.data
+
+  /**
+   * Reconciliación del presupuesto: cobertura por líneas y las categorías
+   * concretas detrás de cada cifra.
+   *
+   * Espera al progreso de las líneas en vez de darlo por vacío: es lo único que
+   * distingue un presupuesto de 0 explícito de su ausencia, y sin él un 0 se
+   * mostraría un instante como «Sin presupuesto».
+   *
+   * Aquí solo se resuelven nombres y orden. Los importes salen de
+   * `buildBudgetCoverage` y del mapa de presupuestos, sin sumar nada.
+   */
+  const reconciliation = useMemo(() => {
+    if (!budgetsByCategory || !lineProgress) return undefined
+
+    const coverage = buildBudgetCoverage({
+      budgetsByCategory,
+      billCategoryIds: planLineCategoryIds(linePartition.bills),
+      variableCategoryIds: planLineCategoryIds(linePartition.variables),
+      lineBudgets: lineProgress,
+    })
+
+    // Mismo orden que el resto de la aplicación: el de `useCategories`, activas
+    // primero. Una categoría que no llegue en esa lista va al final con un
+    // nombre genérico, como en las líneas, en vez de desaparecer del cuadre.
+    const unlinked = new Set(coverage.unlinkedCategoryIds)
+    const unlinkedCategories: ReconciliationCategoryItem[] = categories
+      .filter((category) => unlinked.has(category.id))
+      .map((category) => ({
+        categoryId: category.id,
+        name: category.name,
+        isArchived: category.is_archived,
+        amountMinor: budgetsByCategory[category.id],
+      }))
+    for (const categoryId of coverage.unlinkedCategoryIds) {
+      if (categoryById.has(categoryId)) continue
+      unlinkedCategories.push({
+        categoryId,
+        name: 'Categoría no disponible',
+        isArchived: false,
+        amountMinor: budgetsByCategory[categoryId],
+      })
+    }
+
+    // Las líneas conservan el orden del panel: facturas y después variables.
+    const lineItems = [...billItems, ...variableItems]
+    const linesFor = (categoryIds: string[]): ReconciliationLineItem[] => {
+      const wanted = new Set(categoryIds)
+      return lineItems
+        .filter((item) => wanted.has(item.categoryId))
+        .map((item) => ({
+          lineId: item.id,
+          name: item.name,
+          kind: item.kind,
+          categoryName: item.categoryName,
+          isCategoryArchived: item.isCategoryArchived,
+        }))
+    }
+
+    return {
+      coverage,
+      unlinkedCategories,
+      linesWithoutBudget: linesFor(coverage.lineCategoryIdsWithoutBudget),
+      linesWithZeroBudget: linesFor(coverage.lineCategoryIdsWithZeroBudget),
+    }
+  }, [
+    budgetsByCategory,
+    lineProgress,
+    linePartition,
+    categories,
+    categoryById,
+    billItems,
+    variableItems,
+  ])
+
   const editingLine =
     editingLineId && editingLineId !== 'new'
       ? planLines.find((line) => line.id === editingLineId)
@@ -538,10 +674,59 @@ export default function Plan() {
     [categories, planLines],
   )
 
-  /** Presupuesto efectivo de una categoría, para la nota del formulario. */
+  /**
+   * Presupuesto efectivo de una categoría, para la nota del formulario. El mapa
+   * omite los 0 explícitos, así que se recuperan aparte: devolver `null` para
+   * ellos haría decir «Sin presupuesto» de un presupuesto que sí existe.
+   */
   function budgetForCategory(categoryId: string): number | null {
-    return budgetsByCategory?.[categoryId] ?? null
+    const budget = budgetsByCategory?.[categoryId]
+    if (budget !== undefined) return budget
+    return zeroBudgetCategoryIds?.has(categoryId) ? 0 : null
   }
+
+  /*
+   * Aportes planeados. Solo con plan del mes: sin `plan_month_id` no hay dónde
+   * guardar una línea. Las cuentas ocupadas se calculan sobre todas las líneas
+   * del mes, porque U11 no distingue `kind`.
+   */
+  const usedAccountIds = usedLineAccountIds(planLines)
+  const accountById = new Map(accounts.map((account) => [account.id, account]))
+
+  function contributionPlanningFor(kind: ContributionLineKind): ContributionPlanning {
+    const lines = kind === 'savings' ? linePartition.savings : linePartition.investments
+
+    return {
+      lines: lines.map((line) => {
+        const account = line.account_id ? accountById.get(line.account_id) : undefined
+        return {
+          id: line.id,
+          name: line.name,
+          accountName: account?.name ?? 'Cuenta no disponible',
+          isAccountArchived: account?.is_archived ?? false,
+          plannedMinor: line.planned_minor ?? 0,
+        }
+      }),
+      hasActiveAccounts: accounts.some((account) => account.type === kind && !account.is_archived),
+      availableAccountCount: selectAvailableContributionAccounts(accounts, kind, usedAccountIds)
+        .length,
+      isBusy: saveContributionLine.isPending || deletePlanLine.isPending,
+      onAdd: () => setEditingContribution({ kind, lineId: 'new' }),
+      onEdit: (lineId) => setEditingContribution({ kind, lineId }),
+      onDelete: setDeletingContributionId,
+    }
+  }
+
+  const contributionPlanning = hasPlan
+    ? (Object.fromEntries(
+        CONTRIBUTION_LINE_KINDS.map((kind) => [kind, contributionPlanningFor(kind)]),
+      ) as Record<ContributionLineKind, ContributionPlanning>)
+    : undefined
+
+  const editingContributionLine =
+    editingContribution && editingContribution.lineId !== 'new'
+      ? planLines.find((line) => line.id === editingContribution.lineId)
+      : undefined
 
   const hasAllocation = model?.allocation.hasAllocation ?? false
 
@@ -662,6 +847,40 @@ export default function Plan() {
     }
   }
 
+  async function handleSaveContributionLine(values: ContributionLineFormSubmit) {
+    if (!planMonthId || !editingContribution) return
+
+    try {
+      await saveContributionLine.mutateAsync({
+        planMonthId,
+        monthKey,
+        lineId: editingContributionLine?.id,
+        kind: editingContribution.kind,
+        name: values.name,
+        accountId: values.accountId,
+        plannedMinor: values.plannedMinor,
+        lines: planLines,
+      })
+      toast.success(editingContributionLine ? 'Aporte actualizado' : 'Aporte añadido')
+      setEditingContribution(null)
+    } catch (error) {
+      // El diálogo sigue abierto: si la cuenta se ocupó entre medias, el
+      // usuario tiene que poder elegir otra sin volver a escribirlo todo.
+      reportPlanError(error, 'No se pudo guardar el aporte')
+    }
+  }
+
+  async function handleDeleteContributionLine(lineId: string) {
+    try {
+      await deletePlanLine.mutateAsync({ lineId, monthKey })
+      toast.success('Aporte eliminado')
+    } catch (error) {
+      reportPlanError(error, 'No se pudo eliminar el aporte')
+    } finally {
+      setDeletingContributionId(null)
+    }
+  }
+
   function handleRetry() {
     // Invalidar por prefijo alcanza todas las consultas que cuelgan de esas
     // raíces, incluidas las del mes en pantalla.
@@ -740,7 +959,7 @@ export default function Plan() {
                   Crear plan de {monthLabel.split(' ')[0]}
                 </Button>
                 <Button asChild variant="outline">
-                  <Link to="/transactions">Registrar movimiento</Link>
+                  <Link to={transactionsHrefForMonth(monthKey)}>Registrar movimiento</Link>
                 </Button>
               </div>
             </div>
@@ -787,11 +1006,35 @@ export default function Plan() {
                   </Link>
                 </p>
               )}
+              {/* Antes de las líneas: explica qué parte del presupuesto por
+                  categorías ya describen y qué parte todavía no. Solo lee y
+                  enlaza a Presupuestos; no abre ningún formulario. */}
+              {reconciliation && (
+                <BudgetReconciliationPanel
+                  monthKey={monthKey}
+                  monthLabel={monthLabel}
+                  currencyCode={currencyCode}
+                  hasPlan={hasPlan}
+                  incomePlannedMinor={model.summary.incomePlannedMinor}
+                  coverage={reconciliation.coverage}
+                  savingsPlannedMinor={model.contributionsPlanned.savingsMinor}
+                  investmentPlannedMinor={model.contributionsPlanned.investmentMinor}
+                  assignedMinor={model.summary.assignedMinor}
+                  unassignedMinor={model.summary.unassignedMinor}
+                  unlinkedCategories={reconciliation.unlinkedCategories}
+                  linesWithoutBudget={reconciliation.linesWithoutBudget}
+                  linesWithZeroBudget={reconciliation.linesWithZeroBudget}
+                />
+              )}
               {hasPlan && (
                 <PlanLinesPanel
                   bills={billItems}
                   variables={variableItems}
                   progressByCategory={progressByCategory}
+                  // Sin datos todavía no hay «sin presupuesto» ni «gastado 0»
+                  // que afirmar: la fila dice que está calculando.
+                  isProgressLoading={lineProgress === undefined}
+                  monthKey={monthKey}
                   currencyCode={currencyCode}
                   monthLabel={monthLabel}
                   isBusy={savePlanLine.isPending || deletePlanLine.isPending}
@@ -800,6 +1043,16 @@ export default function Plan() {
                   onDelete={setDeletingLineId}
                 />
               )}
+
+              {/* También sin plan: aportes y saldo son cifras reales del mes. */}
+              <SavingsInvestmentPanel
+                currencyCode={currencyCode}
+                savings={model.contributions.savings}
+                investment={model.contributions.investment}
+                balances={contributionBalancesQuery.data}
+                isBalanceError={contributionBalancesQuery.isError}
+                planning={contributionPlanning}
+              />
 
               <BudgetVsActualTable
                 groups={model.groups}
@@ -889,6 +1142,67 @@ export default function Plan() {
           )}
         </DialogContent>
       </Dialog>
+
+      <Dialog
+        open={editingContribution !== null}
+        onOpenChange={(open) => !open && setEditingContribution(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {editingContributionLine
+                ? `Editar ${editingContributionLine.name}`
+                : editingContribution
+                  ? contributionLineLabel[editingContribution.kind].dialogTitleNew
+                  : ''}
+            </DialogTitle>
+          </DialogHeader>
+          {editingContribution !== null && (
+            <ContributionLineForm
+              key={`${editingContribution.kind}-${editingContribution.lineId}`}
+              kind={editingContribution.kind}
+              accounts={
+                editingContributionLine
+                  ? []
+                  : selectAvailableContributionAccounts(
+                      accounts,
+                      editingContribution.kind,
+                      usedAccountIds,
+                    )
+              }
+              defaultValues={
+                editingContributionLine
+                  ? {
+                      name: editingContributionLine.name,
+                      accountId: editingContributionLine.account_id ?? '',
+                      plannedMinor: editingContributionLine.planned_minor ?? 0,
+                    }
+                  : undefined
+              }
+              lockedAccountName={
+                editingContributionLine?.account_id
+                  ? (accountById.get(editingContributionLine.account_id)?.name ??
+                    'Cuenta no disponible')
+                  : undefined
+              }
+              submitLabel={editingContributionLine ? 'Guardar cambios' : 'Añadir aporte'}
+              isSubmitting={saveContributionLine.isPending}
+              onSubmit={handleSaveContributionLine}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <ConfirmDialog
+        open={deletingContributionId !== null}
+        onOpenChange={(open) => !open && setDeletingContributionId(null)}
+        title={DELETE_CONTRIBUTION_TITLE}
+        description={DELETE_CONTRIBUTION_DESCRIPTION}
+        confirmLabel="Eliminar"
+        onConfirm={() =>
+          deletingContributionId && handleDeleteContributionLine(deletingContributionId)
+        }
+      />
 
       <ConfirmDialog
         open={deletingLineId !== null}

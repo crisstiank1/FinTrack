@@ -3,14 +3,17 @@ import { describe, expect, it } from 'vitest'
 import { ALLOCATION_GROUPS } from './calculations/allocation'
 import {
   buildAllocationRows,
+  buildContributionLineRow,
   buildPlanLineRow,
   categoriesLinkedElsewhere,
   categoriesOfSource,
   diffIncomeSourceCategories,
   nextPosition,
+  selectAvailableContributionAccounts,
   selectAvailableLineCategories,
   selectLinkableIncomeCategories,
   toAllocationBasisPoints,
+  usedLineAccountIds,
   usedLineCategoryIds,
   ALLOCATION_CONFLICT_TARGET,
   type IncomeSourceCategoryRow,
@@ -426,5 +429,134 @@ describe('buildPlanLineRow', () => {
     const row = buildPlanLineRow({ ...base, kind: 'bill', name: 'Arriendo' })
 
     expect(row).not.toHaveProperty('account_id')
+  })
+})
+
+describe('usedLineAccountIds', () => {
+  it('reúne las cuentas de las líneas de aporte e ignora las de categoría', () => {
+    const lines = [
+      { id: 'l1', account_id: null },
+      { id: 'l2', account_id: 'acc-fondo' },
+      { id: 'l3', account_id: 'acc-broker' },
+    ]
+
+    expect(usedLineAccountIds(lines)).toEqual(new Set(['acc-fondo', 'acc-broker']))
+  })
+
+  it('puede excluir la línea que se edita', () => {
+    const lines = [
+      { id: 'l2', account_id: 'acc-fondo' },
+      { id: 'l3', account_id: 'acc-broker' },
+    ]
+
+    expect(usedLineAccountIds(lines, 'l2')).toEqual(new Set(['acc-broker']))
+  })
+})
+
+describe('selectAvailableContributionAccounts', () => {
+  const accounts = [
+    { id: 'acc-banco', type: 'checking', is_archived: false },
+    { id: 'acc-fondo', type: 'savings', is_archived: false },
+    { id: 'acc-reserva', type: 'savings', is_archived: false },
+    { id: 'acc-vieja', type: 'savings', is_archived: true },
+    { id: 'acc-broker', type: 'investment', is_archived: false },
+  ]
+
+  it('solo ofrece cuentas del tipo del aporte (T3)', () => {
+    expect(
+      selectAvailableContributionAccounts(accounts, 'savings', new Set()).map((a) => a.id),
+    ).toEqual(['acc-fondo', 'acc-reserva'])
+    expect(
+      selectAvailableContributionAccounts(accounts, 'investment', new Set()).map((a) => a.id),
+    ).toEqual(['acc-broker'])
+  })
+
+  it('no ofrece cuentas archivadas: T3 prohíbe estrenarlas', () => {
+    const ids = selectAvailableContributionAccounts(accounts, 'savings', new Set()).map((a) => a.id)
+
+    expect(ids).not.toContain('acc-vieja')
+  })
+
+  it('no ofrece cuentas que ya tienen aporte este mes (U11)', () => {
+    expect(
+      selectAvailableContributionAccounts(accounts, 'savings', new Set(['acc-fondo'])).map(
+        (a) => a.id,
+      ),
+    ).toEqual(['acc-reserva'])
+  })
+
+  it('sin cuentas libres devuelve la lista vacía', () => {
+    expect(
+      selectAvailableContributionAccounts(
+        accounts,
+        'savings',
+        new Set(['acc-fondo', 'acc-reserva']),
+      ),
+    ).toEqual([])
+  })
+})
+
+describe('buildContributionLineRow', () => {
+  const base = {
+    userId: 'user-1',
+    planMonthId: 'plan-month-1',
+    periodMonth: '2026-09-01',
+    accountId: 'acc-fondo',
+    lines: [],
+  }
+
+  it('construye un aporte a ahorro con cuenta e importe', () => {
+    const row = buildContributionLineRow({
+      ...base,
+      kind: 'savings',
+      name: 'Fondo de emergencia',
+      plannedMinor: 500_000,
+    })
+
+    expect(row).toEqual({
+      user_id: 'user-1',
+      plan_month_id: 'plan-month-1',
+      period_month: '2026-09-01',
+      kind: 'savings',
+      name: 'Fondo de emergencia',
+      account_id: 'acc-fondo',
+      planned_minor: 500_000,
+      position: 0,
+    })
+  })
+
+  it('nunca envía categoría ni fecha: C5 y C3 las rechazan en un aporte', () => {
+    const row = buildContributionLineRow({
+      ...base,
+      kind: 'investment',
+      name: 'Broker',
+      plannedMinor: 100_000,
+    })
+
+    expect(row).not.toHaveProperty('category_id')
+    expect(row).not.toHaveProperty('due_date')
+  })
+
+  it('un importe de 0 viaja como 0, no como ausencia', () => {
+    const row = buildContributionLineRow({
+      ...base,
+      kind: 'savings',
+      name: 'Fondo',
+      plannedMinor: 0,
+    })
+
+    expect(row.planned_minor).toBe(0)
+  })
+
+  it('toma la posición siguiente entre todas las líneas del mes, de cualquier tipo (U12)', () => {
+    const row = buildContributionLineRow({
+      ...base,
+      kind: 'savings',
+      name: 'Fondo',
+      plannedMinor: 1,
+      lines: [{ position: 0 }, { position: 3 }],
+    })
+
+    expect(row.position).toBe(4)
   })
 })

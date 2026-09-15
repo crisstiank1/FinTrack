@@ -86,4 +86,4 @@ export type BudgetFormInput = z.input<typeof budgetSchema>
  * decisión legítima, pero su efecto no es evidente y conviene enunciarlo.
  */
 export const ZERO_BUDGET_WARNING =
-  'Un presupuesto de COP 0 significa que esta categoría no tendrá presupuesto en el periodo elegido.'
+  'Con COP 0, esta categoría queda con presupuesto en COP 0 en el periodo elegido: no tendrá barra, porcentaje ni alertas.'

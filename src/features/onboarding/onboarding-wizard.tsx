@@ -20,6 +20,7 @@ const ACCOUNT_TYPE_ICON: Record<DraftAccountValues['type'], string> = {
   savings: 'piggy-bank',
   digital_wallet: 'smartphone',
   credit_card: 'credit-card',
+  investment: 'trending-up',
 }
 
 export function OnboardingWizard() {

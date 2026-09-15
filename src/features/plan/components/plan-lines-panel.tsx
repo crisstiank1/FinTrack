@@ -9,6 +9,16 @@ import { formatAmount } from '@/lib/currency'
 import { formatShortDate } from '@/lib/dates'
 import { cn } from '@/lib/utils'
 
+import { classifyLineBudget } from '../calculations/reconciliation'
+import {
+  formatZeroBudget,
+  planLineKindGroupLabel,
+  planLinesEmptyLabel,
+  ARCHIVED_NO_NEW_BUDGETS_LABEL,
+  LINE_BUDGET_LOADING_LABEL,
+  PLAN_LINES_TITLE,
+} from '../labels'
+import { budgetsHrefForMonth } from '../links'
 import type { CategoryLineKind } from '../mutations'
 
 export interface PlanLineItem {
@@ -29,6 +39,13 @@ interface PlanLinesPanelProps {
   variables: PlanLineItem[]
   /** Progreso por categoría, de `usePlanLineProgress`. Solo lectura. */
   progressByCategory: Record<string, BudgetProgress>
+  /**
+   * `true` mientras el progreso todavía no llegó. Distinto de un progreso ya
+   * disponible sin entrada: aquel aún no se sabe, este es «sin presupuesto».
+   */
+  isProgressLoading: boolean
+  /** Mes del plan, para que los enlaces abran Presupuestos en ese mismo mes. */
+  monthKey: string
   currencyCode: string
   monthLabel: string
   isBusy?: boolean
@@ -57,12 +74,14 @@ const TONE_STYLES: Record<BudgetTone, string> = {
  * Lo que sí se muestra es el progreso ya calculado —presupuesto efectivo, gasto
  * del mes y estado—, que viene de `usePlanLineProgress`, es decir de las mismas
  * `resolveBudget` y `buildBudgetProgressList` que usa `/budgets`. Cambiar el
- * presupuesto se hace allí, y cada fila enlaza a esa pantalla.
+ * presupuesto se hace allí, y cada fila enlaza a esa pantalla en el mismo mes.
  */
 export function PlanLinesPanel({
   bills,
   variables,
   progressByCategory,
+  isProgressLoading,
+  monthKey,
   currencyCode,
   monthLabel,
   isBusy,
@@ -78,7 +97,7 @@ export function PlanLinesPanel({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 id={titleId} className="text-base font-semibold text-foreground">
-            Facturas y gastos variables
+            {PLAN_LINES_TITLE}
           </h2>
           <p className="mt-0.5 text-sm text-muted-foreground">
             Describen en qué se va tu gasto. El importe de cada una sale de su presupuesto.
@@ -93,7 +112,7 @@ export function PlanLinesPanel({
       {isEmpty ? (
         <div className="mt-3 rounded-xl border border-dashed border-border bg-card p-6 text-center">
           <p className="text-sm text-foreground first-letter:uppercase">
-            {monthLabel} no tiene facturas ni gastos variables descritos.
+            {planLinesEmptyLabel(monthLabel)}
           </p>
           <p className="mt-1 text-sm text-muted-foreground">
             Mientras tanto, todo tu gasto aparece en «No planeado».
@@ -102,20 +121,24 @@ export function PlanLinesPanel({
       ) : (
         <div className="mt-3 flex flex-col gap-6">
           <Group
-            title="Facturas"
+            title={planLineKindGroupLabel.bill}
             lines={bills}
             emptyLabel="Todavía no has descrito ninguna factura."
             progressByCategory={progressByCategory}
+            isProgressLoading={isProgressLoading}
+            budgetsHref={budgetsHrefForMonth(monthKey)}
             currencyCode={currencyCode}
             isBusy={isBusy}
             onEdit={onEdit}
             onDelete={onDelete}
           />
           <Group
-            title="Gastos variables"
+            title={planLineKindGroupLabel.variable}
             lines={variables}
             emptyLabel="Todavía no has descrito ningún gasto variable."
             progressByCategory={progressByCategory}
+            isProgressLoading={isProgressLoading}
+            budgetsHref={budgetsHrefForMonth(monthKey)}
             currencyCode={currencyCode}
             isBusy={isBusy}
             onEdit={onEdit}
@@ -132,6 +155,8 @@ interface GroupProps {
   lines: PlanLineItem[]
   emptyLabel: string
   progressByCategory: Record<string, BudgetProgress>
+  isProgressLoading: boolean
+  budgetsHref: string
   currencyCode: string
   isBusy?: boolean
   onEdit: (lineId: string) => void
@@ -143,6 +168,8 @@ function Group({
   lines,
   emptyLabel,
   progressByCategory,
+  isProgressLoading,
+  budgetsHref,
   currencyCode,
   isBusy,
   onEdit,
@@ -162,7 +189,6 @@ function Group({
         <ul aria-labelledby={titleId} className="mt-2 flex flex-col gap-2">
           {lines.map((line) => {
             const progress = progressByCategory[line.categoryId]
-            const tone = progress ? budgetStatusTone[progress.status] : 'neutral'
 
             return (
               <li
@@ -189,27 +215,13 @@ function Group({
                     )}
                   </p>
 
-                  {/* Presupuesto y gasto, solo lectura: los dos vienen de
-                      `/budgets` y de `transactions`, no de la línea. */}
-                  <p className="mt-1 text-xs">
-                    <span className="text-muted-foreground">
-                      {progress?.budgetMinor === null || progress === undefined
-                        ? 'Sin presupuesto este mes'
-                        : `Presupuesto ${formatAmount(progress.budgetMinor, currencyCode)}`}
-                      {' · '}
-                      Gastado {formatAmount(progress?.spentMinor ?? 0, currencyCode)}
-                    </span>{' '}
-                    <span className={cn('font-medium', TONE_STYLES[tone])}>
-                      {progress ? budgetStatusLabel[progress.status] : budgetStatusLabel.unbudgeted}
-                    </span>
-                  </p>
-
-                  <Link
-                    to="/budgets"
-                    className="mt-1 inline-block text-xs font-medium text-primary underline underline-offset-4"
-                  >
-                    Editar presupuesto
-                  </Link>
+                  <LineBudget
+                    progress={progress}
+                    isLoading={isProgressLoading}
+                    isCategoryArchived={line.isCategoryArchived}
+                    budgetsHref={budgetsHref}
+                    currencyCode={currencyCode}
+                  />
                 </div>
 
                 <div className="flex items-center gap-1">
@@ -242,5 +254,100 @@ function Group({
         </ul>
       )}
     </div>
+  )
+}
+
+const LINK_STYLES =
+  'mt-1 inline-block text-xs font-medium text-primary underline underline-offset-4'
+
+interface LineBudgetProps {
+  /** `undefined` si el progreso aún no llegó o no trae esta categoría. */
+  progress: BudgetProgress | undefined
+  isLoading: boolean
+  isCategoryArchived: boolean
+  budgetsHref: string
+  currencyCode: string
+}
+
+/**
+ * Presupuesto y gasto de una línea, solo lectura: los dos vienen de `/budgets`
+ * y de `transactions`, no de la línea.
+ *
+ * Cuatro lecturas, y cada una se dice una sola vez, con palabras:
+ *
+ * - **Cargando**: no se sabe todavía. Ni gasto ni estado, porque un «Gastado
+ *   COP 0» afirmaría algo que puede ser falso.
+ * - **Presupuesto positivo**: importe, gasto y el estado de progreso de siempre.
+ * - **0 explícito**: «Presupuesto en COP 0». Sin el estado «Sin presupuesto»,
+ *   que lo contradiría: el usuario sí decidió un presupuesto.
+ * - **Sin presupuesto**: invita a completarlo, salvo en una categoría
+ *   archivada, que ya no admite presupuestos nuevos.
+ *
+ * Quién es quién lo decide `classifyLineBudget`, la misma lectura que usa la
+ * reconciliación.
+ */
+function LineBudget({
+  progress,
+  isLoading,
+  isCategoryArchived,
+  budgetsHref,
+  currencyCode,
+}: LineBudgetProps) {
+  if (isLoading) {
+    return <p className="mt-1 text-xs text-muted-foreground">{LINE_BUDGET_LOADING_LABEL}</p>
+  }
+
+  // Con el progreso ya disponible, una categoría sin entrada no tiene
+  // presupuesto. Su gasto no se conoce, así que no se escribe.
+  const state = progress ? classifyLineBudget(progress) : 'none'
+  const spent = progress ? ` · Gastado ${formatAmount(progress.spentMinor, currencyCode)}` : ''
+
+  if (progress && state === 'budgeted' && progress.budgetMinor !== null) {
+    return (
+      <>
+        <p className="mt-1 text-xs">
+          <span className="text-muted-foreground">
+            Presupuesto {formatAmount(progress.budgetMinor, currencyCode)}
+            {spent}
+          </span>{' '}
+          <span className={cn('font-medium', TONE_STYLES[budgetStatusTone[progress.status]])}>
+            {budgetStatusLabel[progress.status]}
+          </span>
+        </p>
+        <Link to={budgetsHref} className={LINK_STYLES}>
+          Editar presupuesto
+        </Link>
+      </>
+    )
+  }
+
+  if (state === 'zero') {
+    return (
+      <>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {formatZeroBudget(currencyCode)}
+          {spent}
+        </p>
+        <Link to={budgetsHref} className={LINK_STYLES}>
+          Editar presupuesto
+        </Link>
+      </>
+    )
+  }
+
+  return (
+    <>
+      <p className="mt-1 text-xs text-muted-foreground">
+        Sin presupuesto este mes
+        {spent}
+      </p>
+      {isCategoryArchived ? (
+        <p className="mt-1 text-xs text-muted-foreground">{ARCHIVED_NO_NEW_BUDGETS_LABEL}</p>
+      ) : (
+        <Link to={budgetsHref} className={LINK_STYLES}>
+          Completar presupuesto
+        </Link>
+      )}
+    </>
   )
 }

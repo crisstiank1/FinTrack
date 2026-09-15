@@ -17,6 +17,7 @@ import { useCategories } from '@/features/categories/hooks'
 import { useAllTransactions } from '@/features/dashboard/hooks'
 import {
   fetchLedgerForExport,
+  groupLedgerTotalsByCurrency,
   type LedgerFilters,
   type LedgerSort,
   type LedgerSortField,
@@ -30,7 +31,8 @@ import { LedgerSummary } from '@/features/ledger/components/ledger-summary'
 import { LedgerTable } from '@/features/ledger/components/ledger-table'
 import { buildLedgerCsv, ledgerCsvFilename } from '@/features/ledger/export'
 import { useLedgerPage, useLedgerTotals } from '@/features/ledger/hooks'
-import { buildDailyBalances } from '@/features/ledger/running-balance'
+import { buildDailyBalances, runningBalanceCurrency } from '@/features/ledger/running-balance'
+import { usePrimaryCurrency } from '@/features/profile/hooks'
 import { TransactionForm } from '@/features/transactions/components/transaction-form'
 import {
   useDeleteTransaction,
@@ -40,6 +42,7 @@ import {
 import type { TransactionFormValues } from '@/features/transactions/schemas'
 import { useDebouncedValue } from '@/hooks/use-debounced-value'
 import { downloadCsv } from '@/lib/csv'
+import { resolvePresentationCurrency } from '@/lib/currency'
 import type { Tables } from '@/types/database.types'
 
 const DEFAULT_SORT: SortingState = [{ id: 'transaction_date', desc: true }]
@@ -55,9 +58,8 @@ export default function Ledger() {
   const [sorting, setSorting] = useState<SortingState>(DEFAULT_SORT)
   const [pageIndex, setPageIndex] = useState(0)
   const [pageSize, setPageSize] = useState(50)
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(
-    DEFAULT_COLUMN_VISIBILITY,
-  )
+  const [columnVisibility, setColumnVisibility] =
+    useState<VisibilityState>(DEFAULT_COLUMN_VISIBILITY)
   const [isExporting, setExporting] = useState(false)
 
   const [editing, setEditing] = useState<Tables<'transactions'> | null>(null)
@@ -90,6 +92,7 @@ export default function Ledger() {
   const { data: categories = [] } = useCategories()
   const page = useLedgerPage(activeFilters, sort, pageIndex, pageSize)
   const totals = useLedgerTotals(activeFilters)
+  const primaryCurrency = usePrimaryCurrency()
 
   const showRunningBalance = columnVisibility.runningBalance === true
   const { data: allTransactions = [] } = useAllTransactions({ enabled: showRunningBalance })
@@ -101,14 +104,34 @@ export default function Ledger() {
   const accountsById = useMemo(() => new Map(accounts.map((a) => [a.id, a])), [accounts])
   const categoriesById = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories])
 
-  const currencyCode = accounts[0]?.currency_code ?? 'COP'
+  // Moneda para los ceros del resumen y para filas sin cuenta conocida. Cada
+  // movimiento se muestra en la moneda de su propia cuenta.
+  const currencyCode = resolvePresentationCurrency(primaryCurrency.data, accounts)
+
+  // El saldo acumulado suma cuentas: con monedas distintas no se calcula.
+  const balanceCurrency = runningBalanceCurrency(accounts, activeFilters.accountId)
+  const balanceIsMixed = showRunningBalance && balanceCurrency === null && accounts.length > 0
 
   const balanceByDate = useMemo(
     () =>
-      showRunningBalance
+      showRunningBalance && balanceCurrency
         ? buildDailyBalances(accounts, allTransactions, activeFilters.accountId)
         : undefined,
-    [showRunningBalance, accounts, allTransactions, activeFilters.accountId],
+    [showRunningBalance, balanceCurrency, accounts, allTransactions, activeFilters.accountId],
+  )
+
+  // Se espera a la moneda principal para no reordenar las monedas al llegar.
+  const currencyTotals = useMemo(
+    () =>
+      totals.data && !primaryCurrency.isPending
+        ? groupLedgerTotalsByCurrency(
+            totals.data,
+            new Map(accounts.map((account) => [account.id, account.currency_code])),
+            currencyCode,
+            primaryCurrency.data,
+          )
+        : undefined,
+    [totals.data, primaryCurrency.isPending, primaryCurrency.data, accounts, currencyCode],
   )
 
   const rows = useMemo(() => page.data?.rows ?? [], [page.data])
@@ -119,14 +142,15 @@ export default function Ledger() {
       createLedgerColumns({
         accountsById,
         categoriesById,
-        currencyCode,
+        fallbackCurrency: currencyCode,
         balanceByDate,
+        balanceCurrency: balanceCurrency ?? currencyCode,
         onEdit: setEditing,
         onDuplicate: handleDuplicate,
         onDelete: setDeleting,
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [accountsById, categoriesById, currencyCode, balanceByDate],
+    [accountsById, categoriesById, currencyCode, balanceByDate, balanceCurrency],
   )
 
   const table = useReactTable({
@@ -262,16 +286,24 @@ export default function Ledger() {
         />
 
         <LedgerSummary
-          totals={totals.data}
+          totals={currencyTotals}
+          count={totals.data?.count}
           isError={totals.isError}
           currencyCode={currencyCode}
         />
 
-        {page.isError ? (
-          <div
-            role="alert"
-            className="rounded-xl border border-border bg-card p-8 text-center"
+        {balanceIsMixed && (
+          <p
+            role="status"
+            className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground"
           >
+            El saldo acumulado solo se calcula con cuentas de una misma moneda. Filtra por una
+            cuenta para verlo.
+          </p>
+        )}
+
+        {page.isError ? (
+          <div role="alert" className="rounded-xl border border-border bg-card p-8 text-center">
             <p className="text-sm text-muted-foreground">
               No pudimos cargar los movimientos. Revisa tu conexión e inténtalo de nuevo.
             </p>
@@ -296,8 +328,9 @@ export default function Ledger() {
               transactions={rows}
               accountsById={accountsById}
               categoriesById={categoriesById}
-              currencyCode={currencyCode}
+              fallbackCurrency={currencyCode}
               balanceByDate={balanceByDate}
+              balanceCurrency={balanceCurrency ?? currencyCode}
               onEdit={setEditing}
               onDuplicate={handleDuplicate}
               onDelete={setDeleting}

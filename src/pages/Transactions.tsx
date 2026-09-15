@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useAccounts } from '@/features/accounts/hooks'
 import { useCategories } from '@/features/categories/hooks'
+import { usePrimaryCurrency } from '@/features/profile/hooks'
 import type { TransactionFilters } from '@/features/transactions/api'
 import { TransactionFiltersBar } from '@/features/transactions/components/transaction-filters'
 import { TransactionForm } from '@/features/transactions/components/transaction-form'
@@ -21,15 +22,28 @@ import {
   useUpdateTransaction,
 } from '@/features/transactions/hooks'
 import type { TransactionFormValues, TransferFormValues } from '@/features/transactions/schemas'
-import { currentMonthKey } from '@/lib/dates'
+import { useOptionalMonthParam } from '@/hooks/use-month-param'
+import { resolvePresentationCurrency } from '@/lib/currency'
 import type { Tables } from '@/types/database.types'
 
 export default function Transactions() {
-  const [filters, setFilters] = useState<TransactionFilters>({ month: currentMonthKey() })
+  // El mes vive en la URL (`?month=YYYY-MM`) para que un enlace desde el
+  // dashboard o el plan abra el mismo mes; vaciarlo (`?month=`) muestra todos.
+  // Cuenta y tipo siguen siendo estado local: no se comparten ni sobreviven a
+  // recargar, igual que antes.
+  const [month, setMonth] = useOptionalMonthParam()
+  const [scope, setScope] = useState<Omit<TransactionFilters, 'month'>>({})
+  const filters = useMemo<TransactionFilters>(() => ({ ...scope, month }), [scope, month])
+
+  function handleFiltersChange(next: TransactionFilters) {
+    if (next.month !== month) setMonth(next.month)
+    setScope({ accountId: next.accountId, type: next.type })
+  }
 
   const { data: accounts = [] } = useAccounts()
   const { data: categories = [] } = useCategories()
   const { data: transactions, isLoading } = useTransactions(filters)
+  const { data: primaryCurrency } = usePrimaryCurrency()
 
   const createTransaction = useCreateTransaction()
   const updateTransaction = useUpdateTransaction()
@@ -37,9 +51,13 @@ export default function Transactions() {
   const deleteTransaction = useDeleteTransaction()
   const duplicateTransaction = useDuplicateTransaction()
 
-  const [movementDialog, setMovementDialog] = useState<'closed' | 'transaction' | 'transfer'>('closed')
+  const [movementDialog, setMovementDialog] = useState<'closed' | 'transaction' | 'transfer'>(
+    'closed',
+  )
   const [editingTransaction, setEditingTransaction] = useState<Tables<'transactions'> | null>(null)
-  const [deletingTransaction, setDeletingTransaction] = useState<Tables<'transactions'> | null>(null)
+  const [deletingTransaction, setDeletingTransaction] = useState<Tables<'transactions'> | null>(
+    null,
+  )
 
   const accountById = useMemo(
     () => new Map(accounts.map((account) => [account.id, account])),
@@ -50,7 +68,9 @@ export default function Transactions() {
     [categories],
   )
 
-  const currencyCode = accounts[0]?.currency_code ?? 'COP'
+  // Esta página no suma importes: cada fila va en la moneda de su cuenta. Esta
+  // moneda solo cubre filas sin cuenta conocida y formularios sin cuenta elegida.
+  const currencyCode = resolvePresentationCurrency(primaryCurrency, accounts)
 
   function openCreateTransaction() {
     setEditingTransaction(null)
@@ -162,7 +182,11 @@ export default function Transactions() {
       </div>
 
       <div className="mt-4">
-        <TransactionFiltersBar filters={filters} accounts={accounts} onChange={setFilters} />
+        <TransactionFiltersBar
+          filters={filters}
+          accounts={accounts}
+          onChange={handleFiltersChange}
+        />
       </div>
 
       <div className="mt-6 flex flex-col gap-2">
@@ -182,10 +206,14 @@ export default function Transactions() {
             transaction={transaction}
             accountName={accountById.get(transaction.account_id)?.name ?? 'Cuenta eliminada'}
             categoryName={
-              transaction.category_id ? (categoryById.get(transaction.category_id)?.name ?? null) : null
+              transaction.category_id
+                ? (categoryById.get(transaction.category_id)?.name ?? null)
+                : null
             }
             categoryIcon={
-              transaction.category_id ? (categoryById.get(transaction.category_id)?.icon ?? null) : null
+              transaction.category_id
+                ? (categoryById.get(transaction.category_id)?.icon ?? null)
+                : null
             }
             currencyCode={accountById.get(transaction.account_id)?.currency_code ?? currencyCode}
             onEdit={() => openEditTransaction(transaction)}
@@ -201,7 +229,9 @@ export default function Transactions() {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editingTransaction ? 'Editar movimiento' : 'Nuevo movimiento'}</DialogTitle>
+            <DialogTitle>
+              {editingTransaction ? 'Editar movimiento' : 'Nuevo movimiento'}
+            </DialogTitle>
           </DialogHeader>
           <TransactionForm
             key={editingTransaction?.id ?? 'new'}

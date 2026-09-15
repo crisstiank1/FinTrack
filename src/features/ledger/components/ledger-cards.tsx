@@ -11,8 +11,11 @@ interface LedgerCardsProps {
   transactions: Tables<'transactions'>[]
   accountsById: Map<string, Tables<'accounts'>>
   categoriesById: Map<string, Tables<'categories'>>
-  currencyCode: string
+  /** Moneda de un movimiento cuya cuenta no está en `accountsById`. */
+  fallbackCurrency: string
   balanceByDate?: Map<string, number>
+  /** Moneda de `balanceByDate`. */
+  balanceCurrency: string
   onEdit: (transaction: Tables<'transactions'>) => void
   onDuplicate: (transaction: Tables<'transactions'>) => void
   onDelete: (transaction: Tables<'transactions'>) => void
@@ -28,8 +31,9 @@ export function LedgerCards({
   transactions,
   accountsById,
   categoriesById,
-  currencyCode,
+  fallbackCurrency,
   balanceByDate,
+  balanceCurrency,
   onEdit,
   onDuplicate,
   onDelete,
@@ -44,10 +48,7 @@ export function LedgerCards({
         const balance = balanceByDate?.get(transaction.transaction_date)
 
         return (
-          <li
-            key={transaction.id}
-            className="rounded-xl border border-border bg-card p-3 text-sm"
-          >
+          <li key={transaction.id} className="rounded-xl border border-border bg-card p-3 text-sm">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="truncate font-medium text-foreground">{transaction.description}</p>
@@ -57,13 +58,16 @@ export function LedgerCards({
                   {category ? ` · ${category.name}` : ''}
                 </p>
               </div>
-              <AmountCell transaction={transaction} currencyCode={currencyCode} />
+              <AmountCell
+                transaction={transaction}
+                currencyCode={account?.currency_code ?? fallbackCurrency}
+              />
             </div>
 
             <div className="mt-2 flex items-center justify-between gap-2">
               <span className="text-xs text-muted-foreground">
                 {TYPE_LABELS[transaction.type] ?? transaction.type}
-                {balance !== undefined && ` · Saldo ${formatAmount(balance, currencyCode)}`}
+                {balance !== undefined && ` · Saldo ${formatAmount(balance, balanceCurrency)}`}
               </span>
 
               <div className="flex gap-1">

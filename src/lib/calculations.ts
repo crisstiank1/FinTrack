@@ -58,6 +58,36 @@ export function calculateConsolidatedBalance(
   )
 }
 
+export interface AccountWithCurrency extends AccountForCalculation {
+  currency_code: string
+}
+
+/**
+ * Saldo consolidado de cada moneda, sin convertir entre ellas.
+ *
+ * Incluye toda moneda con al menos una cuenta, aunque su saldo sea 0: que el
+ * usuario tenga una cuenta en USD es información aunque esté vacía. Una
+ * transferencia entre cuentas de monedas distintas afecta a cada moneda por
+ * separado, porque cada lado se suma en la suya.
+ */
+export function calculateBalancesByCurrency(
+  accounts: AccountWithCurrency[],
+  transactions: TransactionForCalculation[],
+): Map<string, number> {
+  const accountsByCurrency = new Map<string, AccountWithCurrency[]>()
+  for (const account of accounts) {
+    const group = accountsByCurrency.get(account.currency_code) ?? []
+    group.push(account)
+    accountsByCurrency.set(account.currency_code, group)
+  }
+
+  const balances = new Map<string, number>()
+  for (const [currencyCode, group] of accountsByCurrency) {
+    balances.set(currencyCode, calculateConsolidatedBalance(group, transactions))
+  }
+  return balances
+}
+
 /** Suma de movimientos de tipo income. Las transferencias no cuentan. */
 export function calculateMonthlyIncome(
   transactions: Pick<TransactionForCalculation, 'type' | 'amount_minor'>[],

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   buildCategoryBreakdown,
+  buildCurrencyBalances,
   buildDashboardSummary,
   buildMonthlyTrend,
   buildRecentTransactions,
@@ -87,6 +88,41 @@ const transactions: DashboardTransaction[] = [
 
 const scope = { accounts, transactions, monthKey: MONTH }
 
+/**
+ * Mismo usuario con una cuenta en USD y otra en ARS además de las dos en COP.
+ * Sus movimientos usan cifras muy distintas para que una mezcla se note.
+ */
+const mixedAccounts: DashboardAccount[] = [
+  ...accounts,
+  { id: 'usd-1', name: 'Cuenta USD', currency_code: 'USD', initial_balance_minor: 1_000 },
+  { id: 'ars-1', name: 'Cuenta ARS', currency_code: 'ARS', initial_balance_minor: 0 },
+]
+
+const mixedTransactions: DashboardTransaction[] = [
+  ...transactions,
+  transaction({
+    type: 'income',
+    account_id: 'usd-1',
+    category_id: 'cat-salary',
+    amount_minor: 500,
+    transaction_date: '2026-09-07',
+  }),
+  transaction({
+    account_id: 'usd-1',
+    category_id: 'cat-fun',
+    amount_minor: 200,
+    transaction_date: '2026-09-08',
+  }),
+  transaction({
+    account_id: 'ars-1',
+    category_id: 'cat-food',
+    amount_minor: 9_000,
+    transaction_date: '2026-09-09',
+  }),
+]
+
+const mixedScope = { accounts: mixedAccounts, transactions: mixedTransactions, monthKey: MONTH }
+
 describe('buildDashboardSummary', () => {
   it('calcula los KPIs del mes seleccionado', () => {
     const summary = buildDashboardSummary(scope)
@@ -165,6 +201,44 @@ describe('buildDashboardSummary', () => {
   })
 })
 
+describe('buildDashboardSummary con varias monedas', () => {
+  it('limita los KPIs a las cuentas de la moneda indicada', () => {
+    const summary = buildDashboardSummary({ ...mixedScope, currencyCode: 'COP' })
+
+    // Mismas cifras que el escenario solo en COP: USD y ARS no se suman.
+    expect(summary.balance.currentMinor).toBe(400_000)
+    expect(summary.income.currentMinor).toBe(300_000)
+    expect(summary.expense.currentMinor).toBe(150_000)
+    expect(summary.monthTransactionCount).toBe(5)
+  })
+
+  it('calcula otra moneda con sus propias cuentas', () => {
+    const summary = buildDashboardSummary({ ...mixedScope, currencyCode: 'USD' })
+
+    // 1.000 iniciales + 500 de ingreso - 200 de gasto.
+    expect(summary.balance.currentMinor).toBe(1_300)
+    expect(summary.income.currentMinor).toBe(500)
+    expect(summary.expense.currentMinor).toBe(200)
+    expect(summary.savingsRate.current).toBe(60)
+  })
+
+  it('sin moneda indicada conserva el comportamiento anterior', () => {
+    const summary = buildDashboardSummary(mixedScope)
+
+    expect(summary.expense.currentMinor).toBe(150_000 + 200 + 9_000)
+  })
+
+  it('combina el filtro de cuenta con el de moneda', () => {
+    const summary = buildDashboardSummary({
+      ...mixedScope,
+      accountId: 'acc-2',
+      currencyCode: 'COP',
+    })
+
+    expect(summary.balance.currentMinor).toBe(70_000)
+  })
+})
+
 describe('buildCategoryBreakdown', () => {
   it('reparte el gasto del mes por categoría, de mayor a menor', () => {
     const slices = buildCategoryBreakdown({ ...scope, categories })
@@ -192,12 +266,23 @@ describe('buildCategoryBreakdown', () => {
       }),
     )
 
-    const slices = buildCategoryBreakdown({ accounts, transactions: many, monthKey: MONTH, categories })
+    const slices = buildCategoryBreakdown({
+      accounts,
+      transactions: many,
+      monthKey: MONTH,
+      categories,
+    })
 
     expect(slices).toHaveLength(5)
     expect(slices[slices.length - 1].name).toBe('Otras categorías')
     // Las 4 categorías sobrantes: 4.000 + 3.000 + 2.000 + 1.000.
     expect(slices[slices.length - 1].amountMinor).toBe(10_000)
+  })
+
+  it('solo reparte el gasto de la moneda indicada', () => {
+    const slices = buildCategoryBreakdown({ ...mixedScope, currencyCode: 'COP', categories })
+
+    expect(slices.map((slice) => slice.amountMinor)).toEqual([120_000, 30_000])
   })
 
   it('devuelve una lista vacía cuando el mes no tuvo gastos', () => {
@@ -226,6 +311,16 @@ describe('buildMonthlyTrend', () => {
   })
 })
 
+describe('buildMonthlyTrend con varias monedas', () => {
+  it('acumula solo el saldo y los flujos de la moneda indicada', () => {
+    const [, august, september] = buildMonthlyTrend({ ...mixedScope, currencyCode: 'COP' }, 3)
+
+    expect(august.balanceMinor).toBe(250_000)
+    expect(september.balanceMinor).toBe(400_000)
+    expect(september.expenseMinor).toBe(150_000)
+  })
+})
+
 describe('buildRecentTransactions', () => {
   it('devuelve los movimientos del mes, del más reciente al más antiguo', () => {
     const recent = buildRecentTransactions(scope, 3)
@@ -240,5 +335,44 @@ describe('buildRecentTransactions', () => {
 
     expect(recent).toHaveLength(5)
     expect(recent.every((item) => item.transaction_date.startsWith(MONTH))).toBe(true)
+  })
+})
+
+describe('buildRecentTransactions con varias monedas', () => {
+  it('lista movimientos de todas las monedas aunque se indique una', () => {
+    const recent = buildRecentTransactions({ ...mixedScope, currencyCode: 'COP' }, 10)
+
+    expect(recent.map((item) => item.account_id)).toContain('usd-1')
+    expect(recent.map((item) => item.account_id)).toContain('ars-1')
+  })
+})
+
+describe('buildCurrencyBalances', () => {
+  it('devuelve el saldo de cada moneda con la principal primero', () => {
+    expect(buildCurrencyBalances(mixedScope, 'USD')).toEqual([
+      { currencyCode: 'USD', balanceMinor: 1_300 },
+      { currencyCode: 'COP', balanceMinor: 400_000 },
+      { currencyCode: 'ARS', balanceMinor: -9_000 },
+    ])
+  })
+
+  it('calcula el saldo al cierre del mes seleccionado', () => {
+    expect(buildCurrencyBalances({ ...mixedScope, monthKey: '2026-08' }, 'COP')).toEqual([
+      { currencyCode: 'COP', balanceMinor: 250_000 },
+      { currencyCode: 'USD', balanceMinor: 1_000 },
+      { currencyCode: 'ARS', balanceMinor: 0 },
+    ])
+  })
+
+  it('con una cuenta elegida solo devuelve su moneda', () => {
+    expect(buildCurrencyBalances({ ...mixedScope, accountId: 'usd-1' }, 'COP')).toEqual([
+      { currencyCode: 'USD', balanceMinor: 1_300 },
+    ])
+  })
+
+  it('con una sola moneda devuelve una sola entrada', () => {
+    expect(buildCurrencyBalances(scope, 'COP')).toEqual([
+      { currencyCode: 'COP', balanceMinor: 400_000 },
+    ])
   })
 })

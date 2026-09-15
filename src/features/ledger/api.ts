@@ -1,3 +1,4 @@
+import { sortCurrencyCodes } from '@/lib/currency'
 import { supabase } from '@/lib/supabase'
 import type { Tables } from '@/types/database.types'
 
@@ -25,18 +26,38 @@ export interface LedgerPage {
   totalCount: number
 }
 
+/** Suma de un tipo de movimiento en una cuenta. */
+export interface LedgerAccountTotal {
+  type: string
+  accountId: string
+  totalMinor: number
+}
+
 export interface LedgerTotals {
+  /**
+   * Sumas por tipo y cuenta, no por tipo a secas: la moneda la define la
+   * cuenta, y agrupar solo por tipo mezclaría monedas en un mismo número.
+   */
+  byAccount: LedgerAccountTotal[]
+  count: number
+}
+
+/** Resumen del libro en una sola moneda. */
+export interface LedgerCurrencyTotals {
+  currencyCode: string
   incomeMinor: number
   expenseMinor: number
   /** Ingresos menos gastos. Las transferencias no entran. */
   balanceMinor: number
   transferMinor: number
-  count: number
 }
 
-/** Tope de seguridad para la exportación: 50 páginas de 1000 filas. */
-const EXPORT_PAGE_SIZE = 1000
-const EXPORT_MAX_PAGES = 50
+/**
+ * Recorrido del conjunto filtrado completo (resumen y exportación): páginas de
+ * 1000 filas, el tope de PostgREST, con un límite de seguridad de 50 páginas.
+ */
+const SCAN_PAGE_SIZE = 1000
+const SCAN_MAX_PAGES = 50
 
 /**
  * Neutraliza los comodines de SQL LIKE (`%` y `_`) para que un usuario que
@@ -111,53 +132,94 @@ export async function fetchLedgerPage(
   return { rows: data ?? [], totalCount: count ?? 0 }
 }
 
-interface AggregateRow {
-  type: string
-  total: number | null
-}
-
 /**
  * Resumen del conjunto filtrado completo.
  *
- * Lo suma PostgreSQL agrupando por tipo, así que devuelve como mucho tres
- * filas sin importar cuántos movimientos haya detrás. Los tipos generados de
- * Supabase no modelan funciones de agregación, de ahí el cast.
+ * Se suma en el cliente: el proyecto de Supabase tiene desactivadas las
+ * funciones de agregación de PostgREST (`.sum()` responde PGRST123), así que se
+ * piden solo las tres columnas necesarias, paginadas como la exportación, y se
+ * acumulan por tipo y cuenta. La moneda se asigna después con
+ * `groupLedgerTotalsByCurrency`.
  */
 export async function fetchLedgerTotals(
   userId: string,
   filters: LedgerFilters,
 ): Promise<LedgerTotals> {
-  const { data, error, count } = await applyFilters(
-    supabase
-      .from('transactions')
-      .select('type, total:amount_minor.sum()', { count: 'exact' }),
-    userId,
-    filters,
-  )
+  const totalByKey = new Map<string, LedgerAccountTotal>()
+  let count = 0
 
-  if (error) throw error
+  for (let page = 0; page < SCAN_MAX_PAGES; page += 1) {
+    const from = page * SCAN_PAGE_SIZE
 
-  const rows = (data ?? []) as unknown as AggregateRow[]
-  const totalFor = (type: string) =>
-    rows.find((row) => row.type === type)?.total ?? 0
+    const { data, error } = await applyFilters(
+      supabase.from('transactions').select('type, account_id, amount_minor'),
+      userId,
+      filters,
+    )
+      // Orden total y estable: sin él, dos páginas podrían repetir o saltarse filas.
+      .order('id', { ascending: true })
+      .range(from, from + SCAN_PAGE_SIZE - 1)
 
-  const incomeMinor = totalFor('income')
-  const expenseMinor = totalFor('expense')
+    if (error) throw error
 
-  return {
-    incomeMinor,
-    expenseMinor,
-    balanceMinor: incomeMinor - expenseMinor,
-    transferMinor: totalFor('transfer'),
-    count: count ?? 0,
+    for (const row of data ?? []) {
+      const key = `${row.type}:${row.account_id}`
+      const entry = totalByKey.get(key) ?? {
+        type: row.type,
+        accountId: row.account_id,
+        totalMinor: 0,
+      }
+      entry.totalMinor += row.amount_minor
+      totalByKey.set(key, entry)
+    }
+
+    count += data?.length ?? 0
+    if (!data || data.length < SCAN_PAGE_SIZE) break
   }
+
+  return { byAccount: [...totalByKey.values()], count }
+}
+
+/**
+ * Reparte los totales por moneda, con la principal primero.
+ *
+ * Solo aparecen las monedas con movimientos en el conjunto filtrado. Una cuenta
+ * que ya no está en `currencyByAccountId` cae en `fallbackCurrency`.
+ */
+export function groupLedgerTotalsByCurrency(
+  totals: LedgerTotals,
+  currencyByAccountId: ReadonlyMap<string, string>,
+  fallbackCurrency: string,
+  primaryCode?: string | null,
+): LedgerCurrencyTotals[] {
+  const byCurrency = new Map<string, LedgerCurrencyTotals>()
+
+  for (const row of totals.byAccount) {
+    const currencyCode = currencyByAccountId.get(row.accountId) ?? fallbackCurrency
+    const entry = byCurrency.get(currencyCode) ?? {
+      currencyCode,
+      incomeMinor: 0,
+      expenseMinor: 0,
+      balanceMinor: 0,
+      transferMinor: 0,
+    }
+
+    if (row.type === 'income') entry.incomeMinor += row.totalMinor
+    if (row.type === 'expense') entry.expenseMinor += row.totalMinor
+    if (row.type === 'transfer') entry.transferMinor += row.totalMinor
+    entry.balanceMinor = entry.incomeMinor - entry.expenseMinor
+
+    byCurrency.set(currencyCode, entry)
+  }
+
+  return sortCurrencyCodes(byCurrency.keys(), primaryCode).map((code) => byCurrency.get(code)!)
 }
 
 /**
  * Todas las filas que cumplen los filtros, para exportar a CSV.
  *
- * Es la única operación del libro que recorre el conjunto completo, y solo
- * ocurre cuando el usuario pide la descarga explícitamente.
+ * Trae todas las columnas del conjunto completo, así que solo ocurre cuando el
+ * usuario pide la descarga explícitamente.
  */
 export async function fetchLedgerForExport(
   userId: string,
@@ -166,8 +228,8 @@ export async function fetchLedgerForExport(
 ): Promise<Tables<'transactions'>[]> {
   const all: Tables<'transactions'>[] = []
 
-  for (let page = 0; page < EXPORT_MAX_PAGES; page += 1) {
-    const from = page * EXPORT_PAGE_SIZE
+  for (let page = 0; page < SCAN_MAX_PAGES; page += 1) {
+    const from = page * SCAN_PAGE_SIZE
 
     const { data, error } = await applyFilters(
       supabase.from('transactions').select('*'),
@@ -176,12 +238,12 @@ export async function fetchLedgerForExport(
     )
       .order(sort.field, { ascending: sort.direction === 'asc' })
       .order('id', { ascending: false })
-      .range(from, from + EXPORT_PAGE_SIZE - 1)
+      .range(from, from + SCAN_PAGE_SIZE - 1)
 
     if (error) throw error
 
     all.push(...(data ?? []))
-    if (!data || data.length < EXPORT_PAGE_SIZE) break
+    if (!data || data.length < SCAN_PAGE_SIZE) break
   }
 
   return all

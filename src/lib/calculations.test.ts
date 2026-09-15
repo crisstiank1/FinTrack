@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   calculateAccountBalance,
+  calculateBalancesByCurrency,
   calculateConsolidatedBalance,
   calculateMonthlyExpense,
   calculateMonthlyIncome,
@@ -70,6 +71,55 @@ describe('calculateConsolidatedBalance', () => {
     const after = calculateConsolidatedBalance(accounts, transferTransactions)
 
     expect(after).toBe(before)
+  })
+})
+
+describe('calculateBalancesByCurrency', () => {
+  const accounts = [
+    { id: 'cop-1', currency_code: 'COP', initial_balance_minor: 100000 },
+    { id: 'cop-2', currency_code: 'COP', initial_balance_minor: 50000 },
+    { id: 'usd-1', currency_code: 'USD', initial_balance_minor: 300 },
+    { id: 'ars-1', currency_code: 'ARS', initial_balance_minor: 0 },
+  ]
+
+  it('suma cada moneda por separado, sin mezclarlas', () => {
+    const transactions: TransactionForCalculation[] = [
+      { type: 'income', transfer_direction: null, account_id: 'cop-1', amount_minor: 20000 },
+      { type: 'expense', transfer_direction: null, account_id: 'usd-1', amount_minor: 100 },
+    ]
+
+    const balances = calculateBalancesByCurrency(accounts, transactions)
+
+    expect(balances.get('COP')).toBe(170000)
+    expect(balances.get('USD')).toBe(200)
+  })
+
+  it('incluye una moneda con cuentas aunque su saldo sea 0', () => {
+    const balances = calculateBalancesByCurrency(accounts, [])
+
+    expect(balances.get('ARS')).toBe(0)
+    expect(balances.size).toBe(3)
+  })
+
+  it('una transferencia entre monedas distintas afecta a cada moneda en su lado', () => {
+    const transactions: TransactionForCalculation[] = [
+      { type: 'transfer', transfer_direction: 'outgoing', account_id: 'usd-1', amount_minor: 100 },
+      {
+        type: 'transfer',
+        transfer_direction: 'incoming',
+        account_id: 'cop-1',
+        amount_minor: 400000,
+      },
+    ]
+
+    const balances = calculateBalancesByCurrency(accounts, transactions)
+
+    expect(balances.get('USD')).toBe(200)
+    expect(balances.get('COP')).toBe(550000)
+  })
+
+  it('devuelve un mapa vacío sin cuentas', () => {
+    expect(calculateBalancesByCurrency([], []).size).toBe(0)
   })
 })
 

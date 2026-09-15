@@ -35,26 +35,59 @@ describe('BudgetProgressBar — sin presupuesto', () => {
       source: null,
     })
 
-    expect(screen.getByText(/Sin presupuesto este mes/)).toBeInTheDocument()
+    expect(screen.getByText('Sin presupuesto este mes')).toBeInTheDocument()
+    expect(screen.queryByText(/Presupuesto en COP 0/)).not.toBeInTheDocument()
     expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
     expect(screen.queryByText(/%/)).not.toBeInTheDocument()
     expect(screen.getByText('COP 42.000')).toBeInTheDocument()
   })
+})
 
-  it('distingue el 0 deliberado de este mes de la ausencia de configuración', () => {
-    renderBar({
+describe('BudgetProgressBar — presupuesto de COP 0 explícito', () => {
+  function zero(source: 'template' | 'exception') {
+    return {
       categoryId: 'cat-food',
       budgetMinor: null,
       spentMinor: 10_000,
       remainingMinor: null,
       ratio: null,
       status: 'unbudgeted',
-      // Un presupuesto de 0 fijado como excepción para este mes.
-      source: 'exception',
-    })
+      source,
+    } satisfies BudgetProgress
+  }
 
-    expect(screen.getByText(/excepción de este mes/)).toBeInTheDocument()
-    expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
+  it('una plantilla en 0 dice «Presupuesto en COP 0», nunca «Sin presupuesto»', () => {
+    renderBar(zero('template'))
+
+    expect(screen.getByText('Presupuesto en COP 0')).toBeInTheDocument()
+    expect(screen.queryByText(/Sin presupuesto/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/excepción de este mes/)).not.toBeInTheDocument()
+  })
+
+  it('una excepción en 0 lo dice, para distinguir cómo se deshace', () => {
+    renderBar(zero('exception'))
+
+    expect(screen.getByText('Presupuesto en COP 0 · excepción de este mes')).toBeInTheDocument()
+    expect(screen.queryByText(/Sin presupuesto/)).not.toBeInTheDocument()
+  })
+
+  it('no dibuja barra ni porcentaje, y muestra el gasto aparte', () => {
+    for (const source of ['template', 'exception'] as const) {
+      const { unmount } = renderBar(zero(source))
+
+      expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
+      expect(screen.queryByText(/%/)).not.toBeInTheDocument()
+      expect(screen.getByText('COP 10.000')).toBeInTheDocument()
+      unmount()
+    }
+  })
+
+  it('usa el tono neutro de siempre, sin color de alerta', () => {
+    renderBar(zero('exception'))
+
+    const text = screen.getByText(/Presupuesto en COP 0/)
+    expect(text.className).toContain('text-muted-foreground')
+    expect(text.className).not.toMatch(/text-(danger|warning)/)
   })
 })
 

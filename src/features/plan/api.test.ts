@@ -11,7 +11,9 @@ import {
   fetchPlanLines,
   fetchPlanMonth,
   fetchTransactionsByAccounts,
+  insertContributionLine,
   insertPlanLine,
+  updateContributionLine,
   updatePlanLine,
 } from './api'
 import { PlanError } from './errors'
@@ -43,7 +45,17 @@ interface QueryResult {
   error: unknown
 }
 
-const CHAINABLE = ['select', 'eq', 'in', 'order', 'range', 'insert', 'update', 'delete'] as const
+const CHAINABLE = [
+  'select',
+  'eq',
+  'in',
+  'lte',
+  'order',
+  'range',
+  'insert',
+  'update',
+  'delete',
+] as const
 
 const fromMock = supabase.from as unknown as Mock
 
@@ -107,6 +119,8 @@ const USER_ID = 'user-1'
 const PLAN_MONTH_ID = 'plan-month-1'
 const MONTH_KEY = '2026-04'
 const FIRST_DAY = monthRange(MONTH_KEY).start
+/** Último día del mes: el corte del historial de saldos. */
+const AS_OF = monthRange(MONTH_KEY).end
 
 beforeEach(() => {
   fromMock.mockReset()
@@ -244,7 +258,7 @@ describe('fetchTransactionsByAccounts', () => {
   it('sin cuentas relevantes devuelve la colección vacía y no consulta', async () => {
     const { tables } = mockQueries()
 
-    await expect(fetchTransactionsByAccounts(USER_ID, [])).resolves.toEqual([])
+    await expect(fetchTransactionsByAccounts(USER_ID, [], AS_OF)).resolves.toEqual([])
     expect(tables).toEqual([])
     expect(fromMock).not.toHaveBeenCalled()
   })
@@ -252,17 +266,39 @@ describe('fetchTransactionsByAccounts', () => {
   it('filtra por usuario y por las cuentas pedidas', async () => {
     const { calls, tables } = mockQueries({ data: [], error: null })
 
-    await fetchTransactionsByAccounts(USER_ID, ['acc-a', 'acc-b'])
+    await fetchTransactionsByAccounts(USER_ID, ['acc-a', 'acc-b'], AS_OF)
 
     expect(tables).toEqual(['transactions'])
     expect(calls).toContainEqual({ method: 'eq', args: ['user_id', USER_ID] })
     expect(calls).toContainEqual({ method: 'in', args: ['account_id', ['acc-a', 'acc-b']] })
   })
 
+  it('corta el historial en la fecha pedida, inclusive', async () => {
+    const { calls } = mockQueries({ data: [], error: null })
+
+    await fetchTransactionsByAccounts(USER_ID, ['acc-a'], '2026-08-31')
+
+    expect(rows(calls, 'lte')).toEqual([['transaction_date', '2026-08-31']])
+  })
+
+  it('aplica el mismo corte en cada página', async () => {
+    const { calls } = mockQueries(
+      { data: page(PAGE_SIZE), error: null },
+      { data: page(1, PAGE_SIZE), error: null },
+    )
+
+    await fetchTransactionsByAccounts(USER_ID, ['acc-a'], AS_OF)
+
+    expect(rows(calls, 'lte')).toEqual([
+      ['transaction_date', AS_OF],
+      ['transaction_date', AS_OF],
+    ])
+  })
+
   it('selecciona solo las columnas del saldo, no la fila entera', async () => {
     const { calls } = mockQueries({ data: [], error: null })
 
-    await fetchTransactionsByAccounts(USER_ID, ['acc-a'])
+    await fetchTransactionsByAccounts(USER_ID, ['acc-a'], AS_OF)
 
     const selected = String(selectedColumns(calls)[0])
     expect(selected).not.toBe('*')
@@ -274,7 +310,7 @@ describe('fetchTransactionsByAccounts', () => {
   it('pagina con ventanas acotadas, nunca con un rango ilimitado', async () => {
     const { calls } = mockQueries({ data: page(10), error: null })
 
-    await fetchTransactionsByAccounts(USER_ID, ['acc-a'])
+    await fetchTransactionsByAccounts(USER_ID, ['acc-a'], AS_OF)
 
     expect(rows(calls, 'range')).toEqual([[0, PAGE_SIZE - 1]])
   })
@@ -285,7 +321,7 @@ describe('fetchTransactionsByAccounts', () => {
       { data: page(3, PAGE_SIZE), error: null },
     )
 
-    const result = await fetchTransactionsByAccounts(USER_ID, ['acc-a'])
+    const result = await fetchTransactionsByAccounts(USER_ID, ['acc-a'], AS_OF)
 
     expect(tables).toEqual(['transactions', 'transactions'])
     expect(rows(calls, 'range')).toEqual([
@@ -301,7 +337,7 @@ describe('fetchTransactionsByAccounts', () => {
       { data: page(0), error: null },
     )
 
-    await fetchTransactionsByAccounts(USER_ID, ['acc-a'])
+    await fetchTransactionsByAccounts(USER_ID, ['acc-a'], AS_OF)
 
     expect(tables).toHaveLength(2)
   })
@@ -312,7 +348,7 @@ describe('fetchTransactionsByAccounts', () => {
       ...Array.from({ length: 60 }, () => ({ data: full, error: null })),
     )
 
-    await fetchTransactionsByAccounts(USER_ID, ['acc-a'])
+    await fetchTransactionsByAccounts(USER_ID, ['acc-a'], AS_OF)
 
     expect(tables).toHaveLength(50)
   })
@@ -320,7 +356,7 @@ describe('fetchTransactionsByAccounts', () => {
   it('ordena por una columna única para que ninguna fila se pierda entre páginas', async () => {
     const { calls } = mockQueries({ data: [], error: null })
 
-    await fetchTransactionsByAccounts(USER_ID, ['acc-a'])
+    await fetchTransactionsByAccounts(USER_ID, ['acc-a'], AS_OF)
 
     expect(orderedColumns(calls)).toEqual(['id'])
   })
@@ -329,32 +365,39 @@ describe('fetchTransactionsByAccounts', () => {
     const error = { code: 'PGRST103', message: 'requested range not satisfiable' }
     mockQueries({ data: null, error })
 
-    await expect(fetchTransactionsByAccounts(USER_ID, ['acc-a'])).rejects.toBe(error)
+    await expect(fetchTransactionsByAccounts(USER_ID, ['acc-a'], AS_OF)).rejects.toBe(error)
   })
 })
 
 describe('transactionsByAccountsQueryKey', () => {
   it('ordena los identificadores para que el mismo conjunto comparta caché', () => {
-    expect(transactionsByAccountsQueryKey(USER_ID, ['acc-b', 'acc-a'])).toEqual(
-      transactionsByAccountsQueryKey(USER_ID, ['acc-a', 'acc-b']),
+    expect(transactionsByAccountsQueryKey(USER_ID, ['acc-b', 'acc-a'], AS_OF)).toEqual(
+      transactionsByAccountsQueryKey(USER_ID, ['acc-a', 'acc-b'], AS_OF),
     )
   })
 
   it('no reordena el array de quien llama', () => {
     const accountIds = ['acc-b', 'acc-a']
 
-    transactionsByAccountsQueryKey(USER_ID, accountIds)
+    transactionsByAccountsQueryKey(USER_ID, accountIds, AS_OF)
 
     expect(accountIds).toEqual(['acc-b', 'acc-a'])
   })
 
   it('conserva el alcance por usuario en la clave', () => {
-    expect(transactionsByAccountsQueryKey(USER_ID, ['acc-a'])).toEqual([
+    expect(transactionsByAccountsQueryKey(USER_ID, ['acc-a'], AS_OF)).toEqual([
       'transactions',
       USER_ID,
       'by-accounts',
       ['acc-a'],
+      AS_OF,
     ])
+  })
+
+  it('distingue el historial de cada fecha de corte', () => {
+    expect(transactionsByAccountsQueryKey(USER_ID, ['acc-a'], '2026-08-31')).not.toEqual(
+      transactionsByAccountsQueryKey(USER_ID, ['acc-a'], '2026-09-30'),
+    )
   })
 })
 describe('insertPlanLine', () => {
@@ -428,6 +471,76 @@ describe('updatePlanLine', () => {
     await updatePlanLine('line-1', { name: 'Arriendo', due_date: null })
 
     expect(calls).toContainEqual({ method: 'eq', args: ['id', 'line-1'] })
+  })
+})
+
+describe('insertContributionLine', () => {
+  const row = {
+    user_id: USER_ID,
+    plan_month_id: PLAN_MONTH_ID,
+    period_month: FIRST_DAY,
+    kind: 'savings',
+    name: 'Fondo de emergencia',
+    account_id: 'acc-fondo',
+    planned_minor: 500_000,
+    position: 0,
+  }
+
+  it('inserta la fila tal como la construyó mutations, sin completarla', async () => {
+    const { calls, tables } = mockQueries({ data: { id: 'line-1' }, error: null })
+
+    await insertContributionLine(row)
+
+    expect(tables).toEqual(['plan_lines'])
+    expect(rows(calls, 'insert')).toEqual([[row]])
+  })
+
+  it('traduce la cuenta ya usada este mes como aporte, no como categoría', async () => {
+    mockQueries({
+      data: null,
+      error: {
+        code: '23505',
+        message:
+          'duplicate key value violates unique constraint "plan_lines_plan_month_id_account_id_key"',
+      },
+    })
+
+    await expect(insertContributionLine(row)).rejects.toMatchObject({ code: 'line_account_taken' })
+  })
+})
+
+describe('updateContributionLine', () => {
+  it('envía solo name y planned_minor', async () => {
+    const { calls } = mockQueries({ data: { id: 'line-1' }, error: null })
+
+    await updateContributionLine('line-1', { name: 'Fondo', planned_minor: 0 })
+
+    const [[patch]] = rows(calls, 'update') as [Record<string, unknown>][]
+
+    expect(patch).toEqual({ name: 'Fondo', planned_minor: 0 })
+    expect(patch).not.toHaveProperty('account_id')
+    expect(patch).not.toHaveProperty('kind')
+    expect(patch).not.toHaveProperty('category_id')
+    expect(patch).not.toHaveProperty('position')
+  })
+
+  it('localiza la fila por su identificador', async () => {
+    const { calls } = mockQueries({ data: { id: 'line-1' }, error: null })
+
+    await updateContributionLine('line-1', { name: 'Fondo', planned_minor: 1 })
+
+    expect(calls).toContainEqual({ method: 'eq', args: ['id', 'line-1'] })
+  })
+
+  it('traduce un error del trigger como error de cuenta', async () => {
+    mockQueries({
+      data: null,
+      error: { code: 'P0001', message: 'No se puede planificar sobre una cuenta archivada.' },
+    })
+
+    await expect(
+      updateContributionLine('line-1', { name: 'Fondo', planned_minor: 1 }),
+    ).rejects.toMatchObject({ code: 'account_archived' })
   })
 })
 

@@ -9,6 +9,8 @@ const useLedgerPage = vi.fn()
 const useLedgerTotals = vi.fn()
 const fetchLedgerForExport = vi.fn()
 const downloadCsv = vi.fn()
+const useAccounts = vi.fn()
+const usePrimaryCurrency = vi.fn()
 
 vi.mock('@/features/ledger/hooks', () => ({
   useLedgerPage: (...args: unknown[]) => useLedgerPage(...args),
@@ -16,9 +18,8 @@ vi.mock('@/features/ledger/hooks', () => ({
 }))
 
 vi.mock('@/features/ledger/api', async () => {
-  const actual = await vi.importActual<typeof import('@/features/ledger/api')>(
-    '@/features/ledger/api',
-  )
+  const actual =
+    await vi.importActual<typeof import('@/features/ledger/api')>('@/features/ledger/api')
   return { ...actual, fetchLedgerForExport: (...args: unknown[]) => fetchLedgerForExport(...args) }
 })
 
@@ -41,7 +42,8 @@ const categories = [
   { id: 'cat-2', name: 'Salario', type: 'income', is_archived: false },
 ] as Tables<'categories'>[]
 
-vi.mock('@/features/accounts/hooks', () => ({ useAccounts: () => ({ data: accounts }) }))
+vi.mock('@/features/accounts/hooks', () => ({ useAccounts: () => useAccounts() }))
+vi.mock('@/features/profile/hooks', () => ({ usePrimaryCurrency: () => usePrimaryCurrency() }))
 vi.mock('@/features/categories/hooks', () => ({ useCategories: () => ({ data: categories }) }))
 vi.mock('@/features/dashboard/hooks', () => ({ useAllTransactions: () => ({ data: [] }) }))
 vi.mock('@/features/transactions/hooks', () => ({
@@ -73,7 +75,13 @@ function tx(overrides: Partial<Tables<'transactions'>>): Tables<'transactions'> 
 
 const rows = [
   tx({}),
-  tx({ id: 't2', type: 'income', category_id: 'cat-2', amount_minor: 300_000, description: 'Salario' }),
+  tx({
+    id: 't2',
+    type: 'income',
+    category_id: 'cat-2',
+    amount_minor: 300_000,
+    description: 'Salario',
+  }),
 ]
 
 /** Argumentos con los que la página pidió la última página de datos. */
@@ -82,12 +90,31 @@ function lastPageCall() {
   return calls[calls.length - 1]
 }
 
+/** Líneas de una cifra del resumen («Ingresos», «Balance»...), una por moneda. */
+function summaryLines(label: string): string[] {
+  const term = [...document.querySelectorAll('dt')].find((dt) => dt.textContent === label)
+  const value = term?.nextElementSibling
+  if (!value) throw new Error(`No hay cifra «${label}» en el resumen`)
+  return value.children.length > 0
+    ? [...value.children].map((line) => line.textContent ?? '')
+    : [value.textContent ?? '']
+}
+
 function renderLedger() {
   return render(<Ledger />)
 }
 
+const usdAccount = {
+  id: 'acc-usd',
+  name: 'Cuenta USD',
+  currency_code: 'USD',
+  is_archived: false,
+} as Tables<'accounts'>
+
 beforeEach(() => {
   vi.clearAllMocks()
+  useAccounts.mockReturnValue({ data: accounts })
+  usePrimaryCurrency.mockReturnValue({ data: 'COP', isPending: false })
   useLedgerPage.mockReturnValue({
     data: { rows, totalCount: 120 },
     isPending: false,
@@ -96,10 +123,11 @@ beforeEach(() => {
   })
   useLedgerTotals.mockReturnValue({
     data: {
-      incomeMinor: 300_000,
-      expenseMinor: 50_000,
-      balanceMinor: 250_000,
-      transferMinor: 0,
+      byAccount: [
+        { type: 'income', accountId: 'acc-1', totalMinor: 200_000 },
+        { type: 'income', accountId: 'acc-2', totalMinor: 100_000 },
+        { type: 'expense', accountId: 'acc-1', totalMinor: 50_000 },
+      ],
       count: 120,
     },
     isError: false,
@@ -118,6 +146,7 @@ describe('Ledger', () => {
     renderLedger()
 
     // La página trae 2 filas, pero el resumen refleje las 120 que cumplen los filtros.
+    // Con una sola moneda, las sumas de varias cuentas van en una sola cifra.
     expect(screen.getByText('COP 300.000')).toBeInTheDocument()
     expect(screen.getByText('COP 250.000')).toBeInTheDocument()
     expect(screen.getByText('120')).toBeInTheDocument()
@@ -260,5 +289,97 @@ describe('Ledger', () => {
 
     await user.click(screen.getByRole('button', { name: 'Reintentar' }))
     expect(refetch).toHaveBeenCalledOnce()
+  })
+
+  it('sin movimientos muestra el resumen en cero en la moneda principal', () => {
+    useLedgerTotals.mockReturnValue({ data: { byAccount: [], count: 0 }, isError: false })
+
+    renderLedger()
+
+    expect(summaryLines('Ingresos')).toEqual(['COP 0'])
+    expect(summaryLines('Gastos')).toEqual(['COP 0'])
+    expect(summaryLines('Balance')).toEqual(['COP 0'])
+  })
+
+  describe('con cuentas en varias monedas', () => {
+    beforeEach(() => {
+      useAccounts.mockReturnValue({ data: [...accounts, usdAccount] })
+      useLedgerPage.mockReturnValue({
+        data: {
+          rows: [
+            ...rows,
+            tx({
+              id: 't3',
+              account_id: 'acc-usd',
+              type: 'income',
+              category_id: 'cat-2',
+              amount_minor: 1_500,
+              description: 'Pago en dólares',
+            }),
+          ],
+          totalCount: 121,
+        },
+        isPending: false,
+        isError: false,
+        refetch: vi.fn(),
+      })
+      useLedgerTotals.mockReturnValue({
+        data: {
+          byAccount: [
+            { type: 'income', accountId: 'acc-usd', totalMinor: 1_500 },
+            { type: 'income', accountId: 'acc-1', totalMinor: 300_000 },
+            { type: 'expense', accountId: 'acc-1', totalMinor: 50_000 },
+            { type: 'expense', accountId: 'acc-usd', totalMinor: 400 },
+          ],
+          count: 121,
+        },
+        isError: false,
+      })
+    })
+
+    it('muestra cada movimiento en la moneda de su cuenta', () => {
+      renderLedger()
+
+      const table = within(screen.getByRole('table'))
+      const usdRow = within(table.getByText('Pago en dólares').closest('tr')!)
+      expect(usdRow.getByText('+ USD 1.500')).toBeInTheDocument()
+      const copRow = within(table.getByText('Mercado del mes').closest('tr')!)
+      expect(copRow.getByText('− COP 50.000')).toBeInTheDocument()
+    })
+
+    it('separa el resumen por moneda, con la principal primero y sin sumarlas', () => {
+      renderLedger()
+
+      expect(summaryLines('Ingresos')).toEqual(['COP 300.000', 'USD 1.500'])
+      expect(summaryLines('Gastos')).toEqual(['COP 50.000', 'USD 400'])
+      expect(summaryLines('Balance')).toEqual(['COP 250.000', 'USD 1.100'])
+      expect(summaryLines('Movimientos')).toEqual(['121'])
+    })
+
+    it('ordena primero la moneda principal del perfil', () => {
+      usePrimaryCurrency.mockReturnValue({ data: 'USD', isPending: false })
+
+      renderLedger()
+
+      expect(summaryLines('Ingresos')).toEqual(['USD 1.500', 'COP 300.000'])
+    })
+
+    it('no calcula el saldo acumulado mezclando monedas y explica cómo verlo', async () => {
+      const user = userEvent.setup()
+      renderLedger()
+
+      await user.click(screen.getByText('Columnas'))
+      await user.click(screen.getByRole('checkbox', { name: 'Saldo acumulado' }))
+
+      expect(
+        screen.getByText(/El saldo acumulado solo se calcula con cuentas de una misma moneda/),
+      ).toBeInTheDocument()
+
+      await user.selectOptions(screen.getByRole('combobox', { name: 'Cuenta' }), 'acc-usd')
+
+      expect(
+        screen.queryByText(/El saldo acumulado solo se calcula con cuentas de una misma moneda/),
+      ).not.toBeInTheDocument()
+    })
   })
 })

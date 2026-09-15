@@ -335,3 +335,113 @@ export function buildPlanLineRow({
 
   return row
 }
+
+/* -------------------------------------------------------------------------- */
+/* Líneas de aporte a ahorro e inversión                                      */
+/* -------------------------------------------------------------------------- */
+
+/** Los dos tipos de línea medidos por cuenta. Espejo de C6. */
+export const CONTRIBUTION_LINE_KINDS = ['savings', 'investment'] as const
+
+export type ContributionLineKind = (typeof CONTRIBUTION_LINE_KINDS)[number]
+
+/** Línea vista desde el selector de cuentas. */
+export interface LineAccountRow {
+  account_id: string | null
+  id: string
+}
+
+/**
+ * Cuentas ya ocupadas por una línea de aporte del mes.
+ *
+ * U11 —único parcial `(plan_month_id, account_id)`— permite una sola línea por
+ * cuenta al mes. Varias líneas del mismo tipo son posibles, pero cada una sobre
+ * una cuenta distinta. `exceptLineId` sigue el mismo criterio que
+ * `usedLineCategoryIds`.
+ */
+export function usedLineAccountIds(
+  lines: readonly LineAccountRow[],
+  exceptLineId?: string,
+): Set<string> {
+  const used = new Set<string>()
+
+  for (const line of lines) {
+    if (line.account_id === null) continue
+    if (exceptLineId !== undefined && line.id === exceptLineId) continue
+    used.add(line.account_id)
+  }
+
+  return used
+}
+
+/** Cuenta vista desde el formulario de aportes. */
+export interface ContributionAccount {
+  id: string
+  type: string
+  is_archived: boolean
+}
+
+/**
+ * Cuentas que se pueden ofrecer para un aporte nuevo de un tipo.
+ *
+ * Tres filtros, y los tres evitan ofrecer algo que el servidor rechazaría:
+ *
+ * 1. **Del tipo del aporte.** T3 exige una cuenta `savings` para un aporte a
+ *    ahorro y una `investment` para uno a inversión; el `kind` de la línea y
+ *    el `type` de la cuenta comparten nombre.
+ * 2. **No archivadas.** T3 prohíbe *estrenar* una línea sobre una archivada.
+ * 3. **Libres este mes.** U11.
+ */
+export function selectAvailableContributionAccounts<T extends ContributionAccount>(
+  accounts: readonly T[],
+  kind: ContributionLineKind,
+  usedAccountIds: ReadonlySet<string>,
+): T[] {
+  return accounts.filter(
+    (account) => account.type === kind && !account.is_archived && !usedAccountIds.has(account.id),
+  )
+}
+
+export interface ContributionLineRowInput {
+  userId: string
+  planMonthId: string
+  /** Primer día del mes activo, derivado con `monthRange`. */
+  periodMonth: string
+  kind: ContributionLineKind
+  name: string
+  accountId: string
+  plannedMinor: number
+  /** Todas las líneas del mes ya cargadas, para elegir la siguiente posición. */
+  lines: readonly PositionedRow[]
+}
+
+/**
+ * Fila de una línea de aporte, medida por cuenta.
+ *
+ * Es el reverso exacto de `buildPlanLineRow`: aquí **`planned_minor` es
+ * obligatorio** —C7 lo exige cuando no hay categoría, y es la única cifra que
+ * tiene un aporte—, y no viajan ni `category_id` ni `due_date`, que C5 y C3
+ * rechazarían en este tipo de línea. La posición se elige entre **todas** las
+ * líneas del mes, porque U12 no distingue `kind`.
+ */
+export function buildContributionLineRow({
+  userId,
+  planMonthId,
+  periodMonth,
+  kind,
+  name,
+  accountId,
+  plannedMinor,
+  lines,
+}: ContributionLineRowInput): TablesInsert<'plan_lines'> {
+  return {
+    user_id: userId,
+    plan_month_id: planMonthId,
+    period_month: periodMonth,
+    kind,
+    name,
+    account_id: accountId,
+    planned_minor: plannedMinor,
+    position: nextPosition(lines),
+  }
+}

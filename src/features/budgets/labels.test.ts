@@ -4,7 +4,10 @@ import {
   budgetAlertMessage,
   budgetAlertSeverity,
   formatBudgetPercent,
+  formatBudgetWithoutBar,
+  formatZeroBudget,
   isBudgetAlert,
+  NO_BUDGET_THIS_MONTH_LABEL,
 } from './labels'
 import type { BudgetProgress, BudgetStatus } from './progress'
 
@@ -20,6 +23,34 @@ function progress(overrides: Partial<BudgetProgress> = {}): BudgetProgress {
     ...overrides,
   }
 }
+
+describe('estados sin barra: ausencia y COP 0 explícito', () => {
+  it('sin nada que resuelva el mes dice «Sin presupuesto este mes»', () => {
+    expect(formatBudgetWithoutBar({ source: null }, 'COP')).toBe('Sin presupuesto este mes')
+    expect(NO_BUDGET_THIS_MONTH_LABEL).toBe('Sin presupuesto este mes')
+  })
+
+  it('una plantilla en 0 es «Presupuesto en COP 0», sin sufijo', () => {
+    expect(formatBudgetWithoutBar({ source: 'template' }, 'COP')).toBe('Presupuesto en COP 0')
+  })
+
+  it('una excepción en 0 añade «excepción de este mes»', () => {
+    expect(formatBudgetWithoutBar({ source: 'exception' }, 'COP')).toBe(
+      'Presupuesto en COP 0 · excepción de este mes',
+    )
+  })
+
+  it('un 0 explícito nunca se dice «Sin presupuesto»', () => {
+    for (const source of ['template', 'exception'] as const) {
+      expect(formatBudgetWithoutBar({ source }, 'COP')).not.toContain('Sin presupuesto')
+    }
+  })
+
+  it('el 0 se escribe en la moneda de presentación', () => {
+    expect(formatZeroBudget('COP')).toBe('Presupuesto en COP 0')
+    expect(formatZeroBudget('USD')).toBe('Presupuesto en USD 0')
+  })
+})
 
 describe('isBudgetAlert', () => {
   it.each<[BudgetStatus, boolean]>([

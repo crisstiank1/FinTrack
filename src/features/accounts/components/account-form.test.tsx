@@ -70,4 +70,48 @@ describe('AccountForm', () => {
 
     expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ icon: 'home' }), expect.anything())
   })
+
+  it('ofrece «Cuenta de inversión» y envía type investment', async () => {
+    const onSubmit = vi.fn()
+    const user = userEvent.setup()
+    render(<AccountForm onSubmit={onSubmit} />)
+
+    expect(screen.getByRole('option', { name: 'Cuenta de inversión' })).toHaveValue('investment')
+
+    await user.type(screen.getByLabelText('Nombre de la cuenta'), 'Inversiones')
+    await user.selectOptions(screen.getByLabelText('Tipo'), 'investment')
+    await user.click(screen.getByRole('button', { name: /guardar/i }))
+
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'Inversiones', type: 'investment' }),
+      expect.anything(),
+    )
+  })
+
+  it('al editar una cuenta investment conserva el tipo al guardar', async () => {
+    const onSubmit = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <AccountForm
+        onSubmit={onSubmit}
+        defaultValues={{
+          name: 'Inversiones',
+          type: 'investment',
+          initialBalance: 250_000,
+          currencyCode: 'COP',
+          icon: 'trending-up',
+          color: '#E83E8C',
+        }}
+      />,
+    )
+
+    expect(screen.getByLabelText('Tipo')).toHaveValue('investment')
+
+    await user.click(screen.getByRole('button', { name: /guardar/i }))
+
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'Inversiones', type: 'investment', initialBalance: 250_000 }),
+      expect.anything(),
+    )
+  })
 })

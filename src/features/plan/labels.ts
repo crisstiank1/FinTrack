@@ -1,8 +1,10 @@
 import { classificationGroupLabel } from '@/features/categories/classifications/labels'
 import { formatAmount } from '@/lib/currency'
+import { formatLongDate } from '@/lib/dates'
 
 import type { AllocationGroup } from './calculations/allocation'
 import type { Diff, DiffRowKind } from './calculations/diff'
+import type { CategoryLineKind } from './mutations'
 
 /**
  * Textos y tonos del Plan mensual.
@@ -140,6 +142,56 @@ export const planSummaryLabel: Record<PlanSummaryCardId, string> = {
   savingsContributions: 'Aportes a ahorro',
 }
 
+/* -------------------------------------------------------------------------- */
+/* Facturas y gastos variables                                                */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * Nombres de los dos tipos de línea medidos por categoría, en todas sus formas.
+ * Las variantes —singular, plural, título, frases— son decisiones de redacción
+ * y se escriben enteras: no se derivan unas de otras con `toLowerCase()` ni
+ * pegando trozos, porque eso rompe en cuanto una cambia de forma distinta.
+ *
+ * Van antes de `planRowLabel`, que usa el plural: una constante no puede leerse
+ * antes de declararse al cargar el módulo.
+ */
+
+/**
+ * Tipo de una línea medida por categoría, en singular. Única fuente del texto:
+ * lo usan el formulario de líneas y la reconciliación.
+ */
+export const planLineKindLabel: Record<CategoryLineKind, string> = {
+  bill: 'Factura',
+  variable: 'Gasto variable',
+}
+
+/**
+ * Los mismos tipos en plural, como grupo: títulos del panel de líneas y filas
+ * del cuadro Presupuesto vs. Actual, que así no pueden decir cosas distintas.
+ */
+export const planLineKindGroupLabel: Record<CategoryLineKind, string> = {
+  bill: 'Facturas',
+  variable: 'Gastos variables',
+}
+
+/** Título del bloque de líneas. También lo nombra la reconciliación. */
+export const PLAN_LINES_TITLE = 'Facturas y gastos variables'
+
+/** Filas de la reconciliación con el presupuesto que describe cada tipo de línea. */
+export const reconciliationDescribedLabel: Record<CategoryLineKind, string> = {
+  bill: 'Descrito en facturas',
+  variable: 'Descrito en gastos variables',
+}
+
+/** Vacío del bloque de líneas: «septiembre 2026 no tiene facturas ni gastos variables descritos.» */
+export function planLinesEmptyLabel(monthLabel: string): string {
+  return `${monthLabel} no tiene facturas ni gastos variables descritos.`
+}
+
+/** Invitación de la reconciliación para una categoría presupuestada sin línea. */
+export const DESCRIBE_FROM_PLAN_LINES_LABEL =
+  'Puedes describirla desde Facturas y gastos variables.'
+
 /** Filas del cuadro Presupuesto vs. Actual en esta entrega. */
 export type PlanRowId =
   | 'income'
@@ -155,8 +207,8 @@ export type PlanRowId =
 export const planRowLabel: Record<PlanRowId, string> = {
   income: 'Ingresos',
   expensesTotal: 'Gastos totales',
-  bills: 'Facturas',
-  variables: 'Gastos variables',
+  bills: planLineKindGroupLabel.bill,
+  variables: planLineKindGroupLabel.variable,
   unplanned: 'No planeado',
   savings: 'Ahorro',
   investment: 'Inversión',
@@ -180,10 +232,23 @@ function isIncomeMeasuredRow(rowId: PlanRowId): boolean {
 }
 
 /**
+ * Filas que se planifican por cuenta, con importe propio en la línea: ahorro e
+ * inversión. Su ausencia es «Sin aportes planeados», no «Sin presupuesto»,
+ * porque no son presupuestos por categoría de `/budgets`. Mismo criterio que
+ * la reconciliación, en planeado y en diferencia.
+ */
+const CONTRIBUTION_ROWS: readonly PlanRowId[] = ['savings', 'investment']
+
+function isContributionRow(rowId: PlanRowId): boolean {
+  return CONTRIBUTION_ROWS.includes(rowId)
+}
+
+/**
  * «Planeado» de una fila del cuadro.
  *
- * Ingresos y restante se miden contra el ingreso planeado; el resto, contra un
- * presupuesto. Cuando falta, cada uno lo dice a su manera.
+ * Ingresos y restante se miden contra el ingreso planeado; ahorro e inversión,
+ * contra sus aportes planeados; el resto, contra un presupuesto. Cuando falta,
+ * cada uno lo dice a su manera.
  */
 export function formatRowPlannedAmount(
   rowId: PlanRowId,
@@ -193,6 +258,9 @@ export function formatRowPlannedAmount(
   if (isIncomeMeasuredRow(rowId)) {
     return formatPlannedIncomeAmount(plannedMinor, currencyCode)
   }
+  if (isContributionRow(rowId)) {
+    return formatContributionPlanned(plannedMinor, currencyCode)
+  }
   return formatPlannedAmount(plannedMinor, currencyCode)
 }
 
@@ -201,10 +269,12 @@ export function formatRowPlannedAmount(
  *
  * `calculateDiff` devuelve `no_budget` siempre que no hay nada que comparar,
  * sin saber por qué falta. Aquí se nombra la causa real de cada fila: en
- * ingresos y restante lo que falta es el ingreso planeado, no un presupuesto.
+ * ingresos y restante lo que falta es el ingreso planeado, y en ahorro e
+ * inversión, los aportes planeados; no un presupuesto.
  */
 export function formatRowDiff(rowId: PlanRowId, diff: Diff, currencyCode: string): string {
   if (diff.status === 'no_budget' && isIncomeMeasuredRow(rowId)) return NO_PLANNED_INCOME_LABEL
+  if (diff.status === 'no_budget' && isContributionRow(rowId)) return NO_CONTRIBUTION_PLAN_LABEL
   return formatDiff(diff, currencyCode)
 }
 
@@ -366,3 +436,255 @@ export function ignoredAllocationGroupsNote(ignoredGroups: readonly string[]): s
     ? `El reparto guardado incluye un grupo que no existe (${listado}); se descarta, así que los porcentajes pueden no sumar 100 %.`
     : `El reparto guardado incluye grupos que no existen (${listado}); se descartan, así que los porcentajes pueden no sumar 100 %.`
 }
+
+/* -------------------------------------------------------------------------- */
+/* Reconciliación del presupuesto                                             */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Aportes a ahorro o inversión sin línea que los planifique.
+ *
+ * No es «Sin presupuesto»: los aportes se planifican por cuenta, con importe
+ * propio en la línea, y no son presupuestos por categoría de `/budgets`.
+ */
+export const NO_CONTRIBUTION_PLAN_LABEL = 'Sin aportes planeados'
+
+/** Aporte planeado. Un `0` guardado en la línea se conserva como `0`. */
+export function formatContributionPlanned(
+  plannedMinor: number | null,
+  currencyCode: string,
+): string {
+  if (plannedMinor === null) return NO_CONTRIBUTION_PLAN_LABEL
+  return formatAmount(plannedMinor, currencyCode)
+}
+
+/*
+ * Presupuesto vigente de 0 («Presupuesto en COP 0»): una decisión explícita del
+ * usuario en `/budgets`. `buildBudgetProgress` no calcula umbrales contra 0,
+ * pero la causa importa: una categoría que nunca tuvo presupuesto invita a
+ * completarlo, y una con 0 ya lo tiene. Se reexporta el texto de `/budgets`
+ * para que las dos pantallas digan lo mismo del mismo presupuesto.
+ */
+export { formatZeroBudget } from '@/features/budgets/labels'
+
+/**
+ * Presupuesto de una línea mientras su progreso todavía no llegó.
+ *
+ * No se escribe «Sin presupuesto» ni «Gastado COP 0»: aún no se sabe, y
+ * cualquiera de los dos afirmaría algo que puede ser falso.
+ */
+export const LINE_BUDGET_LOADING_LABEL = 'Calculando presupuesto…'
+
+/**
+ * Categoría archivada sin presupuesto: `/budgets` rechaza estrenar uno, así que
+ * no se invita a completarlo. Lo usan el panel de líneas y la reconciliación.
+ */
+export const ARCHIVED_NO_NEW_BUDGETS_LABEL = 'Categoría archivada: no admite presupuestos nuevos.'
+
+export interface ReconciliationHeadline {
+  /** Titular del bloque, visible también con el bloque plegado. */
+  title: string
+  detail: string
+  tone: PlanTone
+}
+
+export interface ReconciliationHeadlineInput {
+  assignedMinor: number
+  /** `null` cuando el mes no tiene ninguna fuente de ingreso. */
+  incomePlannedMinor: number | null
+  /** `porAsignar` de `summarizeAllocation`; `null` sin ingreso planeado. */
+  unassignedMinor: number | null
+}
+
+/**
+ * Titular de la reconciliación, con sus tres lecturas:
+ *
+ * - Sin ingreso planeado: solo lo asignado, y la ausencia dicha con palabras.
+ * - Sobreasignado: el exceso **es** el titular, en positivo y en texto.
+ * - Si no: «Asignado A de I» y lo que queda por asignar, que puede ser `0`.
+ *
+ * Una fuente de 0 es ingreso planeado: se compara contra COP 0, y cualquier
+ * asignación la supera. No recalcula `porAsignar`; lo recibe ya resuelto.
+ */
+export function reconciliationHeadline(
+  { assignedMinor, incomePlannedMinor, unassignedMinor }: ReconciliationHeadlineInput,
+  currencyCode: string,
+): ReconciliationHeadline {
+  const assigned = `Asignado ${formatAmount(assignedMinor, currencyCode)}`
+
+  if (incomePlannedMinor === null || unassignedMinor === null) {
+    return { title: assigned, detail: NO_PLANNED_INCOME_LABEL, tone: 'neutral' }
+  }
+
+  const ofIncome = `${assigned} de ${formatAmount(incomePlannedMinor, currencyCode)}`
+  const unassigned = formatUnassigned(unassignedMinor, currencyCode)
+
+  if (unassignedMinor < 0) {
+    return {
+      title: unassigned.text,
+      detail: `${ofIncome}. Se asignó más que el ingreso planeado.`,
+      tone: unassigned.tone,
+    }
+  }
+
+  return { title: ofIncome, detail: `Por asignar: ${unassigned.text}`, tone: 'neutral' }
+}
+
+/** «1 categoría con presupuesto sin línea» / «0 categorías con presupuesto sin línea». */
+export function unlinkedCategoriesCountLabel(count: number): string {
+  return count === 1
+    ? '1 categoría con presupuesto sin línea'
+    : `${count} categorías con presupuesto sin línea`
+}
+
+/** «1 línea sin presupuesto» / «5 líneas sin presupuesto». No incluye las de 0 explícito. */
+export function linesWithoutBudgetCountLabel(count: number): string {
+  return count === 1 ? '1 línea sin presupuesto' : `${count} líneas sin presupuesto`
+}
+
+/** «1 línea con presupuesto en COP 0». Solo se muestra cuando hay alguna. */
+export function linesWithZeroBudgetCountLabel(count: number, currencyCode: string): string {
+  const zero = formatAmount(0, currencyCode)
+  return count === 1
+    ? `1 línea con presupuesto en ${zero}`
+    : `${count} líneas con presupuesto en ${zero}`
+}
+
+/* -------------------------------------------------------------------------- */
+/* Ahorro e inversión                                                         */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * Dos cifras por tipo de cuenta, y nunca con el mismo nombre: los **aportes del
+ * mes** son un flujo y el **saldo en cuentas** es un stock
+ * (docs/09-plan-mensual.md, «Las tres cifras de ahorro»). Por eso aquí no hay
+ * «Total ahorrado», ni «Ahorrado» a secas, ni «Dinero disponible».
+ */
+
+export const SAVINGS_INVESTMENT_TITLE = 'Ahorro e inversión'
+
+/** Nota fija del bloque. No es un tooltip: se lee siempre. */
+export const SAVINGS_INVESTMENT_NOTE =
+  'Los aportes son transferencias registradas en el mes hacia tus cuentas de ahorro o inversión. El saldo es lo acumulado en esas cuentas y no se suma a las cifras del mes.'
+
+export type ContributionAccountType = 'savings' | 'investment'
+
+export interface ContributionBlockLabels {
+  title: string
+  contributions: string
+  balance: string
+  /** No existe ninguna cuenta del tipo. Distinto de un saldo de 0. */
+  noAccounts: string
+  createAccount: string
+}
+
+export const contributionBlockLabel: Record<ContributionAccountType, ContributionBlockLabels> = {
+  savings: {
+    title: 'Ahorro',
+    contributions: 'Aportes a ahorro del mes',
+    balance: 'Saldo en cuentas de ahorro',
+    noAccounts: 'Sin cuentas de ahorro',
+    createAccount: 'Crear una cuenta de ahorro',
+  },
+  investment: {
+    title: 'Inversión',
+    contributions: 'Aportes a inversión del mes',
+    balance: 'Saldo en cuentas de inversión',
+    noAccounts: 'Sin cuentas de inversión',
+    createAccount: 'Crear una cuenta de inversión',
+  },
+}
+
+/** El saldo todavía no llegó. No se escribe un 0 que aún no se sabe. */
+export const BALANCE_LOADING_LABEL = 'Calculando saldo…'
+
+/** Falló solo el saldo: el resto del bloque y de la pantalla sigue siendo válido. */
+export const BALANCE_ERROR_LABEL = 'No pudimos calcular el saldo.'
+
+/**
+ * Pie del saldo: «Al 30 de septiembre de 2026 · 2 cuentas · 1 archivada».
+ *
+ * La fecha dice a qué día corresponde el stock, con el mismo formato que el
+ * dashboard. Las archivadas solo se nombran cuando hay alguna: están sumadas en
+ * el saldo, y quien lo lee tiene derecho a saberlo.
+ */
+export function accountTypeBalanceCaption(
+  asOfDate: string,
+  accountCount: number,
+  archivedCount: number,
+): string {
+  const parts = [
+    `Al ${formatLongDate(asOfDate)}`,
+    accountCount === 1 ? '1 cuenta' : `${accountCount} cuentas`,
+  ]
+  if (archivedCount > 0) {
+    parts.push(archivedCount === 1 ? '1 archivada' : `${archivedCount} archivadas`)
+  }
+  return parts.join(' · ')
+}
+
+/** Un saldo negativo se destaca; el signo sigue estando en el texto. */
+export function balanceTone(balanceMinor: number): PlanTone {
+  return balanceMinor < 0 ? 'negative' : 'neutral'
+}
+
+/* -------------------------------------------------------------------------- */
+/* Líneas de aporte                                                           */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * Textos de las líneas de aporte planeado, dentro de cada tarjeta del bloque
+ * «Ahorro e inversión». Siempre dicen «aporte»: una línea de aporte no es un
+ * gasto y no vive en «Facturas y gastos variables». Frases completas, como el
+ * resto del archivo.
+ */
+
+export interface ContributionLineLabels {
+  /** Nombre accesible de la lista de líneas del tipo. */
+  list: string
+  addButton: string
+  dialogTitleNew: string
+  accountField: string
+  /** No existe ninguna cuenta activa del tipo: no se puede planificar. */
+  noAccounts: string
+  /** Todas las cuentas activas del tipo ya tienen un aporte este mes (U11). */
+  accountsExhausted: string
+}
+
+export const contributionLineLabel: Record<ContributionAccountType, ContributionLineLabels> = {
+  savings: {
+    list: 'Aportes a ahorro planeados',
+    addButton: 'Añadir aporte a ahorro',
+    dialogTitleNew: 'Nuevo aporte a ahorro',
+    accountField: 'Cuenta de ahorro',
+    noAccounts: 'Necesitas una cuenta de ahorro para planificar un aporte.',
+    accountsExhausted: 'Todas tus cuentas de ahorro ya tienen un aporte planeado este mes.',
+  },
+  investment: {
+    list: 'Aportes a inversión planeados',
+    addButton: 'Añadir aporte a inversión',
+    dialogTitleNew: 'Nuevo aporte a inversión',
+    accountField: 'Cuenta de inversión',
+    noAccounts: 'Necesitas una cuenta de inversión para planificar un aporte.',
+    accountsExhausted: 'Todas tus cuentas de inversión ya tienen un aporte planeado este mes.',
+  },
+}
+
+export const CONTRIBUTION_LINE_NAME_LABEL = 'Nombre'
+
+export const CONTRIBUTION_LINE_NAME_PLACEHOLDER = 'Ej. Fondo de emergencia'
+
+export const CONTRIBUTION_LINE_AMOUNT_LABEL = 'Importe planeado'
+
+/** Marca de una línea cuya cuenta se archivó después de crearla. */
+export const ARCHIVED_ACCOUNT_BADGE = 'Archivada'
+
+/** Al editar, la cuenta se enuncia en vez de ofrecerse: cambiarla es otro aporte. */
+export function lockedContributionAccountLabel(accountName: string): string {
+  return `Cuenta: ${accountName}. Para cambiarla, elimina el aporte y crea otro.`
+}
+
+export const DELETE_CONTRIBUTION_TITLE = 'Eliminar aporte'
+
+export const DELETE_CONTRIBUTION_DESCRIPTION =
+  'Se eliminará el aporte planeado. La cuenta y sus movimientos no se tocan.'

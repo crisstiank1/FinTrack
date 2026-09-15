@@ -66,6 +66,133 @@ export function reconcileCategoryBudgets(
   }
 }
 
+/**
+ * Presupuesto de la categoría de una línea, con la forma de `BudgetProgress`
+ * de `/budgets`. Solo se declaran los dos campos que separan la ausencia de
+ * presupuesto de un 0 explícito.
+ */
+export interface LineBudgetInput {
+  categoryId: string
+  /** `null` sin presupuesto aplicable **o** con el vigente en 0. */
+  budgetMinor: number | null
+  /** `null` solo cuando `resolveBudget` no encontró ningún presupuesto. */
+  source: string | null
+}
+
+/** Presupuesto de la categoría de una línea: positivo, 0 explícito o ausente. */
+export type LineBudgetState = 'budgeted' | 'zero' | 'none'
+
+/**
+ * Estado del presupuesto de una línea, a partir de su progreso ya calculado.
+ *
+ * `buildBudgetProgress` codifica el 0 explícito como `budgetMinor === null`
+ * con `source` conservado, y la ausencia como `source === null`. Esta es la
+ * única lectura de esa codificación: la usan el panel de líneas, fila a fila, y
+ * `buildBudgetCoverage`, en lote.
+ *
+ * Solo acepta progreso **ya disponible**. «Todavía cargando» no es un estado
+ * del presupuesto sino de la pantalla, y se decide allí.
+ */
+export function classifyLineBudget(budget: LineBudgetInput): LineBudgetState {
+  if (budget.budgetMinor !== null) return 'budgeted'
+  if (budget.source !== null) return 'zero'
+  return 'none'
+}
+
+export interface BudgetCoverageInput {
+  /** Presupuesto efectivo del mes, sin los resueltos en 0 (`useEffectiveCategoryBudgets`). */
+  budgetsByCategory: Record<string, number>
+  billCategoryIds: readonly string[]
+  variableCategoryIds: readonly string[]
+  /** Progreso de las categorías con línea, de `usePlanLineProgress`. */
+  lineBudgets: readonly LineBudgetInput[]
+}
+
+export interface BudgetCoverage extends BudgetReconciliation {
+  /** presupuestoCategorias. */
+  totalMinor: number
+  /** Presupuesto de las categorías descritas por una línea: facturas más variables. */
+  coveredMinor: number
+  /**
+   * `false` cuando ninguna categoría tiene presupuesto efectivo este mes. Es
+   * una ausencia, no un presupuesto de 0: la interfaz lo dice con palabras.
+   */
+  hasCategoryBudgets: boolean
+  /** Categorías con presupuesto y sin línea. Su importe suma `unlinkedMinor`. */
+  unlinkedCategoryIds: string[]
+  /** Categorías de línea sin ningún presupuesto resuelto este mes. */
+  lineCategoryIdsWithoutBudget: string[]
+  /** Categorías de línea cuyo presupuesto vigente es un 0 explícito. */
+  lineCategoryIdsWithZeroBudget: string[]
+}
+
+/**
+ * Cobertura del presupuesto por líneas: la reconciliación del bloque de
+ * `/plan`, con las categorías concretas detrás de cada cifra
+ * (docs/09-plan-mensual.md, «Reconciliación del presupuesto»).
+ *
+ * Los importes salen de las funciones de arriba; aquí no se suma nada a mano.
+ * Las identidades se cumplen por construcción:
+ *
+ * - `billsMinor + variablesMinor + unlinkedMinor = totalMinor`.
+ * - `coveredMinor = billsMinor + variablesMinor`.
+ * - El presupuesto de `unlinkedCategoryIds` suma `unlinkedMinor`.
+ *
+ * Una línea sin presupuesto no es inválida: describe el gasto de su categoría,
+ * pero no suma a lo asignado. Se separan dos causas que la interfaz dice
+ * distinto: no hay presupuesto (`source === null`), o el vigente es un 0
+ * explícito (`source !== null` y `budgetMinor === null`, que es exactamente
+ * como `buildBudgetProgress` codifica ese 0). Una línea cuyo progreso no llegó
+ * se trata como sin presupuesto: no se afirma un 0 que nadie ha visto.
+ *
+ * El mapa de presupuestos manda sobre el progreso: es la misma fuente que el
+ * total, así que una categoría presente en él cuenta como presupuestada.
+ */
+export function buildBudgetCoverage({
+  budgetsByCategory,
+  billCategoryIds,
+  variableCategoryIds,
+  lineBudgets,
+}: BudgetCoverageInput): BudgetCoverage {
+  const totalMinor = sumEffectiveCategoryBudgets(budgetsByCategory)
+  const reconciliation = reconcileCategoryBudgets(
+    totalMinor,
+    billCategoryIds,
+    variableCategoryIds,
+    budgetsByCategory,
+  )
+
+  const lineCategoryIds = [...billCategoryIds, ...variableCategoryIds]
+  const linked = new Set(lineCategoryIds)
+  const budgetByLineCategory = new Map(lineBudgets.map((budget) => [budget.categoryId, budget]))
+
+  const lineCategoryIdsWithoutBudget: string[] = []
+  const lineCategoryIdsWithZeroBudget: string[] = []
+
+  for (const categoryId of lineCategoryIds) {
+    if (budgetsByCategory[categoryId] !== undefined) continue
+
+    const budget = budgetByLineCategory.get(categoryId)
+    if (budget && classifyLineBudget(budget) === 'zero') {
+      lineCategoryIdsWithZeroBudget.push(categoryId)
+    } else {
+      lineCategoryIdsWithoutBudget.push(categoryId)
+    }
+  }
+
+  const budgetedCategoryIds = Object.keys(budgetsByCategory)
+
+  return {
+    ...reconciliation,
+    totalMinor,
+    coveredMinor: sumBudgetsForCategories(budgetsByCategory, lineCategoryIds),
+    hasCategoryBudgets: budgetedCategoryIds.length > 0,
+    unlinkedCategoryIds: budgetedCategoryIds.filter((categoryId) => !linked.has(categoryId)),
+    lineCategoryIdsWithoutBudget,
+    lineCategoryIdsWithZeroBudget,
+  }
+}
+
 export interface AllocationSummary {
   assignedMinor: number
   unassignedMinor: number

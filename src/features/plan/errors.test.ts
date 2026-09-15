@@ -152,6 +152,86 @@ describe('toPlanError', () => {
     })
   })
 
+  describe('líneas de aporte', () => {
+    it('distingue la cuenta ya usada (U11) de la posición repetida (U12)', () => {
+      const cuenta = {
+        code: '23505',
+        message:
+          'duplicate key value violates unique constraint "plan_lines_plan_month_id_account_id_key"',
+      }
+      const posicion = {
+        code: '23505',
+        message:
+          'duplicate key value violates unique constraint "plan_lines_plan_month_id_position_key"',
+      }
+
+      expect(toPlanError(cuenta, 'save_contribution_line').code).toBe('line_account_taken')
+      expect(toPlanError(posicion, 'save_contribution_line').code).toBe('conflict')
+      expect(toPlanError({ code: '23505', message: 'x' }, 'save_contribution_line').code).toBe(
+        'conflict',
+      )
+    })
+
+    it('traduce los tres mensajes de T3 sobre la cuenta, y nunca habla de categorías', () => {
+      const archivada = {
+        code: 'P0001',
+        message: 'No se puede planificar sobre una cuenta archivada.',
+      }
+      const ahorro = {
+        code: 'P0001',
+        message:
+          'Una línea de ahorro requiere una cuenta de tipo savings; la indicada es de tipo checking.',
+      }
+      const inversion = {
+        code: 'P0001',
+        message:
+          'Una línea de inversión requiere una cuenta de tipo investment; la indicada es de tipo savings.',
+      }
+      const ausente = {
+        code: 'P0001',
+        message: 'La cuenta indicada no existe o no pertenece al usuario.',
+      }
+
+      expect(toPlanError(archivada, 'save_contribution_line').code).toBe('account_archived')
+      expect(toPlanError(ahorro, 'save_contribution_line').code).toBe('account_wrong_type')
+      expect(toPlanError(inversion, 'save_contribution_line').code).toBe('account_wrong_type')
+      expect(toPlanError(ausente, 'save_contribution_line').code).toBe('account_missing')
+
+      for (const code of [
+        'line_account_taken',
+        'account_archived',
+        'account_wrong_type',
+        'account_missing',
+      ] as const) {
+        expect(new PlanError(code).message).not.toMatch(/categor/i)
+      }
+    })
+
+    it('un mensaje de trigger desconocido cae en unknown', () => {
+      expect(
+        toPlanError({ code: 'P0001', message: 'Otra cosa.' }, 'save_contribution_line').code,
+      ).toBe('unknown')
+    })
+
+    it('la clave foránea de un aporte habla de la cuenta', () => {
+      expect(toPlanError({ code: '23503' }, 'save_contribution_line').code).toBe('account_missing')
+    })
+
+    it('el CHECK de un aporte nombra el nombre y el monto, no una fecha', () => {
+      expect(toPlanError({ code: '23514' }, 'save_contribution_line').code).toBe('invalid_input')
+    })
+
+    it('las líneas de gasto siguen traduciéndose como categorías', () => {
+      const archivada = {
+        code: 'P0001',
+        message: 'No se puede planificar sobre una categoría archivada.',
+      }
+
+      expect(toPlanError(archivada, 'save_plan_line').code).toBe('category_archived')
+      expect(toPlanError({ code: '23503' }, 'save_plan_line').code).toBe('category_missing')
+    })
+  })
+
   describe('servicio no disponible', () => {
     it('un 503 explícito se distingue de un error desconocido', () => {
       expect(

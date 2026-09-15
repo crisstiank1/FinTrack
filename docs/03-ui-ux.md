@@ -116,7 +116,7 @@ Cuatro rutas trabajan sobre movimientos y no se solapan:
 | --- | --- |
 | `/transactions` | Uso diario: crear, editar, duplicar y eliminar movimientos. |
 | `/ledger` | Historial financiero: consulta, filtros, ordenamiento, exportación CSV, edición y saldo acumulado. |
-| `/plan` | Plan mensual: planificación del mes y comparación Presupuesto vs. Actual. Fase 8.7, sin UI todavía. |
+| `/plan` | Plan mensual: planificación del mes y comparación Presupuesto vs. Actual. Fase 8.7. |
 | `/sheets` | Borradores estructurados: captura previa al registro. Fase 8.5, sin UI todavía. |
 
 Ninguna reemplaza a las otras. `/ledger` y `/plan` son ambas de consulta, pero
@@ -186,6 +186,9 @@ Pasos:
 - Lista amigable para uso diario.
 - Crear, editar, duplicar y eliminar movimientos.
 - Filtros básicos.
+- Acepta `?month=YYYY-MM`. Sin parámetro, o con uno inválido, abre el mes
+  actual; `?month=` vacío muestra todos los meses. Cuenta y tipo no van en la
+  URL.
 - Formulario validado con Zod.
 - Transferencias entre cuentas.
 - Confirmación de eliminación.
@@ -257,9 +260,6 @@ Modelo y reglas: `docs/07-hojas.md`.
 
 ### `/plan`
 
-**Ruta futura de la Fase 8.7. Todavía no tiene UI implementada:** no existen ni
-la ruta ni las tablas.
-
 **Plan mensual.** Planificación del mes y comparación Presupuesto vs. Actual.
 El usuario define planes; los valores reales se calculan desde `transactions` y
 **no son editables en ningún punto de la pantalla**.
@@ -268,17 +268,14 @@ Es una pantalla de lectura, análisis y configuración de la planificación. **N
 es un medio para pagar:** no inicia ni ejecuta ningún movimiento de dinero.
 
 **Bloques, en orden:**
-- Vista general: selector de año y mes, moneda del perfil y los indicadores del
-  mes.
-- Ingresos planeados vs. actuales, por fuente.
-- Reparto 50/30/20, con porcentajes modificables.
-- Cuadro Presupuesto vs. Actual.
+- Vista general: selector de mes y Resumen del mes (seis tarjetas).
+- Ingresos planeados.
+- Reparto 50/30/20.
 - Reconciliación del presupuesto.
-- Facturas y gastos fijos.
-- Gastos variables.
-- Ahorro e inversión.
-- Seguimiento de gastos, de solo lectura, con enlace a `/transactions` o
-  `/ledger` para editar el movimiento real.
+- Facturas y gastos variables.
+- Ahorro e inversión: aportes del mes, aportes planeados y saldo en cuentas al
+  cierre del mes.
+- Cuadro Presupuesto vs. Actual.
 
 La deuda no tiene bloque de planificación propio: se planifica como cualquier
 categoría de gasto, desde `/budgets`, y aparece como grupo del reparto y como
@@ -289,7 +286,10 @@ fila del cuadro Presupuesto vs. Actual.
   columna.
 - La diferencia favorable o desfavorable se dice **en texto**. El color solo
   acompaña, nunca es el único portador de la información.
-- Sin presupuesto se muestra «Sin presupuesto», nunca un `0`.
+- Tres estados, siempre distintos: sin presupuesto → «Sin presupuesto»;
+  presupuesto explícito de 0 → «Presupuesto en COP 0»; positivo → su importe.
+  Los aportes a ahorro e inversión sin línea dicen «Sin aportes planeados».
+- Una fila agregada cuyo presupuesto es todo 0 se muestra «Sin presupuesto».
 - «Por asignar» compara planes, no dinero disponible. La nota que lo aclara es
   fija, no un tooltip.
 - En el cuadro Presupuesto vs. Actual, distinguir visualmente las filas que
@@ -299,7 +299,19 @@ fila del cuadro Presupuesto vs. Actual.
 - La suma de los grupos del reparto **no** tiene que coincidir con Gastos
   totales, porque ahorro e inversión son transferencias registradas y no
   gastos. Los dos bloques van visualmente separados y la pantalla lo explica.
-- Secciones plegables; en móvil, cada bloque nace plegado con su titular.
+- Aportes del mes y saldo en cuentas nunca comparten nombre; nunca «Total
+  ahorrado», «Ahorrado» ni «Dinero disponible».
+- Los aportes planeados se crean, editan y borran **solo** desde su tarjeta de
+  «Ahorro e inversión» («Añadir aporte a ahorro» / «Añadir aporte a
+  inversión»), nunca desde «Facturas y gastos variables»: no son gasto. Cada
+  fila dice «{nombre} · {cuenta} · COP X», con «Archivada» si su cuenta se
+  archivó después. Sin plan del mes no hay lista ni botones.
+- Sin cuentas activas del tipo, en lugar del botón se dice «Necesitas una cuenta
+  de ahorro para planificar un aporte.» con enlace a Cuentas; con todas ya
+  ocupadas este mes, «Todas tus cuentas de ahorro ya tienen un aporte planeado
+  este mes.».
+- La reconciliación del presupuesto es plegable y nace plegada, con su titular
+  visible; los demás bloques se muestran abiertos.
 - Compatible con ambos temas.
 
 **No incluir en el primer release:**
@@ -307,6 +319,8 @@ fila del cuadro Presupuesto vs. Actual.
 - Copiar el plan de un mes a otro.
 - Reordenar líneas.
 - Corregir automáticamente meses cerrados.
+- Seguimiento de gastos, de solo lectura, con enlace a `/transactions` o
+  `/ledger` para editar el movimiento real.
 - Metas y aportes a metas: dependen de `goals`, que es Fase 9.
 - Importación CSV.
 - Cualquier indicador, bloque o acción relativo a tarjetas: pagos, cupos,

@@ -275,6 +275,38 @@ Las líneas `bill` y `variable` son **descriptivas**: aportan nombre,
 agrupación, fecha esperada y estado. No aportan una cifra. La cifra está en
 `budgets` y solo ahí.
 
+### Líneas de aporte en la interfaz
+
+Las líneas `savings` e `investment` **sí** llevan cifra: su importe planeado
+vive en la propia línea. En `/plan` se gestionan desde la tarjeta de su tipo en
+el bloque «Ahorro e inversión», y solo con plan del mes:
+
+- **Crear.** El botón fija el tipo. El formulario pide nombre (obligatorio, sin
+  valor por defecto), cuenta e importe planeado. El selector ofrece solo cuentas
+  del tipo, sin archivar y sin aporte este mes: exactamente lo que T3 y U11
+  aceptan. Una cuenta tiene como mucho un aporte al mes; varias líneas del mismo
+  tipo exigen cuentas distintas.
+- **Editar.** Solo nombre e importe. Ni la cuenta ni el tipo: T3 los trata como
+  estrenar el destino, y cambiar de cuenta cambiaría qué transferencias se
+  miden. Corregirlos es borrar la línea y crear otra. El importe se puede
+  corregir aunque la cuenta se haya archivado después.
+- **Borrar.** «Se eliminará el aporte planeado. La cuenta y sus movimientos no se
+  tocan.»
+- **Importe 0.** Válido: se muestra «COP 0» y suma 0 a Asignado; nunca «Sin
+  aportes planeados».
+- **Efecto.** `ahorroPlan` e `inversionPlan` suben al momento, y con ellos
+  Asignado, Por asignar, el Restante planeado, «Planificado por cuenta» de la
+  reconciliación y las filas Ahorro e Inversión del cuadro.
+- **Errores.** U11 y los mensajes de T3 sobre la cuenta se traducen como errores
+  de cuenta («Esa cuenta ya tiene un aporte planeado este mes…», «No se puede
+  planificar un aporte sobre una cuenta archivada.»), nunca como errores de
+  categoría.
+
+Límites conocidos de esta entrega: cada fila muestra solo lo planeado, porque
+el real se mide por tipo de cuenta y no por cuenta ni por línea; y si una
+cuenta cambia de tipo después de crear su aporte, la línea sigue contando por
+su `kind` mientras el real deja de medir esa cuenta.
+
 ---
 
 ## Restricciones
@@ -494,8 +526,10 @@ saldoEnAhorro = Σ sobre cuentas type = 'savings' de
 ```
 
 `saldoEnAhorro` es un saldo acumulado, no un flujo del mes. Se muestra como
-dato de contexto y **nunca** entra en el cuadro Presupuesto vs. Actual ni en el
-Restante: mezclar un stock con flujos es el error clásico de estas plantillas.
+dato de contexto en el bloque «Ahorro e inversión», **al cierre del mes
+consultado** y con las cuentas archivadas incluidas (se indica cuántas), y
+**nunca** entra en el cuadro Presupuesto vs. Actual ni en el Restante: mezclar
+un stock con flujos es el error clásico de estas plantillas.
 
 Contar solo la pata entrante es lo que impide sumar dos veces el mismo
 movimiento, ya que una transferencia son dos filas. Excluir el caso en que el
@@ -586,7 +620,13 @@ coherente con el criterio de `docs/06-presupuestos.md`, donde el 100% exacto es
 `warning_90` y no `over`: superado significa estrictamente gastar más.
 
 Sin presupuesto, la diferencia es nula y se etiqueta «Sin presupuesto», nunca
-`0`. La etiqueta se escribe **en texto**; el color solo acompaña.
+`0`. En Ahorro e Inversión la ausencia es de aportes planeados y se etiqueta
+«Sin aportes planeados», en planeado y en diferencia. La etiqueta se escribe
+**en texto**; el color solo acompaña.
+
+Una fila agregada cuyo presupuesto es todo 0 se muestra «Sin presupuesto»: el
+0 explícito no se compara como objetivo, y la fila no puede enunciarlo
+categoría por categoría.
 
 ### Estados
 
@@ -667,17 +707,20 @@ especial, ni indicador de pago de tarjeta, ni nada que la trate distinto.
 
 ## Reconciliación del presupuesto
 
-Bloque plegable, entre el cuadro Presupuesto vs. Actual y el de facturas.
+Bloque plegable de **solo lectura**. En `/plan` aparece después del reparto
+50/30/20 y del aviso de gasto sin clasificar, y **antes de Facturas y gastos
+variables**: explica qué parte del presupuesto por categorías ya describen las
+líneas y qué parte todavía no, así que se lee antes que las propias líneas.
 
 ```
 Presupuesto por categorías
   Descrito en facturas
   Descrito en gastos variables
-  Sin línea descriptiva            [Completar]
+  Sin línea descriptiva
 
 Planificado por cuenta
-  Aportes a ahorro
-  Aportes a inversión
+  Aportes a ahorro planeados
+  Aportes a inversión planeados
 
 Asignado
 Ingreso planeado
@@ -688,19 +731,50 @@ Reglas de presentación:
 
 - La suma de las tres sublíneas del presupuesto por categorías es siempre
   exacta. No es una validación: es la identidad que garantiza U10.
+- «Asignado» es la misma cifra que la tarjeta «Presupuesto asignado» del
+  resumen: presupuesto por categorías más los aportes planeados por cuenta. El
+  reparto 50/30/20 no se usa como sustituto de esos aportes.
 - El presupuesto de la deuda está dentro de estas tres sublíneas, según tenga
   línea descriptiva o no. No lleva fila propia aquí.
 - **«Sin línea descriptiva» no es un error.** Tono neutro, sin rojo y sin icono
-  de alerta. Es una invitación: «Completar» abre la creación de una línea con
-  la categoría ya seleccionada.
+  de alerta.
 - Si vale 0, la fila se muestra igualmente, con una marca discreta de plan
   completo. Ocultarla haría creer que la reconciliación no existe.
-- Al desplegarla se listan las categorías concretas con su presupuesto y su
-  acción de completar.
+- Al desplegarla se listan las categorías con presupuesto y sin línea, con su
+  importe, y las líneas cuya categoría no tiene presupuesto efectivo ese mes.
+  Una línea sin presupuesto **es válida**: solo no suma a lo asignado.
+- Un presupuesto resuelto en 0 se dice «Presupuesto en COP 0», nunca «Sin
+  presupuesto»: es una decisión explícita del usuario, no una ausencia.
+- El formulario de líneas dice «Ahora mismo: Presupuesto en COP 0» para un 0
+  explícito, y «Sin presupuesto este mes» cuando no hay ninguno.
+- Si todos los presupuestos por categoría del mes son 0, «Presupuesto por
+  categorías» dice «Sin presupuesto», y una categoría en 0 sin línea no aparece
+  en ningún listado del bloque.
+- Sin líneas de ahorro o inversión, esas filas dicen «Sin aportes planeados».
+  No son presupuestos por categoría, así que no se dice «Sin presupuesto».
 - «Por asignar» negativo se etiqueta **«Sobreasignado»** en texto, explicando
   que se ha asignado más que el ingreso planeado.
+- Sin fuentes de ingreso se dice «Sin ingreso planeado». Una fuente explícita
+  de 0 **sí** es ingreso planeado: se compara contra COP 0.
 - Nota fija bajo el bloque: «Por asignar» compara planes, no dinero disponible.
-- En móvil el bloque nace plegado, con el titular «Asignado X de Y».
+- El bloque nace plegado en móvil y en escritorio, con el titular «Asignado X
+  de Y» —o «Sobreasignado por X»— visible también plegado.
+
+### Alcance de la primera entrega
+
+La primera entrega de la reconciliación es **de solo lectura**:
+
+- Puede enlazar a Presupuestos (`/budgets?month=YYYY-MM`), con un enlace por
+  grupo y no uno por fila, porque esa pantalla no navega a una categoría
+  concreta. Una categoría archivada no recibe invitación a completar su
+  presupuesto: no admite presupuestos nuevos.
+- Puede explicar qué categorías tienen presupuesto sin una línea descriptiva,
+  pero **no abre formularios, no crea líneas y no preselecciona categorías**.
+- No crea ni modifica presupuestos, líneas, clasificaciones ni movimientos.
+
+La acción de crear una factura o un gasto variable desde una categoría
+presupuestada sin línea —«Completar», con la categoría ya seleccionada— queda
+**aplazada a una entrega posterior**.
 
 ---
 
@@ -761,7 +835,7 @@ importe separado que pueda contradecirlo.
 
 ## Migraciones previstas
 
-Sin SQL todavía. Tres migraciones, en este orden:
+Aplicadas. Tres migraciones, en este orden:
 
 | Orden | Migración | Contenido | Depende de |
 | --- | --- | --- | --- |

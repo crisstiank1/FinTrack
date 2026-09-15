@@ -19,6 +19,7 @@ import type { Tables } from '@/types/database.types'
 interface TransactionFormProps {
   accounts: Tables<'accounts'>[]
   categories: Tables<'categories'>[]
+  /** Moneda del importe mientras no hay cuenta elegida; después manda la de la cuenta. */
   currencyCode: string
   defaultValues?: Partial<TransactionFormValues>
   onSubmit: (values: TransactionFormValues) => void | Promise<void>
@@ -49,6 +50,10 @@ export function TransactionForm({
 
   const type = watch('type')
   const amount = Number(watch('amount')) || 0
+  const selectedAccountId = watch('accountId')
+  // La moneda la define la cuenta: no hay selector de moneda en el formulario.
+  const amountCurrency =
+    accounts.find((account) => account.id === selectedAccountId)?.currency_code ?? currencyCode
   const activeAccounts = accounts.filter((account) => !account.is_archived)
   const filteredCategories = categories.filter(
     (category) => category.type === type && !category.is_archived,
@@ -106,14 +111,20 @@ export function TransactionForm({
         {errors.amount ? (
           <p className="text-sm text-destructive">{errors.amount.message}</p>
         ) : (
-          <p className="text-xs text-muted-foreground">Equivale a {formatAmount(amount, currencyCode)}</p>
+          <p className="text-xs text-muted-foreground">
+            Equivale a {formatAmount(amount, amountCurrency)}
+          </p>
         )}
       </div>
 
       <div className="grid grid-cols-2 gap-3">
         <div className="flex flex-col gap-2">
           <Label htmlFor="transaction-account">Cuenta</Label>
-          <Select id="transaction-account" aria-invalid={!!errors.accountId} {...register('accountId')}>
+          <Select
+            id="transaction-account"
+            aria-invalid={!!errors.accountId}
+            {...register('accountId')}
+          >
             <option value="">Selecciona...</option>
             {activeAccounts.map((account) => (
               <option key={account.id} value={account.id}>
@@ -121,12 +132,18 @@ export function TransactionForm({
               </option>
             ))}
           </Select>
-          {errors.accountId && <p className="text-sm text-destructive">{errors.accountId.message}</p>}
+          {errors.accountId && (
+            <p className="text-sm text-destructive">{errors.accountId.message}</p>
+          )}
         </div>
 
         <div className="flex flex-col gap-2">
           <Label htmlFor="transaction-category">Categoría</Label>
-          <Select id="transaction-category" aria-invalid={!!errors.categoryId} {...register('categoryId')}>
+          <Select
+            id="transaction-category"
+            aria-invalid={!!errors.categoryId}
+            {...register('categoryId')}
+          >
             <option value="">Selecciona...</option>
             {filteredCategories.map((category) => (
               <option key={category.id} value={category.id}>
@@ -134,7 +151,9 @@ export function TransactionForm({
               </option>
             ))}
           </Select>
-          {errors.categoryId && <p className="text-sm text-destructive">{errors.categoryId.message}</p>}
+          {errors.categoryId && (
+            <p className="text-sm text-destructive">{errors.categoryId.message}</p>
+          )}
         </div>
       </div>
 
