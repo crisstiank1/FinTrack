@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
 
 import { supabase } from '@/lib/supabase'
 
-import { fetchLedgerTotals, groupLedgerTotalsByCurrency } from './api'
+import { fetchLedgerPage, fetchLedgerTotals, groupLedgerTotalsByCurrency } from './api'
 
 /**
  * Doble local del constructor de consultas de PostgREST, con el mismo diseño
@@ -21,6 +21,7 @@ interface QueryCall {
 interface QueryResult {
   data: unknown
   error: unknown
+  count?: number
 }
 
 const CHAINABLE = ['select', 'eq', 'in', 'ilike', 'gte', 'lte', 'order', 'range'] as const
@@ -216,5 +217,111 @@ describe('groupLedgerTotalsByCurrency', () => {
     )
 
     expect(grouped.map((entry) => entry.currencyCode)).toEqual(['ARS'])
+  })
+})
+
+describe('fetchLedgerPage — contrapartes de transferencias', () => {
+  const sort = { field: 'transaction_date', direction: 'desc' } as const
+
+  function leg(
+    id: string,
+    accountId: string,
+    direction: string,
+    amountMinor: number,
+    group = 'g-1',
+  ) {
+    return {
+      id,
+      account_id: accountId,
+      type: 'transfer',
+      transfer_direction: direction,
+      transfer_group_id: group,
+      amount_minor: amountMinor,
+    }
+  }
+
+  it('sin transferencias en la página no hace una segunda consulta', async () => {
+    const calls = mockQueries({
+      data: [{ id: 't1', type: 'expense', transfer_group_id: null }],
+      error: null,
+      count: 1,
+    })
+
+    const page = await fetchLedgerPage('user-1', {}, sort, 0, 50)
+
+    expect(calls).toHaveLength(1)
+    expect(page.counterparts.size).toBe(0)
+  })
+
+  it('trae la otra pata aunque no esté en la página, sin añadir filas ni cambiar el conteo', async () => {
+    // Filtrando USD, la página solo trae la pata que entra en la cuenta USD.
+    const calls = mockQueries(
+      { data: [leg('t-in', 'acc-usd', 'incoming', 25)], error: null, count: 1 },
+      {
+        data: [
+          leg('t-out', 'acc-cop', 'outgoing', 100_000),
+          leg('t-in', 'acc-usd', 'incoming', 25),
+        ],
+        error: null,
+      },
+    )
+
+    const page = await fetchLedgerPage('user-1', { accountIds: ['acc-usd'] }, sort, 0, 50)
+
+    expect(page.rows).toHaveLength(1)
+    expect(page.totalCount).toBe(1)
+    expect(page.counterparts.get('t-in')).toEqual({
+      accountId: 'acc-cop',
+      amountMinor: 100_000,
+      direction: 'outgoing',
+    })
+    expect(calls[1]).toEqual(
+      expect.arrayContaining([
+        { method: 'eq', args: ['user_id', 'user-1'] },
+        { method: 'in', args: ['transfer_group_id', ['g-1']] },
+      ]),
+    )
+  })
+
+  it('con las dos patas en la página, cada una apunta a la otra', async () => {
+    const pair = [
+      leg('t-out', 'acc-cop', 'outgoing', 100_000),
+      leg('t-in', 'acc-usd', 'incoming', 25),
+    ]
+    mockQueries({ data: pair, error: null, count: 2 }, { data: pair, error: null })
+
+    const page = await fetchLedgerPage('user-1', {}, sort, 0, 50)
+
+    expect(page.rows).toHaveLength(2)
+    expect(page.counterparts.get('t-out')).toMatchObject({ accountId: 'acc-usd', amountMinor: 25 })
+    expect(page.counterparts.get('t-in')).toMatchObject({
+      accountId: 'acc-cop',
+      amountMinor: 100_000,
+    })
+  })
+
+  it('no inventa contraparte para un grupo incompleto o con dos patas en la misma dirección', async () => {
+    mockQueries(
+      {
+        data: [
+          leg('solo', 'acc-cop', 'outgoing', 10, 'g-solo'),
+          leg('a', 'acc-cop', 'outgoing', 5, 'g-bad'),
+        ],
+        error: null,
+        count: 2,
+      },
+      {
+        data: [
+          leg('solo', 'acc-cop', 'outgoing', 10, 'g-solo'),
+          leg('a', 'acc-cop', 'outgoing', 5, 'g-bad'),
+          leg('b', 'acc-usd', 'outgoing', 5, 'g-bad'),
+        ],
+        error: null,
+      },
+    )
+
+    const page = await fetchLedgerPage('user-1', {}, sort, 0, 50)
+
+    expect(page.counterparts.size).toBe(0)
   })
 })

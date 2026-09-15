@@ -122,6 +122,37 @@ describe('buildDailyBalances', () => {
     expect(balances.get('2026-09-09')).toBe(800)
   })
 
+  it('una transferencia entre monedas el mismo día cuenta en cada moneda con su importe', () => {
+    const withUsd = [...accounts, { id: 'usd-1', currency_code: 'USD', initial_balance_minor: 300 }]
+    const sameDay = [
+      tx({ type: 'income', amount_minor: 50, account_id: 'usd-1', transaction_date: '2026-09-08' }),
+      tx({
+        type: 'transfer',
+        transfer_direction: 'outgoing',
+        account_id: 'acc-1',
+        amount_minor: 400_000,
+        transaction_date: '2026-09-08',
+      }),
+      tx({
+        type: 'transfer',
+        transfer_direction: 'incoming',
+        account_id: 'usd-1',
+        amount_minor: 100,
+        transaction_date: '2026-09-08',
+      }),
+    ]
+
+    const usd = buildDailyBalances(withUsd, sameDay, { currencyCode: 'USD' })
+    const cop = buildDailyBalances(withUsd, sameDay, { currencyCode: 'COP' })
+
+    // Saldo al cierre del día: el orden de las patas dentro del día no importa.
+    expect(usd.get('2026-09-08')).toBe(450)
+    expect(cop.get('2026-09-08')).toBe(-250_000)
+    expect(buildDailyBalances(withUsd, [...sameDay].reverse(), { currencyCode: 'USD' })).toEqual(
+      usd,
+    )
+  })
+
   it('devuelve un mapa vacío sin movimientos', () => {
     expect(buildDailyBalances(accounts, []).size).toBe(0)
   })

@@ -9,6 +9,8 @@ import {
   deleteTransaction,
   duplicateTransaction,
   fetchTransactions,
+  fetchTransferCounterparts,
+  transferGroupIds,
   updateTransaction,
   type TransactionFilters,
 } from './api'
@@ -20,6 +22,24 @@ export function useTransactions(filters: TransactionFilters) {
     queryKey: ['transactions', user?.id, filters],
     queryFn: () => fetchTransactions(user!.id, filters),
     enabled: !!user,
+  })
+}
+
+/**
+ * Contraparte de cada transferencia de la lista (ver `fetchTransferCounterparts`).
+ * La clave empieza por 'transactions' para que crear o borrar una transferencia
+ * la refresque con la invalidación que ya existe.
+ */
+export function useTransferCounterparts(
+  transactions: Parameters<typeof fetchTransferCounterparts>[1] | undefined,
+) {
+  const { user } = useAuth()
+  const groupIds = transferGroupIds(transactions ?? [])
+
+  return useQuery({
+    queryKey: ['transactions', user?.id, 'counterparts', groupIds],
+    queryFn: () => fetchTransferCounterparts(user!.id, transactions ?? []),
+    enabled: !!user && groupIds.length > 0,
   })
 }
 

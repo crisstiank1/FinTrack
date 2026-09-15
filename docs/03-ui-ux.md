@@ -97,10 +97,29 @@ cambio en M2). Reglas de presentación de monedas:
   en ella (`resolveCurrencyFilter`); si la moneda elegida ya no tiene cuentas,
   se vuelve a «Todas». Es estado local, no va en la URL. Con «Todas», los
   totales siguen separados por moneda.
-- **Limitación conocida:** una transferencia entre cuentas de monedas distintas
-  se puede registrar hoy. Al filtrar por moneda (o por cuenta) solo se ve una de
-  sus dos patas, y el saldo acumulado de esa moneda la cuenta como entrada o
-  salida. M3 no lo corrige.
+- **Transferencias entre monedas (M4):** siguen siendo dos movimientos, uno por
+  cuenta, pero cada pata guarda **su propio importe en la moneda de su cuenta**.
+  - Con la misma moneda, el formulario pide un solo «Monto» y las dos patas
+    llevan el mismo importe; un monto recibido distinto se rechaza (una
+    comisión se registra como gasto aparte).
+  - Con monedas distintas pide «Monto enviado (COP)» y, obligatorio, «Monto
+    recibido (USD)», con la nota «FinTrack no convierte divisas: registra
+    cuánto salió y cuánto entró». «Equivale a» usa la moneda de cada cuenta.
+  - Cada pata muestra su contraparte: `→ Cuenta USD · + USD 25` en la que sale
+    y `← Ahorros · − COP 100.000` en la que entra. Es información de la fila,
+    no una fila más: conteo, paginación y orden no cambian. Filtrando por una
+    moneda o una cuenta se ve solo la pata correspondiente, con la referencia a
+    la otra.
+  - No entran en ingresos, gastos, «Ahorro neto», «Tasa de ahorro» ni en el
+    balance del resumen del Libro. Sí mueven el saldo de cada cuenta y, por
+    tanto, el saldo de cada moneda y su saldo acumulado.
+  - Siguen sin poder editarse: se eliminan (se borran las dos patas) y se
+    vuelven a crear.
+- **Limitación conocida:** las transferencias entre monedas registradas antes
+  de M4 guardaron el mismo importe en las dos patas (p. ej. COP 100.000 que
+  «entran» como USD 100.000) y siguen así hasta que el usuario las elimine y
+  las vuelva a crear. El Plan suma los aportes con el importe de la pata
+  entrante sin separar monedas (limitación hasta M5).
 
 ---
 
@@ -237,7 +256,9 @@ aparte» (D5, sin banner). La confirmación muestra cada saldo en su moneda.
   cuenta solo muestra cuentas en ella, y elegir otra moneda limpia una cuenta
   que no le corresponde.
 - Formulario validado con Zod.
-- Transferencias entre cuentas.
+- Transferencias entre cuentas, también entre monedas distintas (M4, ver
+  «Monedas»): dos líneas, una por cuenta, cada una con su importe, su moneda y
+  su contraparte.
 - Confirmación de eliminación.
 - Estados de carga y vacío.
 
@@ -276,7 +297,12 @@ borradores**: esa es `/sheets`.
 - Saldo acumulado solo cuando todas las cuentas del alcance comparten moneda:
   filtrando por una moneda o por una cuenta. Si no, se explica «Filtra por una
   moneda o una cuenta para verlo».
-- Exportar CSV respetando filtros.
+- Transferencias (M4, ver «Monedas»): cada pata es una fila con su importe y su
+  moneda; la descripción, en la tabla y en las tarjetas, añade la contraparte.
+- Exportar CSV respetando filtros. Las transferencias no llevan columnas de
+  contraparte: cada fila trae su «Moneda» y el «Grupo de transferencia» basta
+  para emparejarlas. En una transferencia entre monedas, sumar «Monto» sobre la
+  pareja ya no da cero: cada fila va en su moneda.
 - Modal de edición.
 - En móvil: tarjetas o scroll horizontal controlado y usable.
 

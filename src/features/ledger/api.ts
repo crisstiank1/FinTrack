@@ -1,3 +1,4 @@
+import { fetchTransferCounterparts, type TransferCounterpart } from '@/features/transactions/api'
 import { sortCurrencyCodes } from '@/lib/currency'
 import { supabase } from '@/lib/supabase'
 import type { Tables } from '@/types/database.types'
@@ -31,6 +32,11 @@ export interface LedgerPage {
   rows: Tables<'transactions'>[]
   /** Total de filas que cumplen los filtros, no las de esta página. */
   totalCount: number
+  /**
+   * Otra pata de cada transferencia de la página, por id de fila. Puede estar
+   * en otra página o fuera del filtro, así que se pide aparte; no añade filas.
+   */
+  counterparts: Map<string, TransferCounterpart>
 }
 
 /** Suma de un tipo de movimiento en una cuenta. */
@@ -139,7 +145,10 @@ export async function fetchLedgerPage(
     .range(from, from + pageSize - 1)
 
   if (error) throw error
-  return { rows: data ?? [], totalCount: count ?? 0 }
+
+  const rows = data ?? []
+  const counterparts = await fetchTransferCounterparts(userId, rows)
+  return { rows, totalCount: count ?? 0, counterparts }
 }
 
 /**

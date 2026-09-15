@@ -7,15 +7,18 @@ import type { Tables } from '@/types/database.types'
 import Transactions from './Transactions'
 
 const useTransactions = vi.fn()
+const useTransferCounterparts = vi.fn()
+const createTransfer = vi.fn()
 const usePrimaryCurrency = vi.fn()
 const useAccounts = vi.fn()
 const mutation = () => ({ mutateAsync: vi.fn(), isPending: false })
 
 vi.mock('@/features/transactions/hooks', () => ({
   useTransactions: (filters: unknown) => useTransactions(filters),
+  useTransferCounterparts: (transactions: unknown) => useTransferCounterparts(transactions),
   useCreateTransaction: () => mutation(),
   useUpdateTransaction: () => mutation(),
-  useCreateTransfer: () => mutation(),
+  useCreateTransfer: () => ({ mutateAsync: createTransfer, isPending: false }),
   useDeleteTransaction: () => mutation(),
   useDuplicateTransaction: () => mutation(),
 }))
@@ -82,6 +85,10 @@ beforeEach(() => {
   vi.setSystemTime(new Date(2026, 8, 12))
   useTransactions.mockReset()
   useTransactions.mockReturnValue({ data: [], isLoading: false })
+  useTransferCounterparts.mockReset()
+  useTransferCounterparts.mockReturnValue({ data: undefined })
+  createTransfer.mockReset()
+  createTransfer.mockResolvedValue([])
   usePrimaryCurrency.mockReturnValue({ data: 'COP', isPending: false })
   useAccounts.mockReturnValue({ data: accounts })
   currentSearch = ''
@@ -331,5 +338,86 @@ describe('Transactions — moneda de cada fila', () => {
 
     expect(screen.getByText(/COP 250\.000/)).toBeInTheDocument()
     expect(screen.getByText(/USD 40/)).toBeInTheDocument()
+  })
+})
+
+describe('Transactions — transferencias entre monedas', () => {
+  const transferRows = [
+    row({
+      id: 't-out',
+      account_id: 'acc-bank',
+      type: 'transfer',
+      transfer_direction: 'outgoing',
+      transfer_group_id: 'g-1',
+      amount_minor: 100_000,
+      description: 'Paso a dólares',
+    }),
+    row({
+      id: 't-in',
+      account_id: 'acc-usd',
+      type: 'transfer',
+      transfer_direction: 'incoming',
+      transfer_group_id: 'g-1',
+      amount_minor: 25,
+      description: 'Paso a dólares',
+    }),
+  ]
+
+  it('muestra las dos patas, cada una en su moneda y con su contraparte', () => {
+    useTransactions.mockReturnValue({ data: transferRows, isLoading: false })
+    useTransferCounterparts.mockReturnValue({
+      data: new Map([
+        ['t-out', { accountId: 'acc-usd', amountMinor: 25, direction: 'incoming' }],
+        ['t-in', { accountId: 'acc-bank', amountMinor: 100_000, direction: 'outgoing' }],
+      ]),
+    })
+
+    renderTransactions('/transactions?month=2026-08')
+
+    expect(screen.getAllByText('Paso a dólares')).toHaveLength(2)
+    expect(screen.getByText('− COP 100.000')).toBeInTheDocument()
+    expect(screen.getByText('+ USD 25')).toBeInTheDocument()
+    expect(screen.getByText('→ Cuenta USD · + USD 25')).toBeInTheDocument()
+    expect(screen.getByText('← Banco · − COP 100.000')).toBeInTheDocument()
+  })
+
+  it('filtrando USD, la pata visible sigue indicando la cuenta COP de origen', () => {
+    useTransactions.mockReturnValue({ data: [transferRows[1]], isLoading: false })
+    useTransferCounterparts.mockReturnValue({
+      data: new Map([
+        ['t-in', { accountId: 'acc-bank', amountMinor: 100_000, direction: 'outgoing' }],
+      ]),
+    })
+
+    renderTransactions('/transactions?month=2026-08')
+    fireEvent.change(screen.getByLabelText('Moneda'), { target: { value: 'USD' } })
+
+    expect(lastFilters()).toMatchObject({ currencyCode: 'USD', accountIds: ['acc-usd'] })
+    expect(screen.getAllByText('Paso a dólares')).toHaveLength(1)
+    expect(screen.getByText('← Banco · − COP 100.000')).toBeInTheDocument()
+  })
+
+  it('registra cada pata con su propio importe', async () => {
+    renderTransactions('/transactions?month=2026-08')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Transferir' }))
+    const dialog = within(screen.getByRole('dialog'))
+    fireEvent.change(dialog.getByLabelText('Desde'), { target: { value: 'acc-bank' } })
+    fireEvent.change(dialog.getByLabelText('Hacia'), { target: { value: 'acc-usd' } })
+    fireEvent.change(dialog.getByLabelText('Monto enviado (COP)'), {
+      target: { value: '100000' },
+    })
+    fireEvent.change(dialog.getByLabelText('Monto recibido (USD)'), { target: { value: '25' } })
+    fireEvent.click(dialog.getByRole('button', { name: 'Transferir' }))
+
+    await vi.waitFor(() => expect(createTransfer).toHaveBeenCalledOnce())
+    expect(createTransfer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fromAccountId: 'acc-bank',
+        toAccountId: 'acc-usd',
+        fromAmountMinor: 100_000,
+        toAmountMinor: 25,
+      }),
+    )
   })
 })

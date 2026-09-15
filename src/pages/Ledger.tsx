@@ -156,6 +156,7 @@ export default function Ledger() {
   )
 
   const rows = useMemo(() => page.data?.rows ?? [], [page.data])
+  const counterparts = page.data?.counterparts
   const totalCount = page.data?.totalCount ?? 0
 
   const columns = useMemo(
@@ -166,12 +167,13 @@ export default function Ledger() {
         fallbackCurrency: currencyCode,
         balanceByDate,
         balanceCurrency: balanceCurrency ?? currencyCode,
+        counterparts,
         onEdit: setEditing,
         onDuplicate: handleDuplicate,
         onDelete: setDeleting,
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [accountsById, categoriesById, currencyCode, balanceByDate, balanceCurrency],
+    [accountsById, categoriesById, currencyCode, balanceByDate, balanceCurrency, counterparts],
   )
 
   const table = useReactTable({
@@ -354,6 +356,7 @@ export default function Ledger() {
               fallbackCurrency={currencyCode}
               balanceByDate={balanceByDate}
               balanceCurrency={balanceCurrency ?? currencyCode}
+              counterparts={counterparts}
               onEdit={setEditing}
               onDuplicate={handleDuplicate}
               onDelete={setDeleting}

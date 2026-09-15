@@ -118,6 +118,24 @@ describe('calculateBalancesByCurrency', () => {
     expect(balances.get('COP')).toBe(550000)
   })
 
+  it('una transferencia entre monedas con importes distintos deja cada cuenta con su importe', () => {
+    // COP 400.000 salen de cop-1 y entran USD 100 en usd-1: nada se convierte.
+    const transactions: TransactionForCalculation[] = [
+      {
+        type: 'transfer',
+        transfer_direction: 'outgoing',
+        account_id: 'cop-1',
+        amount_minor: 400000,
+      },
+      { type: 'transfer', transfer_direction: 'incoming', account_id: 'usd-1', amount_minor: 100 },
+    ]
+
+    expect(calculateAccountBalance(100000, transactions, 'cop-1')).toBe(-300000)
+    expect(calculateAccountBalance(300, transactions, 'usd-1')).toBe(400)
+    expect(calculateMonthlyIncome(transactions)).toBe(0)
+    expect(calculateMonthlyExpense(transactions)).toBe(0)
+  })
+
   it('devuelve un mapa vacío sin cuentas', () => {
     expect(calculateBalancesByCurrency([], []).size).toBe(0)
   })

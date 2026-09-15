@@ -1,3 +1,4 @@
+import { formatAmount } from '@/lib/currency'
 import { monthRange, todayIsoDate } from '@/lib/dates'
 import { supabase } from '@/lib/supabase'
 import type { Tables, TablesInsert, TablesUpdate } from '@/types/database.types'
@@ -53,7 +54,14 @@ interface TransferInput {
   userId: string
   fromAccountId: string
   toAccountId: string
-  amountMinor: number
+  /** Importe de la pata saliente, en la moneda de la cuenta de origen. */
+  fromAmountMinor: number
+  /**
+   * Importe de la pata entrante, en la moneda de la cuenta de destino. Igual a
+   * `fromAmountMinor` si las dos cuentas comparten moneda; distinto si no,
+   * porque FinTrack no convierte divisas (ver `createTransferSchema`).
+   */
+  toAmountMinor: number
   transactionDate: string
   description: string
 }
@@ -69,7 +77,7 @@ export async function createTransferPair(input: TransferInput) {
       type: 'transfer',
       transfer_direction: 'outgoing',
       transfer_group_id: transferGroupId,
-      amount_minor: input.amountMinor,
+      amount_minor: input.fromAmountMinor,
       transaction_date: input.transactionDate,
       description: input.description,
     },
@@ -80,7 +88,7 @@ export async function createTransferPair(input: TransferInput) {
       type: 'transfer',
       transfer_direction: 'incoming',
       transfer_group_id: transferGroupId,
-      amount_minor: input.amountMinor,
+      amount_minor: input.toAmountMinor,
       transaction_date: input.transactionDate,
       description: input.description,
     },
@@ -89,6 +97,116 @@ export async function createTransferPair(input: TransferInput) {
   const { data, error } = await supabase.from('transactions').insert(rows).select()
   if (error) throw error
   return data
+}
+
+/** La otra pata de una transferencia, vista desde la fila que la muestra. */
+export interface TransferCounterpart {
+  accountId: string
+  /** Importe de la otra pata, en la moneda de su propia cuenta. */
+  amountMinor: number
+  direction: 'incoming' | 'outgoing'
+}
+
+type TransferLeg = Pick<
+  Tables<'transactions'>,
+  'id' | 'transfer_group_id' | 'account_id' | 'amount_minor' | 'transfer_direction'
+>
+
+/** Grupos por consulta: cada UUID ocupa ~37 caracteres de la URL de PostgREST. */
+const COUNTERPART_GROUPS_PER_QUERY = 100
+
+/** Grupos de transferencia de unas filas, sin repetir y en orden estable. */
+export function transferGroupIds(
+  rows: readonly Pick<Tables<'transactions'>, 'type' | 'transfer_group_id'>[],
+): string[] {
+  const ids = rows
+    .filter((row) => row.type === 'transfer' && row.transfer_group_id)
+    .map((row) => row.transfer_group_id as string)
+  return [...new Set(ids)].sort()
+}
+
+/**
+ * Contraparte de cada transferencia de `rows`, por id de fila.
+ *
+ * La otra pata no siempre está entre las filas: una página del libro o un
+ * filtro por cuenta o por moneda pueden dejarla fuera. Por eso se piden aparte
+ * las patas de los grupos visibles. Es información de la fila, no una fila más:
+ * la tabla, el conteo y la paginación no cambian.
+ */
+export async function fetchTransferCounterparts(
+  userId: string,
+  rows: readonly Pick<Tables<'transactions'>, 'id' | 'type' | 'transfer_group_id'>[],
+): Promise<Map<string, TransferCounterpart>> {
+  const groupIds = transferGroupIds(rows)
+  const legs: TransferLeg[] = []
+
+  for (let start = 0; start < groupIds.length; start += COUNTERPART_GROUPS_PER_QUERY) {
+    const { data, error } = await supabase
+      .from('transactions')
+      .select('id, transfer_group_id, account_id, amount_minor, transfer_direction')
+      .eq('user_id', userId)
+      .in('transfer_group_id', groupIds.slice(start, start + COUNTERPART_GROUPS_PER_QUERY))
+
+    if (error) throw error
+    legs.push(...(data ?? []))
+  }
+
+  return pairTransferCounterparts(rows, legs)
+}
+
+/**
+ * Empareja cada transferencia con la otra pata de su grupo. Un grupo que no
+ * tenga exactamente dos patas, o cuyas dos patas vayan en la misma dirección,
+ * no da contraparte: mostrar una a medias sería peor que no mostrar nada.
+ */
+export function pairTransferCounterparts(
+  rows: readonly Pick<Tables<'transactions'>, 'id' | 'type' | 'transfer_group_id'>[],
+  legs: readonly TransferLeg[],
+): Map<string, TransferCounterpart> {
+  const legsByGroup = new Map<string, TransferLeg[]>()
+  for (const leg of legs) {
+    if (!leg.transfer_group_id) continue
+    const group = legsByGroup.get(leg.transfer_group_id) ?? []
+    if (!group.some((existing) => existing.id === leg.id)) group.push(leg)
+    legsByGroup.set(leg.transfer_group_id, group)
+  }
+
+  const counterparts = new Map<string, TransferCounterpart>()
+  for (const row of rows) {
+    if (row.type !== 'transfer' || !row.transfer_group_id) continue
+
+    const group = legsByGroup.get(row.transfer_group_id)
+    if (!group || group.length !== 2) continue
+
+    const other = group.find((leg) => leg.id !== row.id)
+    const own = group.find((leg) => leg.id === row.id)
+    if (!other || !own || other.transfer_direction === own.transfer_direction) continue
+    if (other.transfer_direction !== 'incoming' && other.transfer_direction !== 'outgoing') continue
+
+    counterparts.set(row.id, {
+      accountId: other.account_id,
+      amountMinor: other.amount_minor,
+      direction: other.transfer_direction,
+    })
+  }
+
+  return counterparts
+}
+
+/**
+ * Texto de la contraparte: `→ Cuenta USD · + USD 25` en la pata que sale y
+ * `← Ahorros · − COP 100.000` en la que entra. Lo comparten Movimientos, la
+ * tabla y las tarjetas del libro para que digan lo mismo.
+ */
+export function formatTransferCounterpart(
+  counterpart: TransferCounterpart,
+  account: Pick<Tables<'accounts'>, 'name' | 'currency_code'> | undefined,
+  fallbackCurrency: string,
+): string {
+  const arrow = counterpart.direction === 'incoming' ? '→' : '←'
+  const sign = counterpart.direction === 'incoming' ? '+' : '−'
+  const amount = formatAmount(counterpart.amountMinor, account?.currency_code ?? fallbackCurrency)
+  return `${arrow} ${account?.name ?? 'Cuenta eliminada'} · ${sign} ${amount}`
 }
 
 export async function updateTransaction(id: string, input: TablesUpdate<'transactions'>) {

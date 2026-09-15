@@ -124,9 +124,15 @@
 
 5. Transferencias entre cuentas del mismo usuario:
    - No se consideran ingreso ni gasto en el dashboard consolidado.
-   - Conservan el saldo consolidado del usuario.
+   - Conservan el saldo consolidado **solo dentro de una misma moneda**. Entre
+     cuentas de monedas distintas cada pata mueve el saldo de su moneda: sale
+     de una y entra en la otra, sin convertir (M4).
    - Crean **dos movimientos vinculados** mediante `transfer_group_id`.
    - Tienen dirección interna (`incoming` / `outgoing`).
+   - Cada pata guarda su propio `amount_minor` en la moneda de su cuenta. Con
+     la misma moneda los dos importes son iguales; con monedas distintas son
+     los que el usuario registró. La base no exige que coincidan: la regla la
+     aplica el cliente (`createTransferSchema`).
 
 6. Tasa de ahorro:
 

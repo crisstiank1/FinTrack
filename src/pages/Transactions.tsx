@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { useAccounts } from '@/features/accounts/hooks'
 import { useCategories } from '@/features/categories/hooks'
 import { usePrimaryCurrency } from '@/features/profile/hooks'
-import type { TransactionFilters } from '@/features/transactions/api'
+import { formatTransferCounterpart, type TransactionFilters } from '@/features/transactions/api'
 import { TransactionFiltersBar } from '@/features/transactions/components/transaction-filters'
 import { TransactionForm } from '@/features/transactions/components/transaction-form'
 import { TransactionRow } from '@/features/transactions/components/transaction-row'
@@ -19,6 +19,7 @@ import {
   useDeleteTransaction,
   useDuplicateTransaction,
   useTransactions,
+  useTransferCounterparts,
   useUpdateTransaction,
 } from '@/features/transactions/hooks'
 import type { TransactionFormValues, TransferFormValues } from '@/features/transactions/schemas'
@@ -60,6 +61,7 @@ export default function Transactions() {
   }
 
   const { data: transactions, isLoading } = useTransactions(filters)
+  const { data: counterparts } = useTransferCounterparts(transactions)
 
   const createTransaction = useCreateTransaction()
   const updateTransaction = useUpdateTransaction()
@@ -87,6 +89,13 @@ export default function Transactions() {
   // Esta página no suma importes: cada fila va en la moneda de su cuenta. Esta
   // moneda solo cubre filas sin cuenta conocida y formularios sin cuenta elegida.
   const currencyCode = resolvePresentationCurrency(primaryCurrency, accounts)
+
+  function counterpartLabelFor(transaction: Tables<'transactions'>) {
+    const counterpart = counterparts?.get(transaction.id)
+    return counterpart
+      ? formatTransferCounterpart(counterpart, accountById.get(counterpart.accountId), currencyCode)
+      : undefined
+  }
 
   function openCreateTransaction() {
     setEditingTransaction(null)
@@ -139,7 +148,8 @@ export default function Transactions() {
       await createTransfer.mutateAsync({
         fromAccountId: values.fromAccountId,
         toAccountId: values.toAccountId,
-        amountMinor: values.amount,
+        fromAmountMinor: values.amount,
+        toAmountMinor: values.receivedAmount,
         transactionDate: values.transactionDate,
         description: values.description,
       })
@@ -233,6 +243,7 @@ export default function Transactions() {
                 : null
             }
             currencyCode={accountById.get(transaction.account_id)?.currency_code ?? currencyCode}
+            counterpartLabel={counterpartLabelFor(transaction)}
             onEdit={() => openEditTransaction(transaction)}
             onDuplicate={() => handleDuplicate(transaction)}
             onDelete={() => setDeletingTransaction(transaction)}

@@ -11,6 +11,8 @@ interface TransactionRowProps {
   categoryName: string | null
   categoryIcon: string | null
   currencyCode: string
+  /** Texto de la otra pata si es una transferencia (ver `formatTransferCounterpart`). */
+  counterpartLabel?: string
   onEdit: () => void
   onDuplicate: () => void
   onDelete: () => void
@@ -22,6 +24,7 @@ export function TransactionRow({
   categoryName,
   categoryIcon,
   currencyCode,
+  counterpartLabel,
   onEdit,
   onDuplicate,
   onDelete,
@@ -50,6 +53,9 @@ export function TransactionRow({
             {accountName}
             {categoryName ? ` · ${categoryName}` : isTransfer ? ' · Transferencia' : ''}
           </p>
+          {isTransfer && counterpartLabel && (
+            <p className="truncate text-xs text-muted-foreground">{counterpartLabel}</p>
+          )}
         </div>
       </div>
 

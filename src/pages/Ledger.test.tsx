@@ -473,6 +473,88 @@ describe('Ledger', () => {
       ).not.toBeInTheDocument()
     })
 
+    it('cada pata de una transferencia muestra su contraparte en la tabla y en las tarjetas', () => {
+      useLedgerPage.mockReturnValue({
+        data: {
+          rows: [
+            tx({
+              id: 't-out',
+              account_id: 'acc-1',
+              category_id: null,
+              type: 'transfer',
+              transfer_direction: 'outgoing',
+              transfer_group_id: 'g-1',
+              amount_minor: 100_000,
+              description: 'Paso a dólares',
+            }),
+            tx({
+              id: 't-in',
+              account_id: 'acc-usd',
+              category_id: null,
+              type: 'transfer',
+              transfer_direction: 'incoming',
+              transfer_group_id: 'g-1',
+              amount_minor: 25,
+              description: 'Paso a dólares',
+            }),
+          ],
+          totalCount: 2,
+          counterparts: new Map([
+            ['t-out', { accountId: 'acc-usd', amountMinor: 25, direction: 'incoming' }],
+            ['t-in', { accountId: 'acc-1', amountMinor: 100_000, direction: 'outgoing' }],
+          ]),
+        },
+        isPending: false,
+        isError: false,
+        refetch: vi.fn(),
+      })
+
+      renderLedger()
+
+      const table = within(screen.getByRole('table'))
+      const outRow = within(table.getByText('→ Cuenta USD · + USD 25').closest('tr')!)
+      expect(outRow.getByText('− COP 100.000')).toBeInTheDocument()
+      expect(outRow.getByText('Bancolombia')).toBeInTheDocument()
+      const inRow = within(table.getByText('← Bancolombia · − COP 100.000').closest('tr')!)
+      expect(inRow.getByText('+ USD 25')).toBeInTheDocument()
+
+      // Dos filas, no cuatro: la contraparte es información de la fila.
+      expect(table.getAllByText('Paso a dólares')).toHaveLength(2)
+      expect(screen.getByText('1–2 de 2')).toBeInTheDocument()
+
+      // La misma contraparte aparece también en la tarjeta de móvil.
+      const outCard = screen
+        .getAllByText('→ Cuenta USD · + USD 25')
+        .find((element) => element.closest('li'))
+      const inCard = screen
+        .getAllByText('← Bancolombia · − COP 100.000')
+        .find((element) => element.closest('li'))
+      expect(within(outCard!.closest('li')!).getByText('− COP 100.000')).toBeInTheDocument()
+      expect(within(inCard!.closest('li')!).getByText('+ USD 25')).toBeInTheDocument()
+    })
+
+    it('las transferencias entre monedas no entran en el resumen por moneda', () => {
+      useLedgerTotals.mockReturnValue({
+        data: {
+          byAccount: [
+            { type: 'income', accountId: 'acc-1', totalMinor: 300_000 },
+            { type: 'transfer', accountId: 'acc-1', totalMinor: 100_000 },
+            { type: 'transfer', accountId: 'acc-usd', totalMinor: 25 },
+          ],
+          count: 3,
+        },
+        isError: false,
+      })
+
+      renderLedger()
+
+      // USD aparece porque tiene movimientos en el conjunto, pero la pata que
+      // entra no suma ingresos ni balance, y la que sale no resta en COP.
+      expect(summaryLines('Ingresos')).toEqual(['COP 300.000', 'USD 0'])
+      expect(summaryLines('Gastos')).toEqual(['COP 0', 'USD 0'])
+      expect(summaryLines('Balance')).toEqual(['COP 300.000', 'USD 0'])
+    })
+
     it('no calcula el saldo acumulado mezclando monedas y explica cómo verlo', async () => {
       const user = userEvent.setup()
       renderLedger()

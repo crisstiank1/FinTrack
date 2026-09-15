@@ -3,6 +3,7 @@ import { Copy, Pencil, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { AmountCell } from '@/features/ledger/components/amount-cell'
 import { TYPE_LABELS } from '@/features/ledger/labels'
+import { formatTransferCounterpart, type TransferCounterpart } from '@/features/transactions/api'
 import { formatAmount } from '@/lib/currency'
 import { formatShortDate } from '@/lib/dates'
 import type { Tables } from '@/types/database.types'
@@ -16,6 +17,8 @@ interface LedgerCardsProps {
   balanceByDate?: Map<string, number>
   /** Moneda de `balanceByDate`. */
   balanceCurrency: string
+  /** Otra pata de cada transferencia, por id de fila (ver `fetchLedgerPage`). */
+  counterparts?: Map<string, TransferCounterpart>
   onEdit: (transaction: Tables<'transactions'>) => void
   onDuplicate: (transaction: Tables<'transactions'>) => void
   onDelete: (transaction: Tables<'transactions'>) => void
@@ -34,6 +37,7 @@ export function LedgerCards({
   fallbackCurrency,
   balanceByDate,
   balanceCurrency,
+  counterparts,
   onEdit,
   onDuplicate,
   onDelete,
@@ -46,6 +50,7 @@ export function LedgerCards({
           ? categoriesById.get(transaction.category_id)
           : undefined
         const balance = balanceByDate?.get(transaction.transaction_date)
+        const counterpart = counterparts?.get(transaction.id)
 
         return (
           <li key={transaction.id} className="rounded-xl border border-border bg-card p-3 text-sm">
@@ -57,6 +62,15 @@ export function LedgerCards({
                   {account?.name ?? 'Cuenta eliminada'}
                   {category ? ` · ${category.name}` : ''}
                 </p>
+                {counterpart && (
+                  <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                    {formatTransferCounterpart(
+                      counterpart,
+                      accountsById.get(counterpart.accountId),
+                      fallbackCurrency,
+                    )}
+                  </p>
+                )}
               </div>
               <AmountCell
                 transaction={transaction}
