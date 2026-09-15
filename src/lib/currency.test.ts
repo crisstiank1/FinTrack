@@ -5,6 +5,7 @@ import {
   CURRENCY_CODES,
   formatAmount,
   currencyOptions,
+  resolveCurrencyFilter,
   resolvePresentationCurrency,
   sortCurrencyCodes,
 } from './currency'
@@ -99,6 +100,58 @@ describe('sortCurrencyCodes', () => {
 
   it('elimina los códigos repetidos', () => {
     expect(sortCurrencyCodes(['USD', 'COP', 'USD', 'COP'])).toEqual(['COP', 'USD'])
+  })
+})
+
+describe('resolveCurrencyFilter', () => {
+  const accounts = [
+    { id: 'cop-1', currency_code: 'COP' },
+    { id: 'usd-1', currency_code: 'USD' },
+    { id: 'cop-2', currency_code: 'COP' },
+    { id: 'ars-1', currency_code: 'ARS' },
+  ]
+
+  it('ofrece las monedas de las cuentas, con la principal primero', () => {
+    expect(resolveCurrencyFilter(accounts, undefined, 'USD').currencyCodes).toEqual([
+      'USD',
+      'COP',
+      'ARS',
+    ])
+  })
+
+  it('incluye monedas heredadas como EUR si hay cuentas en ellas', () => {
+    const withLegacy = [...accounts, { id: 'eur-1', currency_code: 'EUR' }]
+    expect(resolveCurrencyFilter(withLegacy, undefined, 'COP').currencyCodes).toEqual([
+      'COP',
+      'USD',
+      'ARS',
+      'EUR',
+    ])
+  })
+
+  it('sin moneda elegida no acota', () => {
+    expect(resolveCurrencyFilter(accounts, undefined, 'COP')).toEqual({
+      currencyCodes: ['COP', 'USD', 'ARS'],
+    })
+  })
+
+  it('con una moneda elegida acota a las cuentas en ella', () => {
+    expect(resolveCurrencyFilter(accounts, 'COP', 'COP')).toEqual({
+      currencyCodes: ['COP', 'USD', 'ARS'],
+      currencyCode: 'COP',
+      accountIds: ['cop-1', 'cop-2'],
+    })
+  })
+
+  it('una moneda sin cuentas vuelve a todas en vez de pedir una lista vacía', () => {
+    const scope = resolveCurrencyFilter(accounts, 'MXN', 'COP')
+    expect(scope.currencyCode).toBeUndefined()
+    expect(scope.accountIds).toBeUndefined()
+  })
+
+  it('con una sola moneda no acota: el selector está oculto', () => {
+    const copOnly = accounts.filter((account) => account.currency_code === 'COP')
+    expect(resolveCurrencyFilter(copOnly, 'COP', 'COP')).toEqual({ currencyCodes: ['COP'] })
   })
 })
 

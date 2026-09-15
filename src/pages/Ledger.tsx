@@ -42,7 +42,7 @@ import {
 import type { TransactionFormValues } from '@/features/transactions/schemas'
 import { useDebouncedValue } from '@/hooks/use-debounced-value'
 import { downloadCsv } from '@/lib/csv'
-import { resolvePresentationCurrency } from '@/lib/currency'
+import { resolveCurrencyFilter, resolvePresentationCurrency } from '@/lib/currency'
 import type { Tables } from '@/types/database.types'
 
 const DEFAULT_SORT: SortingState = [{ id: 'transaction_date', desc: true }]
@@ -67,11 +67,31 @@ export default function Ledger() {
 
   const debouncedSearch = useDebouncedValue(searchInput)
 
+  const { data: accounts = [] } = useAccounts()
+  const { data: categories = [] } = useCategories()
+  const primaryCurrency = usePrimaryCurrency()
+
+  // La moneda elegida se traduce a sus cuentas; si ya no aplica, vuelve a todas.
+  const currencyFilter = useMemo(
+    () => resolveCurrencyFilter(accounts, filters.currencyCode, primaryCurrency.data),
+    [accounts, filters.currencyCode, primaryCurrency.data],
+  )
+
+  // Lo que muestran los selectores: sin una moneda que ya no aplica.
+  const shownFilters = useMemo<LedgerFilters>(
+    () => ({ ...filters, currencyCode: currencyFilter.currencyCode }),
+    [filters, currencyFilter],
+  )
+
   // La búsqueda vive aparte para que el input responda al instante, y solo
   // entra a `filters` (que dispara la consulta) cuando deja de escribir.
   const activeFilters = useMemo<LedgerFilters>(
-    () => ({ ...filters, search: debouncedSearch || undefined }),
-    [filters, debouncedSearch],
+    () => ({
+      ...shownFilters,
+      accountIds: currencyFilter.accountIds,
+      search: debouncedSearch || undefined,
+    }),
+    [shownFilters, currencyFilter, debouncedSearch],
   )
 
   const sort = useMemo<LedgerSort>(
@@ -88,11 +108,8 @@ export default function Ledger() {
     setPageIndex(0)
   }, [activeFilters, sort, pageSize])
 
-  const { data: accounts = [] } = useAccounts()
-  const { data: categories = [] } = useCategories()
   const page = useLedgerPage(activeFilters, sort, pageIndex, pageSize)
   const totals = useLedgerTotals(activeFilters)
-  const primaryCurrency = usePrimaryCurrency()
 
   const showRunningBalance = columnVisibility.runningBalance === true
   const { data: allTransactions = [] } = useAllTransactions({ enabled: showRunningBalance })
@@ -109,15 +126,19 @@ export default function Ledger() {
   const currencyCode = resolvePresentationCurrency(primaryCurrency.data, accounts)
 
   // El saldo acumulado suma cuentas: con monedas distintas no se calcula.
-  const balanceCurrency = runningBalanceCurrency(accounts, activeFilters.accountId)
+  const balanceScope = useMemo(
+    () => ({ accountId: activeFilters.accountId, currencyCode: activeFilters.currencyCode }),
+    [activeFilters.accountId, activeFilters.currencyCode],
+  )
+  const balanceCurrency = runningBalanceCurrency(accounts, balanceScope)
   const balanceIsMixed = showRunningBalance && balanceCurrency === null && accounts.length > 0
 
   const balanceByDate = useMemo(
     () =>
       showRunningBalance && balanceCurrency
-        ? buildDailyBalances(accounts, allTransactions, activeFilters.accountId)
+        ? buildDailyBalances(accounts, allTransactions, balanceScope)
         : undefined,
-    [showRunningBalance, balanceCurrency, accounts, allTransactions, activeFilters.accountId],
+    [showRunningBalance, balanceCurrency, accounts, allTransactions, balanceScope],
   )
 
   // Se espera a la moneda principal para no reordenar las monedas al llegar.
@@ -277,19 +298,21 @@ export default function Ledger() {
 
       <div className="mt-4 flex flex-col gap-4">
         <LedgerFiltersBar
-          filters={filters}
+          filters={shownFilters}
           searchInput={searchInput}
           onSearchInputChange={setSearchInput}
           onChange={setFilters}
           accounts={accounts}
           categories={categories}
+          currencyCodes={currencyFilter.currencyCodes}
         />
 
         <LedgerSummary
           totals={currencyTotals}
           count={totals.data?.count}
           isError={totals.isError}
-          currencyCode={currencyCode}
+          // Filtrando una moneda sin movimientos, los ceros van en esa moneda.
+          currencyCode={activeFilters.currencyCode ?? currencyCode}
         />
 
         {balanceIsMixed && (
@@ -298,7 +321,7 @@ export default function Ledger() {
             className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground"
           >
             El saldo acumulado solo se calcula con cuentas de una misma moneda. Filtra por una
-            cuenta para verlo.
+            moneda o una cuenta para verlo.
           </p>
         )}
 

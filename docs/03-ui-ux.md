@@ -89,6 +89,18 @@ cambio en M2). Reglas de presentación de monedas:
 - **Cambiar la moneda de una cuenta:** bloqueado si la cuenta ya tiene
   movimientos (D6); permitido sin movimientos. Las líneas de aporte del Plan no
   se comprueban (limitación hasta M5).
+- **Filtro por moneda (M3):** `/transactions` y `/ledger` tienen un selector
+  «Moneda» con «Todas las monedas» y solo las monedas de las cuentas del
+  usuario (archivadas incluidas, y EUR/MXN si hay cuentas heredadas), con la
+  principal primero. Se oculta si el usuario tiene una sola moneda. Como
+  `transactions` no guarda moneda, filtrar por moneda es filtrar por las cuentas
+  en ella (`resolveCurrencyFilter`); si la moneda elegida ya no tiene cuentas,
+  se vuelve a «Todas». Es estado local, no va en la URL. Con «Todas», los
+  totales siguen separados por moneda.
+- **Limitación conocida:** una transferencia entre cuentas de monedas distintas
+  se puede registrar hoy. Al filtrar por moneda (o por cuenta) solo se ve una de
+  sus dos patas, y el saldo acumulado de esa moneda la cuenta como entrada o
+  salida. M3 no lo corrige.
 
 ---
 
@@ -219,8 +231,11 @@ aparte» (D5, sin banner). La confirmación muestra cada saldo en su moneda.
 - Crear, editar, duplicar y eliminar movimientos.
 - Filtros básicos.
 - Acepta `?month=YYYY-MM`. Sin parámetro, o con uno inválido, abre el mes
-  actual; `?month=` vacío muestra todos los meses. Cuenta y tipo no van en la
-  URL.
+  actual; `?month=` vacío muestra todos los meses. Moneda, cuenta y tipo no van
+  en la URL.
+- Filtro por moneda (M3, ver «Monedas»): con una moneda elegida, el selector de
+  cuenta solo muestra cuentas en ella, y elegir otra moneda limpia una cuenta
+  que no le corresponde.
 - Formulario validado con Zod.
 - Transferencias entre cuentas.
 - Confirmación de eliminación.
@@ -247,11 +262,20 @@ borradores**: esa es `/sheets`.
 - TanStack Table.
 - Ordenamiento.
 - Búsqueda por descripción.
-- Filtros por periodo, cuenta, categoría y tipo.
+- Filtros por periodo, moneda, cuenta, categoría y tipo.
+  - Moneda (M3, ver «Monedas»): acota la tabla, las tarjetas, el resumen, la
+    paginación y el CSV. El selector de cuenta solo muestra cuentas de la
+    moneda elegida, elegir otra moneda limpia una cuenta que no le corresponde,
+    y «Limpiar filtros» también la quita.
 - Paginación server-side.
 - Cabecera sticky.
 - Selector de columnas.
-- Resumen de ingresos, gastos, balance y cantidad de movimientos.
+- Resumen de ingresos, gastos, balance y cantidad de movimientos. Con varias
+  monedas, una línea por moneda; filtrando una moneda sin movimientos, los
+  ceros se muestran en esa moneda.
+- Saldo acumulado solo cuando todas las cuentas del alcance comparten moneda:
+  filtrando por una moneda o por una cuenta. Si no, se explica «Filtra por una
+  moneda o una cuenta para verlo».
 - Exportar CSV respetando filtros.
 - Modal de edición.
 - En móvil: tarjetas o scroll horizontal controlado y usable.

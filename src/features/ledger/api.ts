@@ -5,6 +5,13 @@ import type { Tables } from '@/types/database.types'
 export interface LedgerFilters {
   /** Búsqueda por descripción. */
   search?: string
+  /**
+   * Moneda elegida en el selector. La consulta no la lee: `transactions` no
+   * guarda moneda, así que la página la traduce a `accountIds`.
+   */
+  currencyCode?: string
+  /** Cuentas de la moneda elegida (ver `resolveCurrencyFilter`). */
+  accountIds?: string[]
   accountId?: string
   categoryId?: string
   type?: 'income' | 'expense' | 'transfer'
@@ -83,6 +90,7 @@ interface FilterableQuery {
   gte(column: string, value: string): FilterableQuery
   lte(column: string, value: string): FilterableQuery
   ilike(column: string, pattern: string): FilterableQuery
+  in(column: string, values: readonly string[]): FilterableQuery
 }
 
 /**
@@ -95,6 +103,8 @@ function applyFilters<T>(query: T, userId: string, filters: LedgerFilters): T {
 
   const search = filters.search?.trim()
   if (search) scoped = scoped.ilike('description', `%${escapeSearchTerm(search)}%`)
+  // Una lista vacía no devolvería nada: se trata como «todas las monedas».
+  if (filters.accountIds?.length) scoped = scoped.in('account_id', filters.accountIds)
   if (filters.accountId) scoped = scoped.eq('account_id', filters.accountId)
   if (filters.categoryId) scoped = scoped.eq('category_id', filters.categoryId)
   if (filters.type) scoped = scoped.eq('type', filters.type)

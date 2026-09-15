@@ -4,6 +4,13 @@ import type { Tables, TablesInsert, TablesUpdate } from '@/types/database.types'
 
 export interface TransactionFilters {
   month?: string
+  /**
+   * Moneda elegida en el selector. La consulta no la lee: `transactions` no
+   * guarda moneda, así que la página la traduce a `accountIds`.
+   */
+  currencyCode?: string
+  /** Cuentas de la moneda elegida (ver `resolveCurrencyFilter`). */
+  accountIds?: string[]
   accountId?: string
   type?: 'income' | 'expense' | 'transfer'
 }
@@ -19,6 +26,10 @@ export async function fetchTransactions(userId: string, filters: TransactionFilt
   if (filters.month) {
     const { start, end } = monthRange(filters.month)
     query = query.gte('transaction_date', start).lte('transaction_date', end)
+  }
+  // Una lista vacía no devolvería nada: se trata como «todas las monedas».
+  if (filters.accountIds?.length) {
+    query = query.in('account_id', filters.accountIds)
   }
   if (filters.accountId) {
     query = query.eq('account_id', filters.accountId)

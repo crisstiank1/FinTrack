@@ -94,6 +94,51 @@ export function sortCurrencyCodes(codes: Iterable<string>, primaryCode?: string 
   return [...new Set(codes)].sort((a, b) => rank(a) - rank(b) || a.localeCompare(b))
 }
 
+/** Alcance efectivo del filtro de moneda de Movimientos y del Libro financiero. */
+export interface CurrencyFilterScope {
+  /**
+   * Monedas que ofrece el selector, en orden de presentación. Salen de las
+   * cuentas del usuario, archivadas incluidas porque tienen historial. Con
+   * menos de dos, el selector se oculta.
+   */
+  currencyCodes: string[]
+  /** Moneda que realmente acota, o `undefined` para todas. */
+  currencyCode?: string
+  /** Cuentas de esa moneda. `undefined` cuando no se acota; nunca vacío. */
+  accountIds?: string[]
+}
+
+/**
+ * Traduce la moneda elegida en el selector a las cuentas por las que filtrar.
+ *
+ * `transactions` no guarda moneda: la define la cuenta, así que filtrar por
+ * moneda es filtrar por las cuentas en ella. Si el selector está oculto (una
+ * sola moneda) o la moneda elegida ya no tiene cuentas, no se acota: nunca se
+ * pide al servidor una lista de cuentas vacía.
+ */
+export function resolveCurrencyFilter(
+  accounts: readonly { id: string; currency_code: string }[],
+  selectedCode: string | undefined,
+  primaryCode?: string | null,
+): CurrencyFilterScope {
+  const currencyCodes = sortCurrencyCodes(
+    accounts.map((account) => account.currency_code),
+    primaryCode,
+  )
+
+  if (!selectedCode || currencyCodes.length < 2 || !currencyCodes.includes(selectedCode)) {
+    return { currencyCodes }
+  }
+
+  return {
+    currencyCodes,
+    currencyCode: selectedCode,
+    accountIds: accounts
+      .filter((account) => account.currency_code === selectedCode)
+      .map((account) => account.id),
+  }
+}
+
 /**
  * Moneda en la que se presentan las cifras agregadas de una pantalla.
  *

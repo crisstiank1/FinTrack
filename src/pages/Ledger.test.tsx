@@ -90,6 +90,13 @@ function lastPageCall() {
   return calls[calls.length - 1]
 }
 
+/** Textos de las opciones de un selector, en orden. */
+function optionLabels(select: HTMLElement): string[] {
+  return within(select)
+    .getAllByRole('option')
+    .map((option) => option.textContent ?? '')
+}
+
 /** Líneas de una cifra del resumen («Ingresos», «Balance»...), una por moneda. */
 function summaryLines(label: string): string[] {
   const term = [...document.querySelectorAll('dt')].find((dt) => dt.textContent === label)
@@ -291,6 +298,12 @@ describe('Ledger', () => {
     expect(refetch).toHaveBeenCalledOnce()
   })
 
+  it('con una sola moneda no muestra el selector de moneda', () => {
+    renderLedger()
+
+    expect(screen.queryByRole('combobox', { name: 'Moneda' })).not.toBeInTheDocument()
+  })
+
   it('sin movimientos muestra el resumen en cero en la moneda principal', () => {
     useLedgerTotals.mockReturnValue({ data: { byAccount: [], count: 0 }, isError: false })
 
@@ -364,6 +377,102 @@ describe('Ledger', () => {
       expect(summaryLines('Ingresos')).toEqual(['USD 1.500', 'COP 300.000'])
     })
 
+    it('ofrece un selector de moneda con la principal primero', () => {
+      usePrimaryCurrency.mockReturnValue({ data: 'USD', isPending: false })
+      renderLedger()
+
+      expect(optionLabels(screen.getByRole('combobox', { name: 'Moneda' }))).toEqual([
+        'Todas las monedas',
+        'USD',
+        'COP',
+      ])
+    })
+
+    it('elegir una moneda pide solo sus cuentas y acota el selector de cuenta', async () => {
+      const user = userEvent.setup()
+      renderLedger()
+
+      await user.selectOptions(screen.getByRole('combobox', { name: 'Moneda' }), 'USD')
+
+      await waitFor(() => {
+        expect(lastPageCall()[0]).toMatchObject({ currencyCode: 'USD', accountIds: ['acc-usd'] })
+      })
+      expect(useLedgerTotals).toHaveBeenLastCalledWith(
+        expect.objectContaining({ accountIds: ['acc-usd'] }),
+      )
+      expect(optionLabels(screen.getByRole('combobox', { name: 'Cuenta' }))).toEqual([
+        'Todas las cuentas',
+        'Cuenta USD',
+      ])
+    })
+
+    it('elegir otra moneda limpia una cuenta que no es de esa moneda', async () => {
+      const user = userEvent.setup()
+      renderLedger()
+
+      await user.selectOptions(screen.getByRole('combobox', { name: 'Cuenta' }), 'acc-1')
+      await user.selectOptions(screen.getByRole('combobox', { name: 'Moneda' }), 'USD')
+
+      await waitFor(() => {
+        expect(lastPageCall()[0]).toMatchObject({ currencyCode: 'USD' })
+      })
+      expect(lastPageCall()[0].accountId).toBeUndefined()
+      expect(screen.getByRole('combobox', { name: 'Cuenta' })).toHaveValue('')
+    })
+
+    it('limpiar filtros también quita la moneda', async () => {
+      const user = userEvent.setup()
+      renderLedger()
+
+      await user.selectOptions(screen.getByRole('combobox', { name: 'Moneda' }), 'USD')
+      await user.click(screen.getByRole('button', { name: /limpiar filtros/i }))
+
+      await waitFor(() => {
+        expect(lastPageCall()[0]).toEqual({ search: undefined })
+      })
+      expect(screen.getByRole('combobox', { name: 'Moneda' })).toHaveValue('')
+    })
+
+    it('filtrando una moneda sin movimientos, el resumen en cero va en esa moneda', async () => {
+      useLedgerTotals.mockReturnValue({ data: { byAccount: [], count: 0 }, isError: false })
+      const user = userEvent.setup()
+      renderLedger()
+
+      await user.selectOptions(screen.getByRole('combobox', { name: 'Moneda' }), 'USD')
+
+      expect(summaryLines('Ingresos')).toEqual(['USD 0'])
+      expect(summaryLines('Balance')).toEqual(['USD 0'])
+    })
+
+    it('exporta a CSV solo las cuentas de la moneda elegida', async () => {
+      fetchLedgerForExport.mockResolvedValue(rows)
+      const user = userEvent.setup()
+      renderLedger()
+
+      await user.selectOptions(screen.getByRole('combobox', { name: 'Moneda' }), 'COP')
+      await user.click(screen.getByRole('button', { name: /exportar csv/i }))
+
+      await waitFor(() => expect(downloadCsv).toHaveBeenCalledOnce())
+      expect(fetchLedgerForExport).toHaveBeenCalledWith(
+        'user-1',
+        expect.objectContaining({ currencyCode: 'COP', accountIds: ['acc-1', 'acc-2'] }),
+        expect.anything(),
+      )
+    })
+
+    it('calcula el saldo acumulado al filtrar por una moneda', async () => {
+      const user = userEvent.setup()
+      renderLedger()
+
+      await user.click(screen.getByText('Columnas'))
+      await user.click(screen.getByRole('checkbox', { name: 'Saldo acumulado' }))
+      await user.selectOptions(screen.getByRole('combobox', { name: 'Moneda' }), 'COP')
+
+      expect(
+        screen.queryByText(/El saldo acumulado solo se calcula con cuentas de una misma moneda/),
+      ).not.toBeInTheDocument()
+    })
+
     it('no calcula el saldo acumulado mezclando monedas y explica cómo verlo', async () => {
       const user = userEvent.setup()
       renderLedger()
@@ -372,7 +481,9 @@ describe('Ledger', () => {
       await user.click(screen.getByRole('checkbox', { name: 'Saldo acumulado' }))
 
       expect(
-        screen.getByText(/El saldo acumulado solo se calcula con cuentas de una misma moneda/),
+        screen.getByText(
+          /El saldo acumulado solo se calcula con cuentas de una misma moneda\. Filtra por una moneda o una cuenta para verlo\./,
+        ),
       ).toBeInTheDocument()
 
       await user.selectOptions(screen.getByRole('combobox', { name: 'Cuenta' }), 'acc-usd')

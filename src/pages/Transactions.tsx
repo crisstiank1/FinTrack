@@ -23,27 +23,43 @@ import {
 } from '@/features/transactions/hooks'
 import type { TransactionFormValues, TransferFormValues } from '@/features/transactions/schemas'
 import { useOptionalMonthParam } from '@/hooks/use-month-param'
-import { resolvePresentationCurrency } from '@/lib/currency'
+import { resolveCurrencyFilter, resolvePresentationCurrency } from '@/lib/currency'
 import type { Tables } from '@/types/database.types'
 
 export default function Transactions() {
   // El mes vive en la URL (`?month=YYYY-MM`) para que un enlace desde el
   // dashboard o el plan abra el mismo mes; vaciarlo (`?month=`) muestra todos.
-  // Cuenta y tipo siguen siendo estado local: no se comparten ni sobreviven a
-  // recargar, igual que antes.
+  // Moneda, cuenta y tipo siguen siendo estado local: no se comparten ni
+  // sobreviven a recargar, igual que antes.
   const [month, setMonth] = useOptionalMonthParam()
-  const [scope, setScope] = useState<Omit<TransactionFilters, 'month'>>({})
-  const filters = useMemo<TransactionFilters>(() => ({ ...scope, month }), [scope, month])
-
-  function handleFiltersChange(next: TransactionFilters) {
-    if (next.month !== month) setMonth(next.month)
-    setScope({ accountId: next.accountId, type: next.type })
-  }
+  const [scope, setScope] = useState<Omit<TransactionFilters, 'month' | 'accountIds'>>({})
 
   const { data: accounts = [] } = useAccounts()
   const { data: categories = [] } = useCategories()
-  const { data: transactions, isLoading } = useTransactions(filters)
   const { data: primaryCurrency } = usePrimaryCurrency()
+
+  // La moneda elegida se traduce a sus cuentas; si ya no aplica, vuelve a todas.
+  const currencyFilter = useMemo(
+    () => resolveCurrencyFilter(accounts, scope.currencyCode, primaryCurrency),
+    [accounts, scope.currencyCode, primaryCurrency],
+  )
+
+  const filters = useMemo<TransactionFilters>(
+    () => ({
+      ...scope,
+      currencyCode: currencyFilter.currencyCode,
+      accountIds: currencyFilter.accountIds,
+      month,
+    }),
+    [scope, currencyFilter, month],
+  )
+
+  function handleFiltersChange(next: TransactionFilters) {
+    if (next.month !== month) setMonth(next.month)
+    setScope({ currencyCode: next.currencyCode, accountId: next.accountId, type: next.type })
+  }
+
+  const { data: transactions, isLoading } = useTransactions(filters)
 
   const createTransaction = useCreateTransaction()
   const updateTransaction = useUpdateTransaction()
@@ -185,6 +201,7 @@ export default function Transactions() {
         <TransactionFiltersBar
           filters={filters}
           accounts={accounts}
+          currencyCodes={currencyFilter.currencyCodes}
           onChange={handleFiltersChange}
         />
       </div>

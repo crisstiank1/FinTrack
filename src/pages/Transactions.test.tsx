@@ -8,6 +8,7 @@ import Transactions from './Transactions'
 
 const useTransactions = vi.fn()
 const usePrimaryCurrency = vi.fn()
+const useAccounts = vi.fn()
 const mutation = () => ({ mutateAsync: vi.fn(), isPending: false })
 
 vi.mock('@/features/transactions/hooks', () => ({
@@ -26,7 +27,7 @@ const accounts = [
 ] as Tables<'accounts'>[]
 
 vi.mock('@/features/accounts/hooks', () => ({
-  useAccounts: () => ({ data: accounts }),
+  useAccounts: () => useAccounts(),
 }))
 
 vi.mock('@/features/profile/hooks', () => ({
@@ -82,6 +83,7 @@ beforeEach(() => {
   useTransactions.mockReset()
   useTransactions.mockReturnValue({ data: [], isLoading: false })
   usePrimaryCurrency.mockReturnValue({ data: 'COP', isPending: false })
+  useAccounts.mockReturnValue({ data: accounts })
   currentSearch = ''
 })
 
@@ -177,6 +179,89 @@ describe('Transactions — cuenta y tipo', () => {
     fireEvent.change(screen.getByLabelText('Cuenta'), { target: { value: 'acc-old' } })
 
     expect(screen.getByText(/No hay movimientos para este período/)).toBeInTheDocument()
+  })
+})
+
+describe('Transactions — moneda', () => {
+  function optionLabels(select: HTMLElement): string[] {
+    return within(select)
+      .getAllByRole('option')
+      .map((option) => option.textContent ?? '')
+  }
+
+  it('con una sola moneda no muestra el selector', () => {
+    useAccounts.mockReturnValue({
+      data: accounts.filter((account) => account.currency_code === 'COP'),
+    })
+    renderTransactions('/transactions?month=2026-08')
+
+    expect(screen.queryByLabelText('Moneda')).not.toBeInTheDocument()
+  })
+
+  it('ofrece solo las monedas de las cuentas, con la principal primero', () => {
+    usePrimaryCurrency.mockReturnValue({ data: 'USD', isPending: false })
+    renderTransactions('/transactions?month=2026-08')
+
+    expect(optionLabels(screen.getByLabelText('Moneda'))).toEqual([
+      'Todas las monedas',
+      'USD',
+      'COP',
+    ])
+  })
+
+  it('elegir una moneda pide solo sus cuentas y acota el selector de cuenta', () => {
+    renderTransactions('/transactions?month=2026-08')
+
+    fireEvent.change(screen.getByLabelText('Moneda'), { target: { value: 'COP' } })
+
+    expect(lastFilters()).toMatchObject({
+      currencyCode: 'COP',
+      accountIds: ['acc-bank', 'acc-old'],
+    })
+    expect(optionLabels(screen.getByLabelText('Cuenta'))).toEqual([
+      'Todas las cuentas',
+      'Banco',
+      'Cuenta vieja',
+    ])
+  })
+
+  it('elegir otra moneda limpia una cuenta que no es de esa moneda', () => {
+    renderTransactions('/transactions?month=2026-08')
+
+    fireEvent.change(screen.getByLabelText('Cuenta'), { target: { value: 'acc-usd' } })
+    fireEvent.change(screen.getByLabelText('Moneda'), { target: { value: 'COP' } })
+
+    expect(lastFilters()?.accountId).toBeUndefined()
+    expect(screen.getByLabelText('Cuenta')).toHaveValue('')
+  })
+
+  it('elegir la moneda de la cuenta seleccionada la conserva', () => {
+    renderTransactions('/transactions?month=2026-08')
+
+    fireEvent.change(screen.getByLabelText('Cuenta'), { target: { value: 'acc-usd' } })
+    fireEvent.change(screen.getByLabelText('Moneda'), { target: { value: 'USD' } })
+
+    expect(lastFilters()).toMatchObject({ accountId: 'acc-usd', accountIds: ['acc-usd'] })
+  })
+
+  it('volver a «Todas las monedas» deja de acotar por cuentas', () => {
+    renderTransactions('/transactions?month=2026-08')
+
+    fireEvent.change(screen.getByLabelText('Moneda'), { target: { value: 'USD' } })
+    fireEvent.change(screen.getByLabelText('Moneda'), { target: { value: '' } })
+
+    expect(lastFilters()?.currencyCode).toBeUndefined()
+    expect(lastFilters()?.accountIds).toBeUndefined()
+  })
+
+  it('la moneda no se escribe en la URL y cambiar el mes la conserva', () => {
+    renderTransactions('/transactions?month=2026-08')
+
+    fireEvent.change(screen.getByLabelText('Moneda'), { target: { value: 'USD' } })
+    fireEvent.change(monthInput(), { target: { value: '2026-07' } })
+
+    expect(currentSearch).toBe('?month=2026-07')
+    expect(lastFilters()).toMatchObject({ month: '2026-07', currencyCode: 'USD' })
   })
 })
 

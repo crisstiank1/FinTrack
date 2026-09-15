@@ -23,7 +23,7 @@ interface QueryResult {
   error: unknown
 }
 
-const CHAINABLE = ['select', 'eq', 'ilike', 'gte', 'lte', 'order', 'range'] as const
+const CHAINABLE = ['select', 'eq', 'in', 'ilike', 'gte', 'lte', 'order', 'range'] as const
 
 const fromMock = supabase.from as unknown as Mock
 
@@ -122,6 +122,26 @@ describe('fetchLedgerTotals', () => {
         { method: 'lte', args: ['transaction_date', '2026-09-30'] },
       ]),
     )
+  })
+
+  it('acota a las cuentas de la moneda elegida', async () => {
+    const calls = mockQueries({ data: [], error: null })
+
+    await fetchLedgerTotals('user-1', { currencyCode: 'USD', accountIds: ['acc-usd', 'acc-usd-2'] })
+
+    expect(calls[0]).toContainEqual({
+      method: 'in',
+      args: ['account_id', ['acc-usd', 'acc-usd-2']],
+    })
+  })
+
+  it('no envía un filtro de cuentas vacío ni filtra sin moneda elegida', async () => {
+    const calls = mockQueries({ data: [], error: null }, { data: [], error: null })
+
+    await fetchLedgerTotals('user-1', { accountIds: [] })
+    await fetchLedgerTotals('user-1', {})
+
+    expect(calls.flat().some((call) => call.method === 'in')).toBe(false)
   })
 
   it('recorre todas las páginas con un orden estable', async () => {
