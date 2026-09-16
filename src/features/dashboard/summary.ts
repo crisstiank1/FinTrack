@@ -314,22 +314,6 @@ export function buildMonthlyTrend(
   })
 }
 
-/**
- * Movimientos más recientes del mes seleccionado. La consulta ya llega ordenada
- * por fecha descendente, pero se reordena para no depender de ese detalle.
- *
- * Ignora `currencyCode` a propósito: una lista no suma nada, y cada fila se
- * muestra en la moneda de su propia cuenta.
- */
-export function buildRecentTransactions(
-  { accounts, transactions, monthKey, accountId }: DashboardScope,
-  limit = 5,
-): DashboardTransaction[] {
-  return [...inMonth(scopeTransactions(transactions, accounts, { accountId }), monthKey)]
-    .sort((a, b) => b.transaction_date.localeCompare(a.transaction_date))
-    .slice(0, limit)
-}
-
 export interface CurrencyBalance {
   currencyCode: string
   balanceMinor: number
@@ -357,4 +341,14 @@ export function buildCurrencyBalances(
     currencyCode,
     balanceMinor: balances.get(currencyCode) ?? 0,
   }))
+}
+
+/**
+ * Si el mes tiene un presupuesto asignado a la categoría, **incluido un 0
+ * explícito**. `budgetMinor` es nulo tanto sin presupuesto como con 0; lo que
+ * los distingue es `source`, presente cuando algo resolvió el mes. El panel de
+ * presupuestos del dashboard solo muestra estas categorías.
+ */
+export function hasBudgetThisMonth(progress: { source: string | null }): boolean {
+  return progress.source !== null
 }

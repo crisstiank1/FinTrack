@@ -5,7 +5,7 @@ import {
   buildCurrencyBalances,
   buildDashboardSummary,
   buildMonthlyTrend,
-  buildRecentTransactions,
+  hasBudgetThisMonth,
   type DashboardAccount,
   type DashboardCategory,
   type DashboardTransaction,
@@ -321,32 +321,6 @@ describe('buildMonthlyTrend con varias monedas', () => {
   })
 })
 
-describe('buildRecentTransactions', () => {
-  it('devuelve los movimientos del mes, del más reciente al más antiguo', () => {
-    const recent = buildRecentTransactions(scope, 3)
-
-    expect(recent).toHaveLength(3)
-    expect(recent[0].transaction_date).toBe('2026-09-20')
-    expect(recent[recent.length - 1].transaction_date).toBe('2026-09-12')
-  })
-
-  it('no incluye movimientos de otros meses', () => {
-    const recent = buildRecentTransactions(scope, 10)
-
-    expect(recent).toHaveLength(5)
-    expect(recent.every((item) => item.transaction_date.startsWith(MONTH))).toBe(true)
-  })
-})
-
-describe('buildRecentTransactions con varias monedas', () => {
-  it('lista movimientos de todas las monedas aunque se indique una', () => {
-    const recent = buildRecentTransactions({ ...mixedScope, currencyCode: 'COP' }, 10)
-
-    expect(recent.map((item) => item.account_id)).toContain('usd-1')
-    expect(recent.map((item) => item.account_id)).toContain('ars-1')
-  })
-})
-
 describe('buildCurrencyBalances', () => {
   it('devuelve el saldo de cada moneda con la principal primero', () => {
     expect(buildCurrencyBalances(mixedScope, 'USD')).toEqual([
@@ -374,5 +348,16 @@ describe('buildCurrencyBalances', () => {
     expect(buildCurrencyBalances(scope, 'COP')).toEqual([
       { currencyCode: 'COP', balanceMinor: 400_000 },
     ])
+  })
+})
+
+describe('hasBudgetThisMonth', () => {
+  it('cuenta como asignado cualquier presupuesto resuelto, también el de 0', () => {
+    expect(hasBudgetThisMonth({ source: 'template' })).toBe(true)
+    expect(hasBudgetThisMonth({ source: 'exception' })).toBe(true)
+  })
+
+  it('sin nada que resuelva el mes no hay presupuesto', () => {
+    expect(hasBudgetThisMonth({ source: null })).toBe(false)
   })
 })

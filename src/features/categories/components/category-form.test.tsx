@@ -38,3 +38,37 @@ describe('CategoryForm', () => {
     )
   })
 })
+
+describe('CategoryForm — tipo fijo (M14)', () => {
+  it('con fixedType no ofrece el selector de tipo', () => {
+    render(<CategoryForm fixedType="expense" onSubmit={vi.fn()} />)
+
+    expect(screen.queryByLabelText('Tipo')).not.toBeInTheDocument()
+  })
+
+  it('envía siempre el tipo fijado, aunque los valores iniciales dijeran otro', async () => {
+    const onSubmit = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <CategoryForm
+        fixedType="expense"
+        defaultValues={{ type: 'income' }}
+        onSubmit={onSubmit}
+        submitLabel="Crear categoría"
+      />,
+    )
+
+    await user.type(screen.getByLabelText('Nombre'), 'Gimnasio')
+    await user.click(screen.getByRole('button', { name: 'Crear categoría' }))
+
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'Gimnasio', type: 'expense' }),
+    )
+  })
+
+  it('sin fixedType el selector de tipo sigue como siempre', () => {
+    render(<CategoryForm onSubmit={vi.fn()} />)
+
+    expect(screen.getByLabelText('Tipo')).toBeInTheDocument()
+  })
+})

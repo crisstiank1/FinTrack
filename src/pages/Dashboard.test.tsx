@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 
-import Dashboard from './Dashboard'
+import Dashboard, { FILTERS_HELP_TEXT } from './Dashboard'
 import type { Tables } from '@/types/database.types'
 
 // Recharts mide su contenedor con getBoundingClientRect, que en jsdom siempre
@@ -26,7 +26,7 @@ const useBudgets = vi.fn()
 const useBudgetProgress = vi.fn()
 const usePrimaryCurrency = vi.fn()
 const createTransactionMutate = vi.fn()
-const updateTransactionMutate = vi.fn()
+const createCategoryMutate = vi.fn()
 const saveBudgetMutate = vi.fn()
 
 vi.mock('@/features/dashboard/hooks', () => ({
@@ -42,13 +42,13 @@ vi.mock('@/features/accounts/hooks', () => ({
 }))
 vi.mock('@/features/categories/hooks', () => ({
   useCategories: () => useCategories(),
+  useCreateCategory: () => ({ mutateAsync: createCategoryMutate, isPending: false }),
 }))
 vi.mock('@/features/profile/hooks', () => ({
   usePrimaryCurrency: () => usePrimaryCurrency(),
 }))
 vi.mock('@/features/transactions/hooks', () => ({
   useCreateTransaction: () => ({ mutateAsync: createTransactionMutate, isPending: false }),
-  useUpdateTransaction: () => ({ mutateAsync: updateTransactionMutate, isPending: false }),
 }))
 
 const accounts = [
@@ -127,9 +127,9 @@ function renderDashboard() {
   )
 }
 
-/** Controles de la vista: el mes y el filtro de cuenta, no el formulario de carga. */
+/** Filtros de la cabecera: el mes y la cuenta de la vista, no el formulario de carga. */
 function viewControls() {
-  return within(screen.getByRole('region', { name: 'Mes y cuenta' }))
+  return within(screen.getByRole('group', { name: 'Mes y cuenta' }))
 }
 
 /** Lee el valor mostrado dentro de la tarjeta de KPI con ese nombre. */
@@ -154,7 +154,7 @@ const budgetRows = [
 beforeEach(() => {
   vi.clearAllMocks()
   createTransactionMutate.mockResolvedValue({})
-  updateTransactionMutate.mockResolvedValue({})
+  createCategoryMutate.mockResolvedValue({ id: 'cat-new', name: 'Gimnasio', type: 'expense' })
   saveBudgetMutate.mockResolvedValue({})
   useAccounts.mockReturnValue({ data: accounts })
   usePrimaryCurrency.mockReturnValue({ data: 'COP', isPending: false })
@@ -200,27 +200,6 @@ describe('Dashboard', () => {
     expect(panel.getByText('20 %')).toBeInTheDocument()
   })
 
-  it('lista los últimos movimientos del mes', () => {
-    renderDashboard()
-
-    const panel = within(screen.getByRole('region', { name: 'Últimos movimientos' }))
-    expect(panel.getByText('Cine')).toBeInTheDocument()
-    expect(panel.getByText('Mercado del mes')).toBeInTheDocument()
-    expect(panel.getByText('Salario')).toBeInTheDocument()
-  })
-
-  it('«Ver todos» de los últimos movimientos abre Movimientos en el mes que se está viendo', () => {
-    renderDashboard()
-
-    fireEvent.change(screen.getByLabelText('Mes'), { target: { value: '2026-03' } })
-
-    const panel = within(screen.getByRole('region', { name: 'Últimos movimientos' }))
-    expect(panel.getByRole('link', { name: 'Ver todos' })).toHaveAttribute(
-      'href',
-      '/transactions?month=2026-03',
-    )
-  })
-
   it('recalcula todo al filtrar por una cuenta', async () => {
     const user = userEvent.setup()
     renderDashboard()
@@ -261,8 +240,8 @@ describe('Dashboard', () => {
     expect(kpi('Ingresos del mes').getByText('COP 0')).toBeInTheDocument()
     expect(kpi('Gastos del mes').getByText('COP 0')).toBeInTheDocument()
 
-    const panel = within(screen.getByRole('region', { name: 'Últimos movimientos' }))
-    expect(panel.getByText(/Sin movimientos en enero 2020/i)).toBeInTheDocument()
+    const panel = within(screen.getByRole('region', { name: 'Gasto por categoría' }))
+    expect(panel.getByText(/No registraste gastos en enero 2020/i)).toBeInTheDocument()
   })
 
   it('muestra el estado de carga mientras llegan los movimientos', () => {
@@ -493,14 +472,6 @@ describe('Dashboard', () => {
       ).toBeInTheDocument()
     })
 
-    it('los últimos movimientos incluyen todas las monedas, cada uno en la suya', () => {
-      renderDashboard()
-
-      const panel = within(screen.getByRole('region', { name: 'Últimos movimientos' }))
-      expect(panel.getByText('Pago en dólares')).toBeInTheDocument()
-      expect(panel.getByText(/USD 500/)).toBeInTheDocument()
-    })
-
     it('presenta en la moneda principal del perfil aunque no sea la de la primera cuenta', () => {
       usePrimaryCurrency.mockReturnValue({ data: 'USD', isPending: false })
 
@@ -587,20 +558,57 @@ describe('Dashboard', () => {
   })
 })
 
-describe('Dashboard — rejilla de dos columnas (M13)', () => {
-  it('el mes y la cuenta viven en su propio panel y siguen filtrando toda la vista', async () => {
+describe('Dashboard — cabecera y ayuda (M14)', () => {
+  it('el mes y la cuenta están en la cabecera y siguen filtrando toda la vista', async () => {
     const user = userEvent.setup()
     renderDashboard()
 
-    const controles = within(screen.getByRole('region', { name: 'Mes y cuenta' }))
-    expect(controles.getByLabelText('Mes')).toBeInTheDocument()
+    expect(viewControls().getByLabelText('Mes')).toBeInTheDocument()
 
-    await user.selectOptions(controles.getByLabelText('Cuenta'), 'acc-2')
+    await user.selectOptions(viewControls().getByLabelText('Cuenta'), 'acc-2')
 
     expect(kpi('Gastos del mes').getByText('COP 30.000')).toBeInTheDocument()
   })
 
-  it('los controles siguen a mano mientras cargan los movimientos', () => {
+  it('ya no hay panel lateral «Mes y cuenta» ni botón «Movimiento completo»', () => {
+    renderDashboard()
+
+    expect(screen.queryByRole('region', { name: 'Mes y cuenta' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Movimiento completo/ })).not.toBeInTheDocument()
+  })
+
+  it('el «?» muestra la ayuda de los filtros con el ratón y se cierra con Escape', async () => {
+    const user = userEvent.setup()
+    renderDashboard()
+
+    const ayuda = viewControls().getByRole('button', { name: 'Ayuda: Mes y cuenta' })
+    await user.hover(ayuda)
+
+    const panel = screen.getByRole('region', { name: 'Mes y cuenta' })
+    expect(panel).toHaveTextContent(FILTERS_HELP_TEXT)
+
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('region', { name: 'Mes y cuenta' })).not.toBeInTheDocument()
+  })
+
+  it('el «?» se abre con el teclado y con un toque', async () => {
+    const user = userEvent.setup()
+    renderDashboard()
+
+    const ayuda = viewControls().getByRole('button', { name: 'Ayuda: Mes y cuenta' })
+
+    act(() => ayuda.focus())
+    expect(ayuda).toHaveAttribute('aria-expanded', 'true')
+
+    await user.keyboard('{Escape}')
+    expect(ayuda).toHaveAttribute('aria-expanded', 'false')
+
+    await user.click(ayuda)
+    await user.unhover(ayuda)
+    expect(ayuda).toHaveAttribute('aria-expanded', 'true')
+  })
+
+  it('los filtros siguen a mano mientras cargan los movimientos', () => {
     useAllTransactions.mockReturnValue({
       data: undefined,
       isPending: true,
@@ -610,62 +618,32 @@ describe('Dashboard — rejilla de dos columnas (M13)', () => {
 
     renderDashboard()
 
-    // Al salir de la cabecera podrían haberse quedado dentro del bloque de
-    // datos y desaparecer en carga, vacío o error: la columna es independiente.
-    expect(screen.getByRole('region', { name: 'Mes y cuenta' })).toBeInTheDocument()
-  })
-
-  it('los controles siguen a mano sin ningún movimiento registrado', () => {
-    useAllTransactions.mockReturnValue({
-      data: [],
-      isPending: false,
-      isError: false,
-      refetch: vi.fn(),
-    })
-
-    renderDashboard()
-
-    expect(screen.getByRole('region', { name: 'Mes y cuenta' })).toBeInTheDocument()
-    expect(screen.getByRole('region', { name: 'Tu dashboard está listo' })).toBeInTheDocument()
-  })
-
-  it('los movimientos del mes cierran la página a lo ancho', () => {
-    renderDashboard()
-
-    // Comprobación indirecta, la que jsdom permite: sin layout real no se puede
-    // medir una columna, así que se comprueba la colocación declarada en la
-    // rejilla y que la tarjeta es el último bloque.
-    const celda = screen.getByRole('region', { name: 'Últimos movimientos' }).parentElement
-
-    expect(celda?.className).toContain('lg:col-span-2')
-    expect(celda).toBe(celda?.parentElement?.lastElementChild)
-  })
-
-  it('el panel de presupuestos avisa de que no sigue al filtro de cuenta', () => {
-    renderDashboard()
-
-    const panel = within(screen.getByRole('region', { name: 'Presupuestos' }))
-    expect(panel.getByText(/· todas las cuentas/)).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'Mes y cuenta' })).toBeInTheDocument()
   })
 })
 
-describe('Dashboard — cargar movimiento sin salir (M13)', () => {
+describe('Dashboard — cargar movimiento (M14)', () => {
   function quickForm() {
     return within(screen.getByRole('region', { name: 'Cargar movimiento' }))
   }
 
-  it('registra un gasto desde el panel, sin abrir ningún diálogo', async () => {
+  function amountField() {
+    return quickForm().getByLabelText(/^Monto \(/) as HTMLInputElement
+  }
+
+  function chip(name: string) {
+    return within(quickForm().getByRole('radiogroup', { name: 'Categoría' })).getByRole('radio', {
+      name,
+    })
+  }
+
+  it('registra un gasto sin abrir ningún diálogo', async () => {
     const user = userEvent.setup()
     renderDashboard()
 
-    const form = quickForm()
-    await user.type(form.getByLabelText('Monto'), '15000')
-    await user.click(
-      within(form.getByRole('radiogroup', { name: 'Categoría' })).getByRole('radio', {
-        name: 'Alimentación',
-      }),
-    )
-    await user.click(form.getByRole('button', { name: 'Agregar' }))
+    await user.type(amountField(), '15000')
+    await user.click(chip('Alimentación'))
+    await user.click(quickForm().getByRole('button', { name: 'Agregar' }))
 
     expect(createTransactionMutate).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -683,46 +661,84 @@ describe('Dashboard — cargar movimiento sin salir (M13)', () => {
     const user = userEvent.setup()
     renderDashboard()
 
-    const form = quickForm()
-    await user.click(form.getByRole('radio', { name: 'Ingreso' }))
-    await user.type(form.getByLabelText('Monto'), '300000')
-    await user.click(
-      within(form.getByRole('radiogroup', { name: 'Categoría' })).getByRole('radio', {
-        name: 'Salario',
-      }),
-    )
-    await user.click(form.getByRole('button', { name: 'Agregar' }))
+    await user.click(quickForm().getByRole('radio', { name: 'Ingreso' }))
+    await user.type(amountField(), '300000')
+    await user.click(chip('Salario'))
+    await user.click(quickForm().getByRole('button', { name: 'Agregar' }))
 
     expect(createTransactionMutate).toHaveBeenCalledWith(
       expect.objectContaining({ type: 'income', category_id: 'cat-salary', amount_minor: 300000 }),
     )
   })
 
-  it('arranca en una cuenta de la moneda de la vista y muestra ahí el importe', async () => {
+  it('arranca en una cuenta de la moneda de la vista y dice cómo se registrará', async () => {
     const user = userEvent.setup()
     renderDashboard()
 
-    const form = quickForm()
-    expect((form.getByLabelText('Cuenta del movimiento') as HTMLSelectElement).value).toBe('acc-1')
+    expect((quickForm().getByLabelText('Cuenta del movimiento') as HTMLSelectElement).value).toBe(
+      'acc-1',
+    )
+    expect(quickForm().getByLabelText('Monto (COP)')).toHaveValue('')
 
-    await user.type(form.getByLabelText('Monto'), '15000')
+    await user.type(amountField(), '15000')
 
-    expect(form.getByText('Equivale a COP 15.000')).toBeInTheDocument()
+    expect(quickForm().getByText('Se registrará como COP 15.000')).toBeInTheDocument()
+    expect(quickForm().queryByText(/Equivale a/)).not.toBeInTheDocument()
   })
 
-  it('en móvil el panel se esconde y el alta vive en el botón flotante', () => {
+  it('sin movimientos en el mes, los chips van en orden alfabético', () => {
+    useCategories.mockReturnValue({
+      data: [
+        { id: 'cat-z', name: 'Viajes', type: 'expense', icon: null, is_archived: false },
+        { id: 'cat-a', name: 'Arriendo', type: 'expense', icon: null, is_archived: false },
+        { id: 'cat-m', name: 'Mascotas', type: 'expense', icon: null, is_archived: false },
+      ],
+    })
+    renderDashboard()
+    fireEvent.change(viewControls().getByLabelText('Mes'), { target: { value: '2020-01' } })
+
+    const nombres = within(quickForm().getByRole('radiogroup', { name: 'Categoría' }))
+      .getAllByRole('radio')
+      .map((radio) => radio.textContent)
+    expect(nombres).toEqual(['Arriendo', 'Mascotas', 'Viajes'])
+  })
+
+  it('con más de ocho categorías muestra ocho y el resto tras «Más…»', () => {
+    useCategories.mockReturnValue({
+      data: Array.from({ length: 11 }, (_, index) => ({
+        id: 'cat-' + index,
+        name: 'Categoría ' + String(index).padStart(2, '0'),
+        type: 'expense',
+        icon: null,
+        is_archived: false,
+      })),
+    })
     renderDashboard()
 
-    // jsdom no aplica media queries: se comprueba la clase que las declara.
-    expect(screen.getByRole('region', { name: 'Cargar movimiento' }).className).toContain(
-      'hidden sm:flex',
-    )
-    expect(screen.getByRole('button', { name: 'Registrar movimiento' })).toBeInTheDocument()
+    const grupo = within(quickForm().getByRole('radiogroup', { name: 'Categoría' }))
+    expect(grupo.getAllByRole('radio')).toHaveLength(8)
+    expect(quickForm().getByRole('button', { name: 'Más…' })).toBeInTheDocument()
+  })
+
+  it('por debajo de 1024px el formulario no va en línea y el botón flotante sigue', async () => {
+    const user = userEvent.setup()
+    renderDashboard()
+
+    // jsdom no aplica media queries: se comprueban las clases que las declaran.
+    const columna = screen.getByRole('region', { name: 'Cargar movimiento' }).parentElement
+    expect(columna?.className).toContain('hidden')
+    expect(columna?.className).toContain('lg:flex')
+
+    const fab = screen.getByRole('button', { name: 'Registrar movimiento' })
+    expect(fab.className).toContain('lg:hidden')
+
+    await user.click(fab)
+    expect(within(screen.getByRole('dialog')).getByText('Nuevo movimiento')).toBeInTheDocument()
   })
 })
 
-describe('Dashboard — presupuestos por categoría (M13)', () => {
-  const progressWithBudget = {
+describe('Dashboard — presupuestos (M14)', () => {
+  const conPresupuesto = {
     categoryId: 'cat-food',
     budgetMinor: 130_000,
     spentMinor: 120_000,
@@ -732,7 +748,7 @@ describe('Dashboard — presupuestos por categoría (M13)', () => {
     source: 'template',
   }
 
-  const progressWithoutBudget = {
+  const sinPresupuesto = {
     categoryId: 'cat-fun',
     budgetMinor: null,
     spentMinor: 30_000,
@@ -742,111 +758,148 @@ describe('Dashboard — presupuestos por categoría (M13)', () => {
     source: null,
   }
 
-  function mockBudgets() {
+  function mockProgress(data: unknown[]) {
     useBudgets.mockReturnValue({ data: budgetRows, isPending: false, isError: false })
-    useBudgetProgress.mockReturnValue({
-      data: [progressWithBudget, progressWithoutBudget],
-      isPending: false,
-      isError: false,
-    })
+    useBudgetProgress.mockReturnValue({ data, isPending: false, isError: false })
   }
 
   function budgetPanel() {
     return within(screen.getByRole('region', { name: 'Presupuestos' }))
   }
 
-  it('muestra todas las categorías de gasto, con límite y sin él', () => {
-    mockBudgets()
+  it('solo muestra las categorías con presupuesto en el mes', () => {
+    mockProgress([conPresupuesto, sinPresupuesto])
     renderDashboard()
 
-    const panel = budgetPanel()
-    expect(panel.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '92')
-    expect(panel.getByText('Entretenimiento')).toBeInTheDocument()
-    expect(panel.getByText('Sin presupuesto este mes')).toBeInTheDocument()
+    expect(budgetPanel().getByText('Alimentación')).toBeInTheDocument()
+    expect(budgetPanel().queryByText('Entretenimiento')).not.toBeInTheDocument()
+    expect(budgetPanel().queryByText('Sin presupuesto este mes')).not.toBeInTheDocument()
   })
 
-  it('crea un presupuesto en la propia celda, sin abrir ninguna ventana', async () => {
-    const user = userEvent.setup()
-    mockBudgets()
+  it('un presupuesto explícito de 0 sí se muestra', () => {
+    mockProgress([conPresupuesto, { ...sinPresupuesto, source: 'exception' }])
     renderDashboard()
 
-    const panel = budgetPanel()
-    await user.type(panel.getByLabelText('Presupuesto de Entretenimiento'), '80000')
-    await user.click(panel.getByRole('button', { name: 'Guardar' }))
+    expect(budgetPanel().getByText('Entretenimiento')).toBeInTheDocument()
+    expect(budgetPanel().getByText(/Presupuesto en COP 0/)).toBeInTheDocument()
+  })
+
+  it('sin presupuestos muestra un estado vacío con «Agregar presupuesto»', () => {
+    mockProgress([sinPresupuesto])
+    renderDashboard()
+
+    expect(budgetPanel().getByText(/Todavía no tienes presupuestos en/)).toBeInTheDocument()
+    // Uno en la cabecera del panel y otro en el estado vacío.
+    expect(budgetPanel().getAllByRole('button', { name: 'Agregar presupuesto' })).toHaveLength(2)
+  })
+
+  it('la cabecera dice el mes, la moneda y que no cambia con el filtro de cuenta', () => {
+    mockProgress([conPresupuesto])
+    renderDashboard()
+
+    expect(
+      budgetPanel().getByText(/en COP · no cambia con el filtro de cuenta/),
+    ).toBeInTheDocument()
+  })
+
+  it('crea el presupuesto de una categoría existente sin presupuesto', async () => {
+    const user = userEvent.setup()
+    mockProgress([conPresupuesto, sinPresupuesto])
+    renderDashboard()
+
+    await user.click(budgetPanel().getByRole('button', { name: 'Agregar presupuesto' }))
+    const dialog = within(screen.getByRole('dialog'))
+    await user.selectOptions(dialog.getByLabelText('Categoría'), 'cat-fun')
+    await user.click(dialog.getByRole('button', { name: 'Continuar' }))
+    await user.type(dialog.getByLabelText('Monto mensual'), '80000')
+    await user.click(dialog.getByRole('button', { name: 'Guardar' }))
 
     expect(saveBudgetMutate).toHaveBeenCalledWith({
       amountMinor: 80000,
       intent: { kind: 'template', categoryId: 'cat-fun', monthKey: month },
     })
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
-  it('edita el que ya existe desde su celda, con el importe ya escrito', async () => {
+  it('crea una categoría de gasto desde el diálogo y le pone presupuesto', async () => {
     const user = userEvent.setup()
-    mockBudgets()
+    mockProgress([conPresupuesto])
     renderDashboard()
 
-    const panel = budgetPanel()
-    const campo = panel.getByLabelText('Presupuesto de Alimentación')
-    expect((campo as HTMLInputElement).value).toBe('130000')
+    await user.click(budgetPanel().getByRole('button', { name: 'Agregar presupuesto' }))
+    const dialog = within(screen.getByRole('dialog'))
+    await user.click(dialog.getByRole('button', { name: 'Crear categoría de gasto' }))
+    await user.type(dialog.getByLabelText('Nombre'), 'Gimnasio')
+    await user.click(dialog.getByRole('button', { name: 'Crear categoría' }))
+
+    expect(createCategoryMutate).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'Gimnasio', type: 'expense' }),
+    )
+
+    expect(await dialog.findByText('Presupuesto de Gimnasio')).toBeInTheDocument()
+    await user.type(dialog.getByLabelText('Monto mensual'), '120000')
+    await user.click(dialog.getByRole('button', { name: 'Guardar' }))
+
+    expect(saveBudgetMutate).toHaveBeenCalledWith({
+      amountMinor: 120000,
+      intent: { kind: 'template', categoryId: 'cat-new', monthKey: month },
+    })
+  })
+
+  it('edita un presupuesto en su diálogo, con «$» y el importe ya escrito', async () => {
+    const user = userEvent.setup()
+    mockProgress([conPresupuesto])
+    renderDashboard()
+
+    await user.click(
+      budgetPanel().getByRole('button', { name: 'Editar presupuesto de Alimentación' }),
+    )
+
+    const dialog = within(screen.getByRole('dialog'))
+    expect(dialog.getByText('Presupuesto de Alimentación')).toBeInTheDocument()
+    expect(dialog.getByText('$')).toBeInTheDocument()
+
+    const campo = dialog.getByLabelText('Monto mensual') as HTMLInputElement
+    expect(campo.value).toBe('130000')
 
     await user.clear(campo)
     await user.type(campo, '150000')
-    await user.click(panel.getByRole('radio', { name: 'Solo este mes' }))
-    await user.click(panel.getByRole('button', { name: 'Guardar' }))
+    await user.click(dialog.getByRole('radio', { name: /Solo este mes/ }))
+    await user.click(dialog.getByRole('button', { name: 'Guardar' }))
 
     expect(saveBudgetMutate).toHaveBeenCalledWith({
       amountMinor: 150000,
       intent: { kind: 'exception', categoryId: 'cat-food', monthKey: month },
     })
   })
-})
 
-describe('Dashboard — movimientos del mes (M13)', () => {
-  function recentPanel() {
-    return within(screen.getByRole('region', { name: 'Últimos movimientos' }))
-  }
-
-  it('lista hasta diez movimientos del mes, del más reciente al más antiguo', () => {
-    const many = Array.from({ length: 14 }, (_, index) =>
-      transaction({
-        amount_minor: 1000 * (index + 1),
-        transaction_date: month + '-' + String(index + 1).padStart(2, '0'),
-        description: 'Movimiento ' + (index + 1),
-      }),
-    )
-    useAllTransactions.mockReturnValue({
-      data: many,
-      isPending: false,
-      isError: false,
-      refetch: vi.fn(),
-    })
-
-    renderDashboard()
-
-    const items = recentPanel().getAllByRole('listitem')
-    expect(items).toHaveLength(10)
-    expect(within(items[0]).getByText('Movimiento 14')).toBeInTheDocument()
-    expect(recentPanel().queryByText('Movimiento 4')).not.toBeInTheDocument()
-  })
-
-  it('«Ver todos» sigue llevando a Movimientos', () => {
-    renderDashboard()
-
-    expect(recentPanel().getByRole('link', { name: 'Ver todos' })).toHaveAttribute(
-      'href',
-      '/transactions?month=' + month,
-    )
-  })
-
-  it('editar un movimiento abre el formulario con sus valores', async () => {
+  it('un presupuesto de 0 se abre con 0 escrito, no vacío', async () => {
     const user = userEvent.setup()
+    mockProgress([{ ...sinPresupuesto, source: 'exception' }])
     renderDashboard()
 
-    await user.click(recentPanel().getByRole('button', { name: 'Editar Mercado del mes' }))
+    await user.click(
+      budgetPanel().getByRole('button', { name: 'Editar presupuesto de Entretenimiento' }),
+    )
 
     const dialog = within(screen.getByRole('dialog'))
-    expect(dialog.getByText('Editar movimiento')).toBeInTheDocument()
-    expect((dialog.getByLabelText('Descripción') as HTMLInputElement).value).toBe('Mercado del mes')
+    expect((dialog.getByLabelText('Monto mensual') as HTMLInputElement).value).toBe('0')
+  })
+})
+
+describe('Dashboard — sin últimos movimientos (M14)', () => {
+  it('no hay bloque de movimientos ni forma de editar uno desde aquí', () => {
+    renderDashboard()
+
+    expect(screen.queryByRole('region', { name: 'Últimos movimientos' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^Editar Mercado/ })).not.toBeInTheDocument()
+    expect(screen.queryByText('Mercado del mes')).not.toBeInTheDocument()
+  })
+
+  it('los gráficos se apilan por debajo de 1280px y van lado a lado desde ahí', () => {
+    renderDashboard()
+
+    const fila = screen.getByRole('region', { name: 'Gasto por categoría' }).parentElement
+    expect(fila?.className).toContain('xl:grid-cols-2')
+    expect(fila?.className).not.toContain('lg:grid-cols-2')
   })
 })

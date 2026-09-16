@@ -35,6 +35,11 @@ interface BudgetFormProps {
   mode?: 'scoped' | 'correction'
   submitLabel?: string
   isSubmitting?: boolean
+  /**
+   * `symbol` antepone un «$» fijo al monto, fuera del valor escrito. Solo lo usa
+   * el dashboard; `/budgets` sigue con el campo de siempre.
+   */
+  amountInputVariant?: 'plain' | 'symbol'
   onSubmit: (values: BudgetFormSubmit) => void | Promise<void>
 }
 
@@ -50,6 +55,7 @@ export function BudgetForm({
   mode = 'scoped',
   submitLabel = 'Guardar',
   isSubmitting,
+  amountInputVariant = 'plain',
   onSubmit,
 }: BudgetFormProps) {
   const monthLabel = formatMonthLabel(monthKey)
@@ -90,15 +96,28 @@ export function BudgetForm({
     >
       <div className="flex flex-col gap-2">
         <Label htmlFor="budget-amount">Monto mensual</Label>
-        <Input
-          id="budget-amount"
-          inputMode="numeric"
-          autoComplete="off"
-          placeholder="Ej. 1.200.000"
-          aria-invalid={!!errors.amount}
-          aria-describedby={errors.amount ? 'budget-amount-error' : undefined}
-          {...register('amount')}
-        />
+        {/* El «$» va fuera del campo: no se puede borrar y nunca llega al valor
+            que se valida y se guarda. */}
+        <div className="relative">
+          {amountInputVariant === 'symbol' && (
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-muted-foreground"
+            >
+              $
+            </span>
+          )}
+          <Input
+            id="budget-amount"
+            inputMode="numeric"
+            autoComplete="off"
+            placeholder="Ej. 1.200.000"
+            className={amountInputVariant === 'symbol' ? 'pl-7' : undefined}
+            aria-invalid={!!errors.amount}
+            aria-describedby={errors.amount ? 'budget-amount-error' : undefined}
+            {...register('amount')}
+          />
+        </div>
         {errors.amount && (
           <p id="budget-amount-error" className="text-sm text-destructive">
             {errors.amount.message}
