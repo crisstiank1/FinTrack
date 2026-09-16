@@ -282,7 +282,9 @@ borradores**: esa es `/sheets`.
     y «Limpiar filtros» también la quita.
 - Paginación server-side.
 - Cabecera sticky.
-- Selector de columnas.
+- Selector de columnas: se cierra con Escape, devolviendo el foco al botón, y al
+  tocar fuera. En pantalla estrecha el panel se ancla a la izquierda del botón y
+  se limita al ancho disponible, para no salirse por el borde (M9).
 - Resumen de ingresos, gastos, balance y cantidad de movimientos. Con varias
   monedas, una línea por moneda; filtrando una moneda sin movimientos, los
   ceros se muestran en esa moneda.
