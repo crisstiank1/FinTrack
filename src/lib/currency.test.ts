@@ -5,6 +5,7 @@ import {
   CURRENCY_CODES,
   formatAmount,
   currencyOptions,
+  partitionByAccountCurrency,
   resolveCurrencyFilter,
   resolvePresentationCurrency,
   sortCurrencyCodes,
@@ -152,6 +153,39 @@ describe('resolveCurrencyFilter', () => {
   it('con una sola moneda no acota: el selector está oculto', () => {
     const copOnly = accounts.filter((account) => account.currency_code === 'COP')
     expect(resolveCurrencyFilter(copOnly, 'COP', 'COP')).toEqual({ currencyCodes: ['COP'] })
+  })
+})
+
+describe('partitionByAccountCurrency', () => {
+  const currencyByAccountId = new Map([
+    ['cop-1', 'COP'],
+    ['usd-1', 'USD'],
+    ['ars-1', 'ARS'],
+  ])
+
+  it('deja dentro las filas de cuentas en la moneda y cuenta las demás', () => {
+    const rows = [
+      { id: 'a', account_id: 'cop-1' },
+      { id: 'b', account_id: 'usd-1' },
+      { id: 'c', account_id: 'ars-1' },
+      { id: 'd', account_id: 'usd-1' },
+    ]
+
+    const { included, exclusions } = partitionByAccountCurrency(rows, currencyByAccountId, 'COP')
+
+    expect(included.map((row) => row.id)).toEqual(['a'])
+    expect(exclusions).toEqual({ count: 3, currencyCodes: ['USD', 'ARS'] })
+  })
+
+  it('una fila de cuenta desconocida se queda en la moneda de la pantalla', () => {
+    const { included, exclusions } = partitionByAccountCurrency(
+      [{ account_id: 'borrada' }],
+      currencyByAccountId,
+      'COP',
+    )
+
+    expect(included).toHaveLength(1)
+    expect(exclusions).toEqual({ count: 0, currencyCodes: [] })
   })
 })
 

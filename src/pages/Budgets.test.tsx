@@ -15,6 +15,7 @@ const saveBudget = vi.fn()
 const deleteBudget = vi.fn()
 const useAccounts = vi.fn()
 const useCategories = vi.fn()
+const usePrimaryCurrency = vi.fn()
 const toastError = vi.fn()
 const toastSuccess = vi.fn()
 
@@ -29,6 +30,9 @@ vi.mock('@/features/categories/hooks', () => ({
 }))
 vi.mock('@/features/accounts/hooks', () => ({
   useAccounts: () => useAccounts(),
+}))
+vi.mock('@/features/profile/hooks', () => ({
+  usePrimaryCurrency: () => usePrimaryCurrency(),
 }))
 vi.mock('sonner', () => ({
   toast: { error: (...args: unknown[]) => toastError(...args), success: () => toastSuccess() },
@@ -135,6 +139,7 @@ function row(categoryName: string) {
 beforeEach(() => {
   vi.clearAllMocks()
   useAccounts.mockReturnValue({ data: [{ id: 'acc-1', currency_code: 'COP' }] })
+  usePrimaryCurrency.mockReturnValue({ data: 'COP', isPending: false })
   useCategories.mockReturnValue({ data: categories, isPending: false })
   useBudgets.mockReturnValue({ data: budgets, isPending: false, isError: false, refetch: vi.fn() })
   useBudgetProgress.mockReturnValue({ data: progress, isPending: false, isError: false })
@@ -257,5 +262,70 @@ describe('Budgets — gasto acotado al mes', () => {
     expect(useBudgetProgress).toHaveBeenCalledWith(
       expect.objectContaining({ monthKey: MES, categoryIds: ['cat-food', 'cat-fun', 'cat-gym'] }),
     )
+  })
+})
+
+describe('Budgets — moneda de los presupuestos', () => {
+  it('pide el progreso en la moneda de presentación', () => {
+    renderBudgets()
+
+    expect(useBudgetProgress).toHaveBeenLastCalledWith(
+      expect.objectContaining({ monthKey: MES, currencyCode: 'COP' }),
+    )
+  })
+
+  it('espera a la moneda principal antes de calcular el progreso', () => {
+    usePrimaryCurrency.mockReturnValue({ data: undefined, isPending: true })
+
+    renderBudgets()
+
+    expect(useBudgetProgress).toHaveBeenLastCalledWith(
+      expect.objectContaining({ currencyCode: undefined }),
+    )
+  })
+
+  it('muestra los importes en la moneda principal aunque no sea la de la primera cuenta', () => {
+    useAccounts.mockReturnValue({
+      data: [
+        { id: 'acc-1', currency_code: 'COP' },
+        { id: 'acc-usd', currency_code: 'USD' },
+      ],
+    })
+    usePrimaryCurrency.mockReturnValue({ data: 'USD', isPending: false })
+
+    renderBudgets()
+
+    expect(useBudgetProgress).toHaveBeenLastCalledWith(
+      expect.objectContaining({ currencyCode: 'USD' }),
+    )
+    expect(row('Entretenimiento').getByText('USD 30.000')).toBeInTheDocument()
+  })
+
+  it('avisa de los gastos en otras monedas que no cuentan', () => {
+    useBudgetProgress.mockReturnValue({
+      data: progress,
+      exclusions: { count: 2, currencyCodes: ['USD'] },
+      isPending: false,
+      isError: false,
+    })
+
+    renderBudgets()
+
+    expect(screen.getByRole('note')).toHaveTextContent(
+      '2 gastos en otras monedas (USD) no cuentan para estos presupuestos.',
+    )
+  })
+
+  it('sin gastos en otras monedas no hay aviso', () => {
+    useBudgetProgress.mockReturnValue({
+      data: progress,
+      exclusions: { count: 0, currencyCodes: [] },
+      isPending: false,
+      isError: false,
+    })
+
+    renderBudgets()
+
+    expect(screen.queryByRole('note')).not.toBeInTheDocument()
   })
 })

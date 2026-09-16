@@ -118,8 +118,13 @@ export default function Dashboard() {
   )
 
   // Los presupuestos no tienen dimensión de cuenta: se reparten por categoría
-  // sobre todo el gasto del mes. Por eso el panel no reacciona al filtro de
-  // cuenta, aunque la alerta global sí, porque sale del resumen en pantalla.
+  // sobre el gasto del mes. Por eso el panel no reacciona al filtro de cuenta,
+  // aunque la alerta global sí, porque sale del resumen en pantalla.
+  //
+  // Tampoco guardan moneda: van siempre en la de presentación, igual que en
+  // /budgets y /plan, aunque se elija una cuenta en otra moneda. Sin esto, un
+  // presupuesto de 700.000 se leería «USD 700.000» al filtrar una cuenta USD.
+  const budgetCurrencyCode = resolvePresentationCurrency(primaryCurrency.data, accounts)
   const budgetsQuery = useBudgets()
   const budgetCategories = useMemo(
     () => selectBudgetCategories(categories, budgetsQuery.data ?? [], monthKey),
@@ -129,7 +134,11 @@ export default function Dashboard() {
     () => budgetCategories.map((category) => category.id),
     [budgetCategories],
   )
-  const budgetProgress = useBudgetProgress({ monthKey, categoryIds: budgetCategoryIds })
+  const budgetProgress = useBudgetProgress({
+    monthKey,
+    categoryIds: budgetCategoryIds,
+    currencyCode: primaryCurrency.isPending ? undefined : budgetCurrencyCode,
+  })
 
   const budgetAlertItems = useMemo<BudgetAlertItem[]>(() => {
     const byId = new Map(budgetCategories.map((category) => [category.id, category]))
@@ -335,10 +344,19 @@ export default function Dashboard() {
           >
             {topBudgets.length > 0 || globalBudgetAlert ? (
               <div className="flex flex-col gap-4">
+                {/* Dos monedas posibles en el mismo panel: la alerta global sale
+                    del resumen en pantalla y va en su moneda; las de cada
+                    presupuesto van en la de los presupuestos. */}
                 <BudgetAlerts
-                  items={budgetAlertItems}
+                  items={[]}
                   globalAlert={globalBudgetAlert}
                   currencyCode={currencyCode}
+                  linkToMonth={monthKey}
+                />
+                <BudgetAlerts
+                  items={budgetAlertItems}
+                  globalAlert={null}
+                  currencyCode={budgetCurrencyCode}
                   linkToMonth={monthKey}
                 />
 
@@ -359,7 +377,7 @@ export default function Dashboard() {
                         <BudgetProgressBar
                           progress={item.progress}
                           categoryName={item.categoryName}
-                          currencyCode={currencyCode}
+                          currencyCode={budgetCurrencyCode}
                         />
                       </li>
                     ))}

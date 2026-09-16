@@ -17,8 +17,11 @@ import {
   useDeleteBudget,
   useSaveBudget,
 } from '@/features/budgets/hooks'
+import { excludedExpensesNote } from '@/features/budgets/labels'
 import { useCategories } from '@/features/categories/hooks'
+import { usePrimaryCurrency } from '@/features/profile/hooks'
 import { useMonthParam } from '@/hooks/use-month-param'
+import { resolvePresentationCurrency } from '@/lib/currency'
 import { currentMonthKey, formatMonthLabel, shiftMonthKey } from '@/lib/dates'
 import type { Tables } from '@/types/database.types'
 
@@ -31,6 +34,7 @@ export default function Budgets() {
 
   const { data: accounts = [] } = useAccounts()
   const { data: categories = [], isPending: categoriesPending } = useCategories()
+  const primaryCurrency = usePrimaryCurrency()
   const budgetsQuery = useBudgets()
   const saveBudget = useSaveBudget()
   const deleteBudget = useDeleteBudget()
@@ -47,11 +51,20 @@ export default function Budgets() {
     [visibleCategories],
   )
 
-  const progressQuery = useBudgetProgress({ monthKey, categoryIds })
+  // FinTrack no convierte divisas: los importes de un presupuesto no guardan
+  // moneda y se entienden en la de presentación (la principal si hay alguna
+  // cuenta en ella; si no, la de la primera cuenta), la misma del Plan. Mientras
+  // la moneda principal carga, el progreso espera.
+  const currencyCode = resolvePresentationCurrency(primaryCurrency.data, accounts)
 
-  // El MVP no convierte divisas: se usa la moneda de la primera cuenta como
-  // moneda de presentación, mismo criterio que el dashboard y /transactions.
-  const currencyCode = accounts[0]?.currency_code ?? 'COP'
+  const progressQuery = useBudgetProgress({
+    monthKey,
+    categoryIds,
+    currencyCode: primaryCurrency.isPending ? undefined : currencyCode,
+  })
+  const excludedNote = progressQuery.exclusions
+    ? excludedExpensesNote(progressQuery.exclusions)
+    : null
   const monthLabel = formatMonthLabel(monthKey)
   const isPastMonth = monthKey < currentMonthKey()
 
@@ -219,6 +232,15 @@ export default function Budgets() {
 
       {!budgetsQuery.isError && !isLoading && items.length > 0 && (
         <div className="mt-6 flex flex-col gap-6">
+          {excludedNote && (
+            <p
+              role="note"
+              className="rounded-lg border border-border bg-card p-3 text-sm text-muted-foreground"
+            >
+              {excludedNote}
+            </p>
+          )}
+
           <BudgetAlerts items={alertItems} globalAlert={null} currencyCode={currencyCode} />
 
           <BudgetList

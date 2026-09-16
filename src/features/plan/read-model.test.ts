@@ -12,11 +12,13 @@ import {
   buildClassificationMap,
   buildIncomeActualBySource,
   buildTransferContributionCandidates,
+  foreignCurrencyContributions,
   isAllocationGroup,
   isExpenseClassificationGroup,
   isPlanLineKind,
   partitionPlanLines,
   planLineCategoryIds,
+  scopePlanMonthToCurrency,
   toBalanceTransactions,
   toPlanExpenseTransactions,
   toPlannedIncomeSources,
@@ -201,6 +203,101 @@ describe('buildTransferContributionCandidates', () => {
 /* -------------------------------------------------------------------------- */
 /* Estrechamiento de uniones                                                  */
 /* -------------------------------------------------------------------------- */
+
+describe('aportes y moneda del Plan', () => {
+  const ACC_BANK_USD = 'acc-bank-usd'
+  const ACC_SAVINGS_USD = 'acc-savings-usd'
+  const withCurrencies = [
+    { id: ACC_BANK, type: 'checking', currency_code: 'COP' },
+    { id: ACC_SAVINGS, type: 'savings', currency_code: 'COP' },
+    { id: ACC_BANK_USD, type: 'checking', currency_code: 'USD' },
+    { id: ACC_SAVINGS_USD, type: 'savings', currency_code: 'USD' },
+  ]
+
+  it('un aporte desde USD a una cuenta de ahorro en COP cuenta, con el importe en COP', () => {
+    const legs = [
+      { ...transferPair('g1', ACC_BANK_USD, ACC_SAVINGS, 0)[0], amount_minor: 25 },
+      { ...transferPair('g1', ACC_BANK_USD, ACC_SAVINGS, 0)[1], amount_minor: 100_000 },
+    ]
+
+    expect(buildTransferContributionCandidates(legs, withCurrencies, 'COP')).toEqual([
+      { amountMinor: 100_000, destinationAccountType: 'savings', sourceAccountType: 'checking' },
+    ])
+    expect(foreignCurrencyContributions(legs, withCurrencies, 'COP')).toEqual([])
+  })
+
+  it('un aporte a una cuenta de ahorro en USD no cuenta en un Plan en COP', () => {
+    const legs = transferPair('g1', ACC_BANK, ACC_SAVINGS_USD, 25)
+
+    expect(buildTransferContributionCandidates(legs, withCurrencies, 'COP')).toEqual([])
+    expect(foreignCurrencyContributions(legs, withCurrencies, 'COP')).toEqual(['USD'])
+  })
+
+  it('sin moneda indicada empareja como siempre', () => {
+    const legs = transferPair('g1', ACC_BANK, ACC_SAVINGS_USD, 25)
+
+    expect(buildTransferContributionCandidates(legs, withCurrencies)).toHaveLength(1)
+  })
+
+  describe('scopePlanMonthToCurrency', () => {
+    function movement(overrides: Partial<PlanTransferLeg> & { category_id?: string | null }) {
+      return {
+        type: 'expense',
+        transfer_direction: null,
+        transfer_group_id: null,
+        category_id: 'cat',
+        account_id: ACC_BANK,
+        amount_minor: 1_000,
+        ...overrides,
+      }
+    }
+
+    const month = [
+      movement({ type: 'income', amount_minor: 3_000_000 }),
+      movement({ amount_minor: 800_000 }),
+      movement({ type: 'income', account_id: ACC_BANK_USD, amount_minor: 500 }),
+      movement({ account_id: ACC_BANK_USD, amount_minor: 120 }),
+      movement({ account_id: 'cuenta-borrada', amount_minor: 50 }),
+      // Aporte en COP: cuenta.
+      ...transferPair('g-cop', ACC_BANK, ACC_SAVINGS, 400_000).map((leg) => movement(leg)),
+      // Aporte a ahorro USD: se excluye y se avisa.
+      ...transferPair('g-usd', ACC_BANK, ACC_SAVINGS_USD, 30).map((leg) => movement(leg)),
+      // Entre cuentas corrientes de monedas distintas: el Plan nunca la usa.
+      ...transferPair('g-fx', ACC_BANK, ACC_BANK_USD, 10).map((leg) => movement(leg)),
+    ]
+
+    it('deja solo ingresos y gastos en la moneda, y los aportes hacia ella', () => {
+      const scoped = scopePlanMonthToCurrency(month, withCurrencies, 'COP')
+
+      expect(scoped.categorized.map((row) => row.amount_minor)).toEqual([3_000_000, 800_000, 50])
+      expect(scoped.categorized.every((row) => row.type !== 'transfer')).toBe(true)
+      expect(scoped.contributions).toEqual([
+        { amountMinor: 400_000, destinationAccountType: 'savings', sourceAccountType: 'checking' },
+      ])
+    })
+
+    it('cuenta como excluidos el ingreso y el gasto en USD y el aporte a ahorro USD, no la transferencia entre corrientes', () => {
+      expect(scopePlanMonthToCurrency(month, withCurrencies, 'COP').exclusions).toEqual({
+        count: 3,
+        currencyCodes: ['USD'],
+      })
+    })
+
+    it('con una sola moneda no excluye nada', () => {
+      const copOnly = month.filter(
+        (row) =>
+          row.account_id !== ACC_BANK_USD &&
+          row.account_id !== ACC_SAVINGS_USD &&
+          row.transfer_group_id !== 'g-usd',
+      )
+
+      expect(scopePlanMonthToCurrency(copOnly, withCurrencies, 'COP').exclusions).toEqual({
+        count: 0,
+        currencyCodes: [],
+      })
+    })
+  })
+})
 
 describe('guardas de estrechamiento', () => {
   it('isAllocationGroup admite los cinco grupos del reparto y nada más', () => {

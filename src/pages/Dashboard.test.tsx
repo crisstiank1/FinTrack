@@ -515,6 +515,52 @@ describe('Dashboard', () => {
       expect(kpi('Ingresos del mes').getByText('COP 300.000')).toBeInTheDocument()
     })
 
+    it('los presupuestos siguen en la moneda principal aunque se elija una cuenta en otra', async () => {
+      useBudgets.mockReturnValue({ data: budgetRows, isPending: false, isError: false })
+      useBudgetProgress.mockReturnValue({
+        data: [
+          {
+            categoryId: 'cat-food',
+            budgetMinor: 100_000,
+            spentMinor: 120_000,
+            remainingMinor: -20_000,
+            ratio: 1.2,
+            status: 'over',
+            source: 'template',
+          },
+        ],
+        isPending: false,
+        isError: false,
+      })
+      useAllTransactions.mockReturnValue({
+        data: [
+          ...transactions,
+          transaction({
+            account_id: 'acc-usd',
+            category_id: 'cat-fun',
+            amount_minor: 900,
+            description: 'Viaje',
+          }),
+        ],
+        isPending: false,
+        isError: false,
+        refetch: vi.fn(),
+      })
+      const user = userEvent.setup()
+      renderDashboard()
+
+      await user.selectOptions(screen.getByLabelText('Cuenta'), 'acc-usd')
+
+      expect(useBudgetProgress).toHaveBeenLastCalledWith(
+        expect.objectContaining({ currencyCode: 'COP' }),
+      )
+      const panel = within(screen.getByRole('region', { name: 'Presupuestos' }))
+      expect(panel.getByText(/superó su presupuesto por COP 20.000/)).toBeInTheDocument()
+      expect(panel.queryByText(/USD 20.000/)).not.toBeInTheDocument()
+      // La alerta global sale del resumen de la cuenta USD y va en USD.
+      expect(panel.getByText(/Gastaste USD 900 más de lo que ingresaste/)).toBeInTheDocument()
+    })
+
     it('al elegir una cuenta en otra moneda todo pasa a esa moneda, sin saldos aparte', async () => {
       const user = userEvent.setup()
       renderDashboard()

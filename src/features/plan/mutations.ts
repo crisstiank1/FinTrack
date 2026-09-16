@@ -379,26 +379,38 @@ export interface ContributionAccount {
   id: string
   type: string
   is_archived: boolean
+  currency_code?: string
 }
 
 /**
  * Cuentas que se pueden ofrecer para un aporte nuevo de un tipo.
  *
- * Tres filtros, y los tres evitan ofrecer algo que el servidor rechazaría:
+ * Tres filtros evitan ofrecer algo que el servidor rechazaría:
  *
  * 1. **Del tipo del aporte.** T3 exige una cuenta `savings` para un aporte a
  *    ahorro y una `investment` para uno a inversión; el `kind` de la línea y
  *    el `type` de la cuenta comparten nombre.
  * 2. **No archivadas.** T3 prohíbe *estrenar* una línea sobre una archivada.
  * 3. **Libres este mes.** U11.
+ *
+ * Y uno más, si se indica la moneda del Plan: **en esa moneda** (M5).
  */
 export function selectAvailableContributionAccounts<T extends ContributionAccount>(
   accounts: readonly T[],
   kind: ContributionLineKind,
   usedAccountIds: ReadonlySet<string>,
+  /**
+   * Moneda del Plan. Un aporte a una cuenta en otra moneda nunca se contaría
+   * como real, así que no se ofrece.
+   */
+  currencyCode?: string,
 ): T[] {
   return accounts.filter(
-    (account) => account.type === kind && !account.is_archived && !usedAccountIds.has(account.id),
+    (account) =>
+      account.type === kind &&
+      !account.is_archived &&
+      !usedAccountIds.has(account.id) &&
+      (!currencyCode || account.currency_code === currencyCode),
   )
 }
 

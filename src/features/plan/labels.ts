@@ -552,6 +552,22 @@ export function linesWithZeroBudgetCountLabel(count: number, currencyCode: strin
 
 /* -------------------------------------------------------------------------- */
 /* Ahorro e inversión                                                         */
+/**
+ * Aviso de lo que el Plan deja fuera por estar en otra moneda: ingresos, gastos
+ * y aportes (ver `scopePlanMonthToCurrency`). `null` si no falta nada.
+ */
+export function excludedMovementsNote(exclusions: {
+  count: number
+  currencyCodes: readonly string[]
+}): string | null {
+  if (exclusions.count === 0) return null
+
+  const codes = exclusions.currencyCodes.join(', ')
+  return exclusions.count === 1
+    ? `1 movimiento en otra moneda (${codes}) no se incluye en este Plan.`
+    : `${exclusions.count} movimientos en otras monedas (${codes}) no se incluyen en este Plan.`
+}
+
 /* -------------------------------------------------------------------------- */
 
 /*
@@ -597,6 +613,16 @@ export const contributionBlockLabel: Record<ContributionAccountType, Contributio
 
 /** El saldo todavía no llegó. No se escribe un 0 que aún no se sabe. */
 export const BALANCE_LOADING_LABEL = 'Calculando saldo…'
+
+/**
+ * Cuentas del tipo en otra moneda: su saldo no entra en el del Plan, que no
+ * convierte divisas.
+ */
+export function otherCurrencyAccountsNote(count: number): string {
+  return count === 1
+    ? '1 cuenta en otra moneda no se suma'
+    : `${count} cuentas en otra moneda no se suman`
+}
 
 /** Falló solo el saldo: el resto del bloque y de la pantalla sigue siendo válido. */
 export const BALANCE_ERROR_LABEL = 'No pudimos calcular el saldo.'
@@ -678,6 +704,15 @@ export const CONTRIBUTION_LINE_AMOUNT_LABEL = 'Importe planeado'
 
 /** Marca de una línea cuya cuenta se archivó después de crearla. */
 export const ARCHIVED_ACCOUNT_BADGE = 'Archivada'
+
+/**
+ * Marca de una línea cuya cuenta está en otra moneda. Su importe planeado sigue
+ * contando, porque es una cifra escrita en la moneda del Plan; su aporte real
+ * no, porque llega en la moneda de la cuenta.
+ */
+export function otherCurrencyContributionLineLabel(currencyCode: string): string {
+  return `Cuenta en ${currencyCode}: su aporte real no se cuenta`
+}
 
 /** Al editar, la cuenta se enuncia en vez de ofrecerse: cambiarla es otro aporte. */
 export function lockedContributionAccountLabel(accountName: string): string {

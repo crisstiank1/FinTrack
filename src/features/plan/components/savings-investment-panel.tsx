@@ -14,6 +14,8 @@ import {
   contributionBlockLabel,
   contributionLineLabel,
   formatContributionPlanned,
+  otherCurrencyAccountsNote,
+  otherCurrencyContributionLineLabel,
   ARCHIVED_ACCOUNT_BADGE,
   BALANCE_ERROR_LABEL,
   BALANCE_LOADING_LABEL,
@@ -38,15 +40,20 @@ export interface ContributionLineItem {
   accountName: string
   /** La cuenta se archivó después de crear la línea. */
   isAccountArchived: boolean
+  /**
+   * Moneda de la cuenta si no es la del Plan. Su planeado sigue contando; su
+   * aporte real no.
+   */
+  otherCurrencyCode?: string
   plannedMinor: number
 }
 
 /** Lo necesario para planificar aportes de un tipo en el mes. */
 export interface ContributionPlanning {
   lines: ContributionLineItem[]
-  /** Hay al menos una cuenta del tipo sin archivar. */
+  /** Hay al menos una cuenta del tipo sin archivar en la moneda del Plan. */
   hasActiveAccounts: boolean
-  /** Cuentas del tipo sin archivar y sin aporte este mes (U11). */
+  /** Cuentas del tipo sin archivar, en la moneda del Plan y sin aporte este mes (U11). */
   availableAccountCount: number
   isBusy?: boolean
   onAdd: () => void
@@ -235,6 +242,16 @@ function BalanceFigure({ labels, balance, asOfDate, isError, currencyCode }: Bal
     )
   }
 
+  // Hay cuentas del tipo, pero todas en otra moneda: decir «Sin cuentas» sería
+  // falso, y su saldo no se puede sumar al del Plan.
+  if (balance.accountCount === 0 && balance.otherCurrencyCount > 0) {
+    return (
+      <dd className="mt-1 text-sm text-muted-foreground">
+        {otherCurrencyAccountsNote(balance.otherCurrencyCount)}
+      </dd>
+    )
+  }
+
   if (balance.accountCount === 0) {
     return (
       <>
@@ -264,6 +281,11 @@ function BalanceFigure({ labels, balance, asOfDate, isError, currencyCode }: Bal
       <dd className="mt-1 text-xs text-muted-foreground">
         {accountTypeBalanceCaption(asOfDate, balance.accountCount, balance.archivedCount)}
       </dd>
+      {balance.otherCurrencyCount > 0 && (
+        <dd className="mt-1 text-xs text-muted-foreground">
+          {otherCurrencyAccountsNote(balance.otherCurrencyCount)}
+        </dd>
+      )}
     </>
   )
 }
@@ -303,6 +325,11 @@ function ContributionLines({ type, planning, currencyCode }: ContributionLinesPr
                 {line.isAccountArchived && (
                   <span className="ml-2 rounded-full border border-border px-2 py-0.5 text-xs text-muted-foreground">
                     {ARCHIVED_ACCOUNT_BADGE}
+                  </span>
+                )}
+                {line.otherCurrencyCode && (
+                  <span className="mt-0.5 block text-xs text-muted-foreground">
+                    {otherCurrencyContributionLineLabel(line.otherCurrencyCode)}
                   </span>
                 )}
               </p>

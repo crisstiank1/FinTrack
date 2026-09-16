@@ -139,6 +139,44 @@ export function resolveCurrencyFilter(
   }
 }
 
+/** Lo que una pantalla de una sola moneda deja fuera de sus cifras. */
+export interface CurrencyExclusions {
+  count: number
+  /** Monedas de lo excluido, sin repetir y en orden de presentación. */
+  currencyCodes: string[]
+}
+
+/**
+ * Separa las filas cuya cuenta está en `currencyCode` de las que están en otra.
+ *
+ * El Plan y los presupuestos muestran una sola moneda y no convierten divisas:
+ * lo de otras monedas no se suma, solo se cuenta para avisarlo. Una fila cuya
+ * cuenta no se conoce no tiene moneda y se queda dentro, igual que el Libro y
+ * Movimientos la muestran en la moneda de respaldo.
+ */
+export function partitionByAccountCurrency<T extends { account_id: string }>(
+  rows: readonly T[],
+  currencyByAccountId: ReadonlyMap<string, string>,
+  currencyCode: string,
+): { included: T[]; exclusions: CurrencyExclusions } {
+  const included: T[] = []
+  const excludedCurrencies: string[] = []
+
+  for (const row of rows) {
+    const rowCurrency = currencyByAccountId.get(row.account_id)
+    if (rowCurrency === undefined || rowCurrency === currencyCode) included.push(row)
+    else excludedCurrencies.push(rowCurrency)
+  }
+
+  return {
+    included,
+    exclusions: {
+      count: excludedCurrencies.length,
+      currencyCodes: sortCurrencyCodes(excludedCurrencies),
+    },
+  }
+}
+
 /**
  * Moneda en la que se presentan las cifras agregadas de una pantalla.
  *

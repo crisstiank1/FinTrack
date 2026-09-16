@@ -57,6 +57,9 @@ import {
   NO_CONTRIBUTION_PLAN_LABEL,
   NO_PERCENT_LABEL,
   NO_PLANNED_INCOME_LABEL,
+  excludedMovementsNote,
+  otherCurrencyAccountsNote,
+  otherCurrencyContributionLineLabel,
 } from './labels'
 
 const COP = 'COP'
@@ -642,5 +645,31 @@ describe('líneas de aporte', () => {
     for (const text of texts) {
       expect(text).not.toMatch(/gasto|Total ahorrado/i)
     }
+  })
+})
+
+describe('moneda del Plan', () => {
+  it('avisa de los movimientos en otras monedas, en plural y en singular', () => {
+    expect(excludedMovementsNote({ count: 3, currencyCodes: ['USD', 'ARS'] })).toBe(
+      '3 movimientos en otras monedas (USD, ARS) no se incluyen en este Plan.',
+    )
+    expect(excludedMovementsNote({ count: 1, currencyCodes: ['USD'] })).toBe(
+      '1 movimiento en otra moneda (USD) no se incluye en este Plan.',
+    )
+  })
+
+  it('sin movimientos excluidos no hay aviso', () => {
+    expect(excludedMovementsNote({ count: 0, currencyCodes: [] })).toBeNull()
+  })
+
+  it('nombra las cuentas en otra moneda que no se suman al saldo', () => {
+    expect(otherCurrencyAccountsNote(1)).toBe('1 cuenta en otra moneda no se suma')
+    expect(otherCurrencyAccountsNote(2)).toBe('2 cuentas en otra moneda no se suman')
+  })
+
+  it('marca la línea de aporte cuya cuenta está en otra moneda', () => {
+    expect(otherCurrencyContributionLineLabel('USD')).toBe(
+      'Cuenta en USD: su aporte real no se cuenta',
+    )
   })
 })

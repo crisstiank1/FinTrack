@@ -154,7 +154,7 @@
 
 ## Monedas
 
-Reglas de moneda vigentes (M1 y M2):
+Reglas de moneda vigentes (M1 a M5):
 
 - FinTrack **no convierte divisas ni usa tipos de cambio.** Cada importe se
   guarda en su moneda y se muestra con su código (`USD 1.250`), sin convertir.
@@ -169,8 +169,12 @@ Reglas de moneda vigentes (M1 y M2):
   ella; si no, la de la primera cuenta. Las cuentas en otras monedas se listan
   aparte, sin sumarse ni convertirse (M1).
 - **Cambio de moneda de una cuenta:** bloqueado en la UI si la cuenta ya tiene
-  movimientos, permitido si no los tiene. Las líneas de aporte del Plan no se
-  comprueban (limitación hasta M5).
+  movimientos, permitido si no los tiene. No se comprueba si la cuenta tiene
+  líneas de aporte en el Plan: es una limitación que queda. El Plan marca esas
+  líneas y ya no deja crear aportes sobre cuentas en otra moneda (M5).
+- **Plan y presupuestos (M5):** `budgets` y las tablas del Plan no guardan
+  moneda; sus importes se entienden en la moneda de presentación. Sus cifras
+  reales solo usan movimientos de cuentas en esa moneda. Un aporte cuenta en el Plan solo si la cuenta de destino está en la moneda del Plan. Las transferencias a cuentas de ahorro o inversión en otra moneda quedan registradas con su importe en esa moneda, pero el Plan no las suma ni las convierte.
 
 ---
 

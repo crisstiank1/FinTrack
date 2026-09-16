@@ -485,6 +485,19 @@ describe('selectAvailableContributionAccounts', () => {
     ).toEqual(['acc-reserva'])
   })
 
+  it('con la moneda del Plan no ofrece cuentas en otra moneda', () => {
+    const withCurrencies = [
+      { id: 'acc-fondo', type: 'savings', is_archived: false, currency_code: 'COP' },
+      { id: 'acc-dolares', type: 'savings', is_archived: false, currency_code: 'USD' },
+    ]
+
+    expect(
+      selectAvailableContributionAccounts(withCurrencies, 'savings', new Set(), 'COP').map(
+        (a) => a.id,
+      ),
+    ).toEqual(['acc-fondo'])
+  })
+
   it('sin cuentas libres devuelve la lista vacía', () => {
     expect(
       selectAvailableContributionAccounts(

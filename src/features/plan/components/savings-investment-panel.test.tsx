@@ -8,8 +8,8 @@ import type { ContributionBalances } from '../hooks'
 import { SavingsInvestmentPanel, type ContributionPlanning } from './savings-investment-panel'
 
 const balances: ContributionBalances = {
-  savings: { balanceMinor: 700_000, accountCount: 2, archivedCount: 0 },
-  investment: { balanceMinor: 0, accountCount: 0, archivedCount: 0 },
+  savings: { balanceMinor: 700_000, accountCount: 2, archivedCount: 0, otherCurrencyCount: 0 },
+  investment: { balanceMinor: 0, accountCount: 0, archivedCount: 0, otherCurrencyCount: 0 },
   asOfDate: '2026-09-30',
 }
 
@@ -107,7 +107,10 @@ describe('SavingsInvestmentPanel', () => {
 
   it('también enlaza a Cuentas cuando no hay cuentas de ahorro', () => {
     renderPanel({
-      balances: { ...balances, savings: { balanceMinor: 0, accountCount: 0, archivedCount: 0 } },
+      balances: {
+        ...balances,
+        savings: { balanceMinor: 0, accountCount: 0, archivedCount: 0, otherCurrencyCount: 0 },
+      },
     })
 
     expect(figure(card('Ahorro'), 'Saldo en cuentas de ahorro')[0]).toBe('Sin cuentas de ahorro')
@@ -118,7 +121,10 @@ describe('SavingsInvestmentPanel', () => {
 
   it('con cuentas y saldo 0 escribe COP 0 con su pie', () => {
     renderPanel({
-      balances: { ...balances, investment: { balanceMinor: 0, accountCount: 1, archivedCount: 0 } },
+      balances: {
+        ...balances,
+        investment: { balanceMinor: 0, accountCount: 1, archivedCount: 0, otherCurrencyCount: 0 },
+      },
     })
 
     expect(figure(card('Inversión'), 'Saldo en cuentas de inversión')).toEqual([
@@ -131,7 +137,12 @@ describe('SavingsInvestmentPanel', () => {
     renderPanel({
       balances: {
         ...balances,
-        savings: { balanceMinor: 700_000, accountCount: 2, archivedCount: 1 },
+        savings: {
+          balanceMinor: 700_000,
+          accountCount: 2,
+          archivedCount: 1,
+          otherCurrencyCount: 0,
+        },
       },
     })
 
@@ -144,7 +155,12 @@ describe('SavingsInvestmentPanel', () => {
     renderPanel({
       balances: {
         ...balances,
-        savings: { balanceMinor: -50_000, accountCount: 1, archivedCount: 0 },
+        savings: {
+          balanceMinor: -50_000,
+          accountCount: 1,
+          archivedCount: 0,
+          otherCurrencyCount: 0,
+        },
       },
     })
 
@@ -357,5 +373,69 @@ describe('SavingsInvestmentPanel — aportes planeados', () => {
       'COP 700.000',
       'Al 30 de septiembre de 2026 · 2 cuentas',
     ])
+  })
+})
+
+describe('SavingsInvestmentPanel — cuentas en otra moneda', () => {
+  it('suma solo las cuentas en la moneda del Plan y dice cuántas quedan fuera', () => {
+    renderPanel({
+      balances: {
+        ...balances,
+        savings: {
+          balanceMinor: 700_000,
+          accountCount: 2,
+          archivedCount: 0,
+          otherCurrencyCount: 1,
+        },
+      },
+    })
+
+    expect(figure(card('Ahorro'), 'Saldo en cuentas de ahorro')).toEqual([
+      'COP 700.000',
+      'Al 30 de septiembre de 2026 · 2 cuentas',
+      '1 cuenta en otra moneda no se suma',
+    ])
+  })
+
+  it('con todas las cuentas del tipo en otra moneda no dice «Sin cuentas» ni un saldo', () => {
+    renderPanel({
+      balances: {
+        ...balances,
+        investment: { balanceMinor: 0, accountCount: 0, archivedCount: 0, otherCurrencyCount: 2 },
+      },
+    })
+
+    expect(figure(card('Inversión'), 'Saldo en cuentas de inversión')).toEqual([
+      '2 cuentas en otra moneda no se suman',
+    ])
+    expect(
+      within(card('Inversión')).queryByText('Sin cuentas de inversión'),
+    ).not.toBeInTheDocument()
+  })
+
+  it('marca la línea de aporte cuya cuenta está en otra moneda, sin quitar su planeado', () => {
+    const planning: ContributionPlanning = {
+      lines: [
+        {
+          id: 'l-usd',
+          name: 'Dólares',
+          accountName: 'Ahorro USD',
+          isAccountArchived: false,
+          otherCurrencyCode: 'USD',
+          plannedMinor: 300_000,
+        },
+      ],
+      hasActiveAccounts: true,
+      availableAccountCount: 1,
+      onAdd: vi.fn(),
+      onEdit: vi.fn(),
+      onDelete: vi.fn(),
+    }
+
+    renderPanel({ planning: { savings: planning, investment: { ...planning, lines: [] } } })
+
+    const item = within(card('Ahorro')).getByRole('listitem')
+    expect(item).toHaveTextContent('Dólares · Ahorro USD · COP 300.000')
+    expect(item).toHaveTextContent('Cuenta en USD: su aporte real no se cuenta')
   })
 })

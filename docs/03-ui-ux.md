@@ -87,8 +87,9 @@ cambio en M2). Reglas de presentación de monedas:
 - **Moneda principal del perfil:** COP, USD o ARS, con COP por defecto. Se elige
   durante el onboarding (D3) y hoy no se puede cambiar desde Settings (D7).
 - **Cambiar la moneda de una cuenta:** bloqueado si la cuenta ya tiene
-  movimientos (D6); permitido sin movimientos. Las líneas de aporte del Plan no
-  se comprueban (limitación hasta M5).
+  movimientos (D6); permitido sin movimientos. No comprueba si la cuenta tiene
+  líneas de aporte en el Plan: es una limitación que queda. Desde M5 el Plan ya
+  no deja crear aportes sobre cuentas en otra moneda, y marca las que existan.
 - **Filtro por moneda (M3):** `/transactions` y `/ledger` tienen un selector
   «Moneda» con «Todas las monedas» y solo las monedas de las cuentas del
   usuario (archivadas incluidas, y EUR/MXN si hay cuentas heredadas), con la
@@ -118,8 +119,12 @@ cambio en M2). Reglas de presentación de monedas:
 - **Limitación conocida:** las transferencias entre monedas registradas antes
   de M4 guardaron el mismo importe en las dos patas (p. ej. COP 100.000 que
   «entran» como USD 100.000) y siguen así hasta que el usuario las elimine y
-  las vuelva a crear. El Plan suma los aportes con el importe de la pata
-  entrante sin separar monedas (limitación hasta M5).
+  las vuelva a crear.
+- **Plan y Presupuestos (M5):** van enteros en la moneda de presentación, sin
+  desglose por moneda. Los ingresos, gastos y aportes en otras monedas no se
+  suman y se avisan («3 movimientos en otras monedas (USD, ARS) no se incluyen en
+  este Plan.»; en `/budgets`, «2 gastos en otras monedas (USD) no cuentan para
+  estos presupuestos.»). Un aporte cuenta en el Plan solo si la cuenta de destino está en la moneda del Plan. Las transferencias a cuentas de ahorro o inversión en otra moneda quedan registradas con su importe en esa moneda, pero el Plan no las suma ni las convierte.
 
 ---
 
@@ -319,6 +324,10 @@ borradores**: esa es `/sheets`.
 Ruta existente. Presupuesto mensual por categoría, progreso y alertas.
 Acepta `?month=YYYY-MM`. Modelo y reglas: `docs/06-presupuestos.md`.
 
+Importes y gastado en la moneda de presentación (M5, ver «Monedas»). Si hay
+gastos del mes en otras monedas, un aviso encima de la lista dice cuántos y en
+qué monedas no cuentan.
+
 ### `/sheets`
 
 **Ruta futura de la Fase 8.5. Todavía no tiene UI implementada:** el esquema
@@ -362,6 +371,14 @@ es un medio para pagar:** no inicia ni ejecuta ningún movimiento de dinero.
 La deuda no tiene bloque de planificación propio: se planifica como cualquier
 categoría de gasto, desde `/budgets`, y aparece como grupo del reparto y como
 fila del cuadro Presupuesto vs. Actual.
+
+**Moneda (M5, ver «Monedas»):** todo el Plan va en la moneda de presentación,
+que se muestra junto al mes. Si hay movimientos del mes en otras monedas, un
+aviso encima de todo dice cuántos y en qué monedas no se incluyen, también en un
+mes sin nada que comparar. En «Ahorro e inversión» el saldo suma solo cuentas en
+esa moneda y dice cuántas quedan fuera; el formulario de aportes solo ofrece
+cuentas en esa moneda, y una línea sobre una cuenta en otra se marca «Cuenta en
+USD: su aporte real no se cuenta».
 
 **Reglas de presentación:**
 - Distinguir siempre «Planeado» de «Actual»; nunca presentarlos como una sola
@@ -425,8 +442,9 @@ al editar una cuenta que ya está en esas monedas, aparecen como opción heredad
 para poder guardar sin perder la moneda (D1); no se ofrecen para cuentas
 nuevas. Cambiar la moneda de una cuenta existente está bloqueado si la cuenta
 ya tiene movimientos, con el texto «La moneda no se puede cambiar porque la
-cuenta ya tiene movimientos» (D6). Sin movimientos, el cambio se permite. Las
-líneas de aporte del Plan no se comprueban (limitación hasta M5).
+cuenta ya tiene movimientos» (D6). Sin movimientos, el cambio se permite. No se
+comprueba si la cuenta tiene líneas de aporte en el Plan (limitación que queda;
+el Plan las marca, ver «Monedas»).
 
 ### `/settings`
 

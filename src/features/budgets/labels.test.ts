@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  excludedExpensesNote,
   budgetAlertMessage,
   budgetAlertSeverity,
   formatBudgetPercent,
@@ -106,5 +107,20 @@ describe('budgetAlertMessage', () => {
     expect(budgetAlertMessage('Alimentación', excedido, 'COP')).toBe(
       'Alimentación superó su presupuesto por COP 30.000.',
     )
+  })
+})
+
+describe('excludedExpensesNote', () => {
+  it('avisa de los gastos en otras monedas, en plural y en singular', () => {
+    expect(excludedExpensesNote({ count: 2, currencyCodes: ['USD'] })).toBe(
+      '2 gastos en otras monedas (USD) no cuentan para estos presupuestos.',
+    )
+    expect(excludedExpensesNote({ count: 1, currencyCodes: ['ARS'] })).toBe(
+      '1 gasto en otra moneda (ARS) no cuenta para estos presupuestos.',
+    )
+  })
+
+  it('sin gastos excluidos no hay aviso', () => {
+    expect(excludedExpensesNote({ count: 0, currencyCodes: [] })).toBeNull()
   })
 })

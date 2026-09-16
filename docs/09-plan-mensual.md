@@ -302,6 +302,12 @@ el bloque «Ahorro e inversión», y solo con plan del mes:
   planificar un aporte sobre una cuenta archivada.»), nunca como errores de
   categoría.
 
+- **Moneda (M5).** El selector ofrece solo cuentas en la moneda del Plan. Una
+  línea que ya exista sobre una cuenta en otra moneda —creada antes de M5, o
+  porque la cuenta cambió de moneda sin tener movimientos— se marca «Cuenta en
+  USD: su aporte real no se cuenta». Su importe planeado sigue contando, porque
+  es una cifra escrita en la moneda del Plan.
+
 Límites conocidos de esta entrega: cada fila muestra solo lo planeado, porque
 el real se mide por tipo de cuenta y no por cuenta ni por línea; y si una
 cuenta cambia de tipo después de crear su aporte, la línea sigue contando por
@@ -427,6 +433,30 @@ las políticas.
 Todo en `bigint`, unidades mínimas, aritmética entera. `M` es el rango de fechas
 del mes del plan.
 
+### Moneda del Plan (M5)
+
+FinTrack no convierte divisas, así que el Plan va entero en **una sola moneda**:
+la de presentación, que es la principal del perfil si el usuario tiene alguna
+cuenta en ella y, si no, la de la primera cuenta (`resolvePresentationCurrency`,
+el mismo criterio del Dashboard y del Libro). Ninguna tabla del Plan ni
+`budgets` guarda moneda: sus importes se entienden en esa.
+
+Todas las fórmulas de abajo se calculan **solo** con movimientos de cuentas en
+esa moneda. El recorte se hace una sola vez, antes de cualquier cifra
+(`scopePlanMonthToCurrency`), para que ingresos, gastos, líneas, reparto, aportes
+y Restante no puedan descuadrarse entre sí:
+
+- Ingresos y gastos de cuentas en otra moneda quedan fuera de todas las cifras.
+- Un movimiento cuya cuenta no se conoce se queda dentro, como en el Libro.
+- Aportes: ver «Las tres cifras de ahorro».
+- No hay desglose por moneda. Lo excluido se cuenta y se avisa encima del Plan:
+  «3 movimientos en otras monedas (USD, ARS) no se incluyen en este Plan.» En
+  singular, «1 movimiento en otra moneda (USD) no se incluye en este Plan.» Sin
+  aviso si no falta nada. Cuentan ingresos, gastos y aportes excluidos (uno por
+  transferencia); las demás transferencias no, porque el Plan nunca las usa.
+
+Con una sola moneda, nada cambia respecto a antes de M5.
+
 ### Ingreso
 
 ```
@@ -538,6 +568,16 @@ entre dos cuentas de ahorro cuente como ahorrar de nuevo.
 
 Estas transferencias son registros que el usuario tecleó. Leerlas no las
 ejecuta ni las origina.
+
+**Moneda (M5).** Un aporte cuenta en el Plan solo si la cuenta de destino está en la moneda del Plan. Las transferencias a cuentas de ahorro o inversión en otra moneda quedan registradas con su importe en esa moneda, pero el Plan no las suma ni las convierte.
+Se usa el importe de la pata entrante, que ya va en la moneda de destino (M4),
+así que la moneda de origen no importa: un aporte desde una cuenta en USD a una
+cuenta de ahorro en COP cuenta, y en COP. Un aporte a una cuenta de ahorro en USD
+queda fuera y entra en el aviso de movimientos excluidos.
+
+`saldoEnAhorro` y `saldoEnInversion` suman solo las cuentas en la moneda del
+Plan. Las del tipo en otra moneda se dicen aparte («1 cuenta en otra moneda no
+se suma»); si todas lo están, no se muestra «Sin cuentas» sino esa nota.
 
 ### Inversión
 

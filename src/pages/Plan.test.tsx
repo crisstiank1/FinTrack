@@ -28,6 +28,8 @@ const useZeroBudgetCategoryIds = vi.fn()
 const savePlanLine = vi.fn()
 const deletePlanLine = vi.fn()
 const saveContributionLine = vi.fn()
+const useAccounts = vi.fn()
+const usePrimaryCurrency = vi.fn()
 
 vi.mock('@/features/plan/hooks', () => ({
   usePlanMonth: () => usePlanMonth(),
@@ -43,7 +45,8 @@ vi.mock('@/features/plan/hooks', () => ({
   useDeleteIncomeSource: () => ({ mutateAsync: deleteIncomeSource, isPending: false }),
   useSaveAllocations: () => ({ mutateAsync: saveAllocations, isPending: false }),
   usePlanLineProgress: (options: unknown) => usePlanLineProgress(options),
-  usePlanContributionBalances: (monthKey: unknown) => usePlanContributionBalances(monthKey),
+  usePlanContributionBalances: (monthKey: unknown, currencyCode: unknown) =>
+    usePlanContributionBalances(monthKey, currencyCode),
   useZeroBudgetCategoryIds: (monthKey: unknown) => useZeroBudgetCategoryIds(monthKey),
   useSavePlanLine: () => ({ mutateAsync: savePlanLine, isPending: false }),
   useDeletePlanLine: () => ({ mutateAsync: deletePlanLine, isPending: false }),
@@ -68,7 +71,11 @@ vi.mock('sonner', () => ({
 }))
 
 vi.mock('@/features/accounts/hooks', () => ({
-  useAccounts: () => ({ data: planAccounts }),
+  useAccounts: () => useAccounts(),
+}))
+
+vi.mock('@/features/profile/hooks', () => ({
+  usePrimaryCurrency: () => usePrimaryCurrency(),
 }))
 
 const toastError = vi.fn()
@@ -199,12 +206,13 @@ const actuals = {
     unattributedMinor: 0,
     ambiguousCategoryIds: [],
   },
+  exclusions: { count: 0, currencyCodes: [] as string[] },
 }
 
 /** Saldos al cierre del mes, como los da `usePlanContributionBalances`. */
 const contributionBalances = {
-  savings: { balanceMinor: 700_000, accountCount: 2, archivedCount: 0 },
-  investment: { balanceMinor: 0, accountCount: 0, archivedCount: 0 },
+  savings: { balanceMinor: 700_000, accountCount: 2, archivedCount: 0, otherCurrencyCount: 0 },
+  investment: { balanceMinor: 0, accountCount: 0, archivedCount: 0, otherCurrencyCount: 0 },
   asOfDate: '2026-04-30',
 }
 
@@ -240,6 +248,8 @@ function amountOf(text: string): number {
 }
 
 beforeEach(() => {
+  useAccounts.mockReturnValue({ data: planAccounts })
+  usePrimaryCurrency.mockReturnValue({ data: 'COP', isPending: false })
   usePlanMonth.mockReturnValue(resolved(planMonth))
   usePlanLines.mockReturnValue(resolved(lines))
   useCategoryClassifications.mockReturnValue(resolved(classifications))
@@ -1293,12 +1303,13 @@ describe('Plan', () => {
       const user = userEvent.setup()
       renderPlan()
 
-      expect(usePlanContributionBalances).toHaveBeenCalledWith(currentMonthKey())
+      expect(usePlanContributionBalances).toHaveBeenCalledWith(currentMonthKey(), 'COP')
 
       await user.click(screen.getByRole('button', { name: /Mes anterior/ }))
 
       expect(usePlanContributionBalances).toHaveBeenLastCalledWith(
         shiftMonthKey(currentMonthKey(), -1),
+        'COP',
       )
     })
 
@@ -2194,5 +2205,139 @@ describe('Plan', () => {
       expect(savePlanLine).not.toHaveBeenCalled()
       expect(deletePlanLine).not.toHaveBeenCalled()
     })
+  })
+})
+
+describe('Plan — moneda del Plan', () => {
+  const usdChecking = {
+    id: 'acc-usd',
+    name: 'Cuenta USD',
+    type: 'checking',
+    is_archived: false,
+    currency_code: 'USD',
+  } as Tables<'accounts'>
+
+  function savingsCard(): HTMLElement {
+    const block = screen.getByRole('region', { name: 'Ahorro e inversión' })
+    return within(block).getByRole('region', { name: 'Ahorro' })
+  }
+
+  it('pide todas las cifras del mes en la moneda de presentación', () => {
+    renderPlan()
+
+    expect(usePlanActuals).toHaveBeenLastCalledWith(
+      expect.objectContaining({ currencyCode: 'COP' }),
+    )
+    expect(usePlanLineProgress).toHaveBeenLastCalledWith(
+      expect.objectContaining({ currencyCode: 'COP' }),
+    )
+    expect(usePlanContributionBalances).toHaveBeenLastCalledWith(currentMonthKey(), 'COP')
+    expect(screen.getByText(/· COP$/)).toBeInTheDocument()
+  })
+
+  it('espera a la moneda principal antes de calcular, sin mezclar monedas', () => {
+    usePrimaryCurrency.mockReturnValue({ data: undefined, isPending: true })
+
+    renderPlan()
+
+    expect(usePlanActuals).toHaveBeenLastCalledWith(
+      expect.objectContaining({ currencyCode: undefined }),
+    )
+    expect(screen.getByRole('status')).toHaveTextContent(/Cargando el plan/)
+  })
+
+  it('usa la moneda principal aunque no sea la de la primera cuenta', () => {
+    useAccounts.mockReturnValue({ data: [...planAccounts, usdChecking] })
+    usePrimaryCurrency.mockReturnValue({ data: 'USD', isPending: false })
+
+    renderPlan()
+
+    expect(usePlanActuals).toHaveBeenLastCalledWith(
+      expect.objectContaining({ currencyCode: 'USD' }),
+    )
+    expect(screen.getByText(/· USD$/)).toBeInTheDocument()
+  })
+
+  it('sin cuentas en la moneda principal usa la de la primera cuenta', () => {
+    usePrimaryCurrency.mockReturnValue({ data: 'ARS', isPending: false })
+
+    renderPlan()
+
+    expect(usePlanActuals).toHaveBeenLastCalledWith(
+      expect.objectContaining({ currencyCode: 'COP' }),
+    )
+  })
+
+  it('avisa de los movimientos en otras monedas que no se incluyen', () => {
+    usePlanActuals.mockReturnValue(
+      resolved({ ...actuals, exclusions: { count: 3, currencyCodes: ['USD', 'ARS'] } }),
+    )
+
+    renderPlan()
+
+    expect(screen.getByRole('note')).toHaveTextContent(
+      '3 movimientos en otras monedas (USD, ARS) no se incluyen en este Plan.',
+    )
+  })
+
+  it('en singular con un solo movimiento excluido', () => {
+    usePlanActuals.mockReturnValue(
+      resolved({ ...actuals, exclusions: { count: 1, currencyCodes: ['USD'] } }),
+    )
+
+    renderPlan()
+
+    expect(screen.getByRole('note')).toHaveTextContent(
+      '1 movimiento en otra moneda (USD) no se incluye en este Plan.',
+    )
+  })
+
+  it('sin movimientos en otras monedas no hay aviso', () => {
+    renderPlan()
+
+    expect(screen.queryByRole('note')).not.toBeInTheDocument()
+  })
+
+  it('marca la línea de aporte cuya cuenta está en otra moneda y conserva su planeado', () => {
+    useAccounts.mockReturnValue({
+      data: planAccounts.map((account) =>
+        account.id === ACC_SAVINGS ? { ...account, currency_code: 'USD' } : account,
+      ),
+    })
+
+    renderPlan()
+
+    const lista = within(savingsCard()).getByRole('list', { name: 'Aportes a ahorro planeados' })
+    const item = within(lista).getByRole('listitem')
+    expect(item).toHaveTextContent('Ahorro · Fondo · COP 400.000')
+    expect(item).toHaveTextContent('Cuenta en USD: su aporte real no se cuenta')
+    expect(within(savingsCard()).getByText('Planeado: COP 400.000')).toBeInTheDocument()
+  })
+
+  it('el formulario de aportes no ofrece cuentas en otra moneda', async () => {
+    useAccounts.mockReturnValue({
+      data: [
+        ...planAccounts,
+        {
+          id: 'acc-ahorro-usd',
+          name: 'Ahorro USD',
+          type: 'savings',
+          is_archived: false,
+          currency_code: 'USD',
+        } as Tables<'accounts'>,
+      ],
+    })
+    const user = userEvent.setup()
+    renderPlan()
+
+    await user.click(within(savingsCard()).getByRole('button', { name: 'Añadir aporte a ahorro' }))
+
+    const dialog = await screen.findByRole('dialog')
+    const selector = within(dialog).getByLabelText('Cuenta de ahorro')
+    expect(
+      within(selector)
+        .getAllByRole('option')
+        .map((option) => option.textContent),
+    ).toEqual(['Selecciona una cuenta', 'Reserva'])
   })
 })
