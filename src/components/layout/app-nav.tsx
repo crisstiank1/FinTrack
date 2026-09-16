@@ -7,6 +7,7 @@ import {
   Menu,
   PiggyBank,
   Settings,
+  Sheet,
   Wallet,
   type LucideIcon,
 } from 'lucide-react'
@@ -18,9 +19,9 @@ import { cn } from '@/lib/utils'
 /**
  * Cómo se reparte la navegación según el ancho disponible:
  *
- * - `wide` (≥ 1024 px): los siete enlaces en fila, como siempre.
+ * - `wide` (≥ 1024 px): los ocho enlaces en fila, como siempre.
  * - `compact` (640–1023 px): cuatro principales en fila y el resto en «Más».
- * - `narrow` (< 640 px): los siete dentro de «Menú». Cuatro nombres completos
+ * - `narrow` (< 640 px): los ocho dentro de «Menú». Cuatro nombres completos
  *   más «Más» no caben en 320 px sin abreviarlos.
  */
 export type NavMode = 'narrow' | 'compact' | 'wide'
@@ -48,6 +49,7 @@ const NAV_ITEMS: readonly NavItem[] = [
   { to: '/accounts', label: 'Cuentas', icon: Wallet, priority: 'secondary' },
   { to: '/transactions', label: 'Movimientos', icon: ArrowLeftRight, priority: 'primary' },
   { to: '/ledger', label: 'Libro', icon: BookOpen, priority: 'secondary' },
+  { to: '/sheets', label: 'Hojas', icon: Sheet, priority: 'secondary' },
   { to: '/budgets', label: 'Presupuestos', icon: PiggyBank, priority: 'primary' },
   { to: '/plan', label: 'Plan mensual', icon: CalendarRange, priority: 'primary' },
   { to: '/settings', label: 'Ajustes', icon: Settings, priority: 'secondary' },

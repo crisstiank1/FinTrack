@@ -131,8 +131,11 @@ categorías y su clasificación:
 
 ### Hojas (M7)
 
-`/sheets` no tiene interfaz todavía; estas son las reglas con las que se
-construirá. Modelo completo en `docs/07-hojas.md`.
+Implementado en `/sheets`. La rejilla muestra el importe de una fila con su
+código de moneda cuando la fila tiene cuenta (`formatAmount`, con el código de
+la cuenta), y sin código cuando aún no la tiene (formato `es-CO`). Al cambiar la
+cuenta, solo cambia el código que precede al importe; el número no se convierte.
+Modelo completo en `docs/07-hojas.md`.
 
 - **Una hoja no tiene moneda propia.** Cada fila lleva la de la cuenta escrita
   en su celda `account_id`, igual que en Movimientos y en el Libro.
@@ -242,13 +245,13 @@ ninguna cifra cambia respecto a un FinTrack sin monedas múltiples.
 Moneda principal COP. En septiembre hay un salario de COP 3.000.000, un gasto de
 COP 800.000, un ingreso de USD 500 y un gasto de USD 120.
 
-| Pantalla | Qué muestra |
-| --- | --- |
-| Plan · Ingreso total | COP 3.000.000 |
-| Plan · Total gastado | COP 800.000 |
-| Plan · aviso | «2 movimientos en otras monedas (USD) no se incluyen en este Plan.» |
-| Libro con «Todas» | Ingresos «COP 3.000.000 / USD 500», Gastos «COP 800.000 / USD 120» |
-| Libro filtrando USD | Solo las dos filas en USD, con su resumen en USD |
+| Pantalla             | Qué muestra                                                         |
+| -------------------- | ------------------------------------------------------------------- |
+| Plan · Ingreso total | COP 3.000.000                                                       |
+| Plan · Total gastado | COP 800.000                                                         |
+| Plan · aviso         | «2 movimientos en otras monedas (USD) no se incluyen en este Plan.» |
+| Libro con «Todas»    | Ingresos «COP 3.000.000 / USD 500», Gastos «COP 800.000 / USD 120»  |
+| Libro filtrando USD  | Solo las dos filas en USD, con su resumen en USD                    |
 
 Los USD no desaparecen: se ven en el Libro, en Movimientos y en el saldo aparte
 del Dashboard. Lo que no ocurre es que se sumen a las cifras en COP.
@@ -257,10 +260,10 @@ del Dashboard. Lo que no ocurre es que se sumen a las cifras en COP.
 
 Moneda del Plan, COP.
 
-| Transferencia | ¿Cuenta como aporte? | Por qué |
-| --- | --- | --- |
-| USD 120 desde una cuenta USD → COP 480.000 a una cuenta de ahorro COP | **Sí**, COP 480.000 | La pata entrante ya está en la moneda del Plan |
-| COP 50.000 desde una cuenta COP → USD 12 a una cuenta de ahorro USD | **No** | El destino está en otra moneda; suma 1 al aviso de movimientos excluidos |
+| Transferencia                                                         | ¿Cuenta como aporte? | Por qué                                                                  |
+| --------------------------------------------------------------------- | -------------------- | ------------------------------------------------------------------------ |
+| USD 120 desde una cuenta USD → COP 480.000 a una cuenta de ahorro COP | **Sí**, COP 480.000  | La pata entrante ya está en la moneda del Plan                           |
+| COP 50.000 desde una cuenta COP → USD 12 a una cuenta de ahorro USD   | **No**               | El destino está en otra moneda; suma 1 al aviso de movimientos excluidos |
 
 ---
 
@@ -268,17 +271,17 @@ Moneda del Plan, COP.
 
 Cada una con su estado. Ninguna tiene fecha comprometida.
 
-| Limitación | Alcance | Estado |
-| --- | --- | --- |
-| Cambiar la moneda de una cuenta no comprueba si tiene líneas de aporte en el Plan | `/accounts` | Abierta. Desde M5 el Plan marca esas líneas y no deja crear aportes sobre cuentas en otra moneda |
-| Las transferencias entre monedas creadas antes de M4 pueden tener el mismo importe en las dos patas | Datos existentes | Abierta. Se corrige a mano: eliminar la transferencia y volver a crearla |
-| Editar una transferencia no puede cambiar la moneda de ninguna pata | `/transactions`, `/ledger` | Por diseño (M8): para cambiar de moneda se elimina y se vuelve a crear |
-| Una fila de hoja sin cuenta muestra su importe sin código de moneda | `/sheets`, sin implementar | Por diseño (M7): hasta que la fila tenga cuenta no hay moneda que mostrar. Reglas en `docs/07-hojas.md` |
-| El Plan y los presupuestos guardan importes sin moneda persistida | `budgets`, tablas del Plan | Consecuencia aceptada del modelo: si la moneda de presentación cambiara, esos importes se leerían en la nueva |
+| Limitación                                                                                          | Alcance                    | Estado                                                                                                        |
+| --------------------------------------------------------------------------------------------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Cambiar la moneda de una cuenta no comprueba si tiene líneas de aporte en el Plan                   | `/accounts`                | Abierta. Desde M5 el Plan marca esas líneas y no deja crear aportes sobre cuentas en otra moneda              |
+| Las transferencias entre monedas creadas antes de M4 pueden tener el mismo importe en las dos patas | Datos existentes           | Abierta. Se corrige a mano: eliminar la transferencia y volver a crearla                                      |
+| Editar una transferencia no puede cambiar la moneda de ninguna pata                                 | `/transactions`, `/ledger` | Por diseño (M8): para cambiar de moneda se elimina y se vuelve a crear                                        |
+| Una fila de hoja sin cuenta muestra su importe sin código de moneda                                 | `/sheets`                  | Por diseño (M7): hasta que la fila tenga cuenta no hay moneda que mostrar. Reglas en `docs/07-hojas.md`       |
+| El Plan y los presupuestos guardan importes sin moneda persistida                                   | `budgets`, tablas del Plan | Consecuencia aceptada del modelo: si la moneda de presentación cambiara, esos importes se leerían en la nueva |
 
 ### Resueltas
 
-| Limitación | Alcance | Estado |
-| --- | --- | --- |
+| Limitación                                                                                                                  | Alcance                              | Estado                                                                                                                                                                                                           |
+| --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `fetchTransactions` no pagina: un mes con más de 1000 movimientos truncaba las cifras del Plan y de Presupuestos sin avisar | `/plan`, `/budgets`, `/transactions` | **Resuelta en M11**. La lectura pagina por dentro en ventanas de 1000 (`range` de PostgREST) hasta agotar el conjunto y aborta si una página falla; un mes con más de 1000 movimientos llega entero a las cifras |
-| La moneda principal se elegía solo en el onboarding y no se podía cambiar desde Ajustes | `/settings` | **Resuelta en M12**. Se cambia desde Ajustes, solo entre COP, USD y ARS, con confirmación explícita y aviso de las cuentas que conservan su moneda; no migra cuentas |
+| La moneda principal se elegía solo en el onboarding y no se podía cambiar desde Ajustes                                     | `/settings`                          | **Resuelta en M12**. Se cambia desde Ajustes, solo entre COP, USD y ARS, con confirmación explícita y aviso de las cuentas que conservan su moneda; no migra cuentas                                             |

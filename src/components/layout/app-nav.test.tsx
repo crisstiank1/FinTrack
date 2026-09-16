@@ -10,6 +10,7 @@ const ALL_LABELS = [
   'Cuentas',
   'Movimientos',
   'Libro',
+  'Hojas',
   'Presupuestos',
   'Plan mensual',
   'Ajustes',
@@ -80,7 +81,7 @@ afterEach(() => {
 })
 
 describe('AppNav — estructura por modo', () => {
-  it('wide muestra los siete enlaces en orden y sin disclosure', () => {
+  it('wide muestra los ocho enlaces en orden y sin disclosure', () => {
     renderNav('wide')
 
     expect(linkNames()).toEqual(ALL_LABELS)
@@ -94,7 +95,7 @@ describe('AppNav — estructura por modo', () => {
     expect(disclosure()).toHaveAccessibleName('Más')
   })
 
-  it('compact abierto muestra las siete rutas, cada una una sola vez', async () => {
+  it('compact abierto muestra las ocho rutas, cada una una sola vez', async () => {
     const user = userEvent.setup()
     renderNav('compact')
 
@@ -105,7 +106,7 @@ describe('AppNav — estructura por modo', () => {
       within(panel())
         .getAllByRole('link')
         .map((link) => link.textContent),
-    ).toEqual(['Cuentas', 'Libro', 'Ajustes'])
+    ).toEqual(['Cuentas', 'Libro', 'Hojas', 'Ajustes'])
   })
 
   it('narrow cerrado no monta ningún enlace', () => {
@@ -115,7 +116,7 @@ describe('AppNav — estructura por modo', () => {
     expect(disclosure()).toHaveAccessibleName('Menú, sección actual: Dashboard')
   })
 
-  it('narrow abierto lista las siete rutas en orden, una sola vez', async () => {
+  it('narrow abierto lista las ocho rutas en orden, una sola vez', async () => {
     const user = userEvent.setup()
     renderNav('narrow')
 
@@ -268,6 +269,7 @@ describe('AppNav — disclosure', () => {
     await user.click(disclosure())
     await user.tab() // Cuentas
     await user.tab() // Libro
+    await user.tab() // Hojas
     await user.tab() // Ajustes
     await user.tab() // fuera
 
@@ -453,6 +455,7 @@ describe('AppNav — estado activo', () => {
   it.each([
     ['/accounts', 'Cuentas'],
     ['/ledger', 'Libro'],
+    ['/sheets', 'Hojas'],
     ['/settings', 'Ajustes'],
   ])('en compact, %s marca «Más» y nombra la sección', async (path, label) => {
     const user = userEvent.setup()

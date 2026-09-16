@@ -30,6 +30,9 @@ const Budgets = lazy(() => import('@/pages/Budgets'))
 /** El Plan mensual sigue el mismo criterio que Presupuestos. */
 const Plan = lazy(() => import('@/pages/Plan'))
 
+/** Hojas arrastra TanStack Table; su chunk aparte no penaliza al resto de rutas. */
+const Sheets = lazy(() => import('@/pages/Sheets'))
+
 export function AppRouter() {
   return (
     <BrowserRouter>
@@ -85,6 +88,16 @@ export function AppRouter() {
                   fallback={<p className="p-6 text-sm text-muted-foreground">Cargando plan...</p>}
                 >
                   <Plan />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/sheets"
+              element={
+                <Suspense
+                  fallback={<p className="p-6 text-sm text-muted-foreground">Cargando hojas...</p>}
+                >
+                  <Sheets />
                 </Suspense>
               }
             />
