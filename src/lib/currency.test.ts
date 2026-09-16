@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  accountsKeptInCurrentCurrency,
   CURRENCIES,
   CURRENCY_CODES,
   formatAmount,
@@ -207,5 +208,22 @@ describe('resolvePresentationCurrency', () => {
   it('sin cuentas usa la moneda principal, o COP si tampoco la hay', () => {
     expect(resolvePresentationCurrency('USD', [])).toBe('USD')
     expect(resolvePresentationCurrency(null, [])).toBe('COP')
+  })
+})
+
+describe('accountsKeptInCurrentCurrency', () => {
+  const accounts = [{ currency_code: 'COP' }, { currency_code: 'COP' }, { currency_code: 'USD' }]
+
+  it('cuenta las cuentas en la moneda actual al cambiarla', () => {
+    expect(accountsKeptInCurrentCurrency(accounts, 'COP', 'USD')).toBe(2)
+  })
+
+  it('no hay nada que advertir si la moneda no cambia', () => {
+    expect(accountsKeptInCurrentCurrency(accounts, 'COP', 'COP')).toBe(0)
+  })
+
+  it('cuenta las cuentas de la actual, no las de la nueva ni las de terceros', () => {
+    expect(accountsKeptInCurrentCurrency(accounts, 'USD', 'COP')).toBe(1)
+    expect(accountsKeptInCurrentCurrency(accounts, 'ARS', 'USD')).toBe(0)
   })
 })

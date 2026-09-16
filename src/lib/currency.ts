@@ -194,3 +194,21 @@ export function resolvePresentationCurrency(
   }
   return accounts[0]?.currency_code ?? primaryCode ?? 'COP'
 }
+
+/**
+ * Cuentas que conservarán su moneda al cambiar la principal (M12).
+ *
+ * Cambiar la moneda principal no migra cuentas: si el usuario pasa de COP a USD
+ * teniendo cuentas en COP, esas cuentas siguen en COP y sus totales aparecen
+ * aparte, o incluso dejan de existir cuentas en la nueva principal y la
+ * presentación recae en la primera cuenta. Este conteo alimenta la advertencia
+ * de Ajustes; `0` si no hay nada que advertir.
+ */
+export function accountsKeptInCurrentCurrency(
+  accounts: readonly { currency_code: string }[],
+  currentCurrencyCode: string,
+  nextCurrencyCode: string,
+): number {
+  if (currentCurrencyCode === nextCurrencyCode) return 0
+  return accounts.filter((account) => account.currency_code === currentCurrencyCode).length
+}

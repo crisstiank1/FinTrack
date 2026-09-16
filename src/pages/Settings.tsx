@@ -2,9 +2,12 @@ import { useMemo, useState } from 'react'
 import { Plus } from 'lucide-react'
 import { toast } from 'sonner'
 
+import { useAccounts } from '@/features/accounts/hooks'
 import { ConfirmDialog } from '@/components/shared/confirm-dialog'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Label } from '@/components/ui/label'
+import { Select } from '@/components/ui/select'
 import {
   ClassificationPanel,
   type PanelCategory,
@@ -30,6 +33,8 @@ import {
   useUpdateCategory,
 } from '@/features/categories/hooks'
 import type { CategoryFormValues } from '@/features/categories/schemas'
+import { usePrimaryCurrency, useUpdatePrimaryCurrency } from '@/features/profile/hooks'
+import { accountsKeptInCurrentCurrency, currencyOptions } from '@/lib/currency'
 import type { Tables } from '@/types/database.types'
 
 /** Colección vacía con identidad estable, para no invalidar el `useMemo`. */
@@ -46,11 +51,23 @@ export default function Settings() {
   const updateClassification = useUpdateCategoryClassification()
   const deleteClassification = useDeleteCategoryClassification()
 
+  const primaryCurrencyQuery = usePrimaryCurrency()
+  const updatePrimaryCurrency = useUpdatePrimaryCurrency()
+  const accountsQuery = useAccounts()
+
   const [formOpen, setFormOpen] = useState(false)
   const [editingCategory, setEditingCategory] = useState<Tables<'categories'> | null>(null)
   const [archivingCategory, setArchivingCategory] = useState<Tables<'categories'> | null>(null)
   const [removingClassification, setRemovingClassification] =
     useState<ClassifiedCategory<PanelCategory> | null>(null)
+  const [currencyCandidate, setCurrencyCandidate] = useState<string | null>(null)
+
+  /** Cuentas en la moneda actual que conservarán su moneda si se confirma el cambio. */
+  const keptAccounts = useMemo(() => {
+    const current = primaryCurrencyQuery.data
+    if (!current || !currencyCandidate) return 0
+    return accountsKeptInCurrentCurrency(accountsQuery.data ?? [], current, currencyCandidate)
+  }, [accountsQuery.data, primaryCurrencyQuery.data, currencyCandidate])
 
   const partition = useMemo(
     () =>
@@ -69,6 +86,29 @@ export default function Settings() {
   function openCreateForm() {
     setEditingCategory(null)
     setFormOpen(true)
+  }
+
+  /** Cambiar la moneda en el selector solo prepara el cambio; hay que confirmarlo. */
+  function handleCurrencySelect(value: string) {
+    const current = primaryCurrencyQuery.data
+    if (!current || value === current) return
+    setCurrencyCandidate(value)
+  }
+
+  async function handleCurrencyConfirm() {
+    const candidate = currencyCandidate
+    if (!candidate) return
+
+    try {
+      await updatePrimaryCurrency.mutateAsync(candidate)
+      toast.success('Moneda principal actualizada')
+    } catch (error) {
+      toast.error('No se pudo cambiar la moneda principal', {
+        description: error instanceof Error ? error.message : undefined,
+      })
+    } finally {
+      setCurrencyCandidate(null)
+    }
   }
 
   async function handleSubmit(values: CategoryFormValues) {
@@ -145,13 +185,37 @@ export default function Settings() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-foreground">Ajustes</h1>
-          <p className="text-sm text-muted-foreground">Categorías</p>
+          <p className="text-sm text-muted-foreground">Preferencias y categorías</p>
         </div>
         <Button type="button" onClick={openCreateForm}>
           <Plus className="size-4" aria-hidden="true" />
           Nueva categoría
         </Button>
       </div>
+
+      <section className="mt-8">
+        <h2 className="text-lg font-semibold text-foreground">Moneda principal</h2>
+        <p className="text-sm text-muted-foreground">
+          En qué moneda se presentan tus totales en todas las pantallas. Tus cuentas conservan su
+          moneda: esto no migra ninguna.
+        </p>
+
+        <div className="mt-4 flex max-w-xs flex-col gap-2">
+          <Label htmlFor="primary-currency">Moneda principal</Label>
+          <Select
+            id="primary-currency"
+            value={primaryCurrencyQuery.data ?? ''}
+            disabled={primaryCurrencyQuery.isPending}
+            onChange={(event) => handleCurrencySelect(event.target.value)}
+          >
+            {currencyOptions().map((currency) => (
+              <option key={currency.code} value={currency.code}>
+                {currency.label}
+              </option>
+            ))}
+          </Select>
+        </div>
+      </section>
 
       {isLoading && <p className="mt-8 text-sm text-muted-foreground">Cargando categorías...</p>}
 
@@ -223,6 +287,19 @@ export default function Settings() {
         description={`"${removingClassification?.category.name}" volverá a contar como gasto sin clasificar en el Plan mensual, en todos los meses. La categoría y sus movimientos no se tocan.`}
         confirmLabel="Quitar"
         onConfirm={handleRemoveClassification}
+      />
+
+      <ConfirmDialog
+        open={currencyCandidate !== null}
+        onOpenChange={(open) => !open && setCurrencyCandidate(null)}
+        title="Cambiar la moneda principal"
+        description={
+          keptAccounts > 0
+            ? `Tienes ${keptAccounts} ${keptAccounts === 1 ? 'cuenta' : 'cuentas'} en ${primaryCurrencyQuery.data}. La moneda principal pasará a ser ${currencyCandidate}, pero esas cuentas conservarán su moneda y sus totales aparecerán aparte.`
+            : `Los totales de todas las pantallas se presentarán en ${currencyCandidate}. Ninguna cuenta cambia de moneda.`
+        }
+        confirmLabel="Cambiar moneda"
+        onConfirm={handleCurrencyConfirm}
       />
     </div>
   )

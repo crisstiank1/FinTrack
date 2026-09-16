@@ -87,7 +87,7 @@ Presupuestos, ejemplos y limitaciones conocidas— están en
 - **Catálogo:** COP, USD y ARS para cuentas nuevas y para el onboarding; EUR y
   MXN solo se conservan al editar una cuenta que ya las tenga (D1 y D2).
 - **Moneda principal del perfil:** COP, USD o ARS, con COP por defecto. Se elige
-  durante el onboarding (D3) y hoy no se puede cambiar desde Ajustes (D7).
+  durante el onboarding (D3) y en Ajustes desde M12.
 - **Cambiar la moneda de una cuenta:** bloqueado si la cuenta ya tiene
   movimientos (D6); permitido sin movimientos.
 - **Filtro por moneda (M3)**, **transferencias entre monedas (M4)**, **Plan y
@@ -448,18 +448,20 @@ el Plan las marca, ver «Monedas»).
 
 ### `/settings`
 
-**Implementado hoy:** categorías y clasificación de gastos. El tema y el cierre
-de sesión viven en la cabecera, no en esta pantalla.
+**Implementado hoy:** categorías y clasificación de gastos, y el cambio de la
+moneda principal del perfil (M12). El tema y el cierre de sesión viven en la
+cabecera, no en esta pantalla.
 
-**Previsto, sin implementar:** perfil, zona horaria y cambio de la moneda
-principal.
+**Previsto, sin implementar:** perfil y zona horaria.
 
 - Dejar documentadas, pero **no implementar sin aprobación**:
   - Exportación completa de datos.
   - Eliminación de cuenta.
 
-**Moneda principal (D7):** no se puede cambiar desde Ajustes; se elige solo
-durante el onboarding. Sigue fuera de alcance después de M5; ver
+**Moneda principal (M12):** el selector ofrece solo COP, USD y ARS, igual que el
+onboarding. Cambiar de moneda pide confirmación: si hay cuentas en la moneda
+actual, el diálogo avisa de cuántas conservarán su moneda (ninguna se migra;
+solo cambia `profiles.currency_code`). Reglas completas en
 `docs/11-reglas-de-moneda.md`.
 
 ---

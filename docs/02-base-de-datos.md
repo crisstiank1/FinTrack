@@ -32,7 +32,7 @@
 | --- | --- | --- |
 | `id` | UUID | PK. Referencia `auth.users(id)`. |
 | `display_name` | TEXT | |
-| `currency_code` | TEXT | Valor predeterminado `COP`. Moneda principal, elegida en el onboarding entre COP, USD y ARS (D3); no se puede cambiar desde Ajustes todavía (D7). |
+| `currency_code` | TEXT | Valor predeterminado `COP`. Moneda principal, elegida en el onboarding entre COP, USD y ARS (D3) y cambiable desde Ajustes desde M12. |
 | `timezone` | TEXT | Valor predeterminado `America/Bogota`. |
 | `theme_preference` | TEXT | `light`, `dark` o `system`. |
 | `onboarding_completed` | BOOLEAN | Valor predeterminado `false`. |
