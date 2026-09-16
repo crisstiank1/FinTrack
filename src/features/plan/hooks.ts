@@ -459,10 +459,9 @@ export interface UsePlanActualsOptions {
  * que las mutaciones de movimientos ya existentes la refrescan sin trabajo
  * adicional.
  *
- * **Riesgo conocido:** `fetchTransactions` no pagina, y PostgREST corta en
- * 1000 filas. Un mes con más de 1000 movimientos daría cifras truncadas sin
- * avisar. Es el mismo riesgo que ya corre `/budgets` con esa misma lectura;
- * arreglarlo es tocar `transactions/api.ts`, que está fuera de este paso.
+ * La lectura pagina por dentro (M11): `fetchTransactions` recorre las páginas
+ * de 1000 hasta agotar el conjunto, de modo que un mes con más de 1000
+ * movimientos llega entero a estas cifras.
  *
  * Ninguna cifra se calcula aquí: cada una es una llamada a una función ya
  * probada, y las dos particiones del gasto se mantienen separadas —no se

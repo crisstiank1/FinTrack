@@ -18,39 +18,39 @@ La preferencia inicial es **claro** y se persiste inicialmente en `localStorage`
 
 Estilo: blanco y rosa profesional, limpio, moderno, confiable y no infantil.
 
-| Token | Valor |
-| --- | --- |
-| `--background` | `#FFF8FB` |
-| `--surface` | `#FFFFFF` |
+| Token                | Valor     |
+| -------------------- | --------- |
+| `--background`       | `#FFF8FB` |
+| `--surface`          | `#FFFFFF` |
 | `--surface-elevated` | `#FFF0F6` |
-| `--foreground` | `#2B1720` |
+| `--foreground`       | `#2B1720` |
 | `--muted-foreground` | `#765362` |
-| `--border` | `#F1D8E2` |
-| `--primary` | `#E83E8C` |
-| `--primary-hover` | `#C2185B` |
-| `--primary-soft` | `#F8BBD0` |
-| `--success` | `#16805B` |
-| `--danger` | `#C62848` |
-| `--warning` | `#B26B00` |
+| `--border`           | `#F1D8E2` |
+| `--primary`          | `#E83E8C` |
+| `--primary-hover`    | `#C2185B` |
+| `--primary-soft`     | `#F8BBD0` |
+| `--success`          | `#16805B` |
+| `--danger`           | `#C62848` |
+| `--warning`          | `#B26B00` |
 
 ## Tema oscuro
 
 Estilo: negro y morado profesional, alto contraste, especialmente para tablas, montos y gráficos.
 
-| Token | Valor |
-| --- | --- |
-| `--background` | `#0D0712` |
-| `--surface` | `#17101F` |
-| `--surface-elevated` | `#22162D` |
-| `--foreground` | `#FAF7FF` |
-| `--muted-foreground` | `#CBB8D9` |
-| `--border` | `rgba(255,255,255,0.10)` |
-| `--primary` | `#A855F7` |
-| `--primary-hover` | `#7E22CE` |
-| `--primary-soft` | `#D8B4FE` |
-| `--success` | `#4ADE80` |
-| `--danger` | `#FB7185` |
-| `--warning` | `#FBBF24` |
+| Token                | Valor                    |
+| -------------------- | ------------------------ |
+| `--background`       | `#0D0712`                |
+| `--surface`          | `#17101F`                |
+| `--surface-elevated` | `#22162D`                |
+| `--foreground`       | `#FAF7FF`                |
+| `--muted-foreground` | `#CBB8D9`                |
+| `--border`           | `rgba(255,255,255,0.10)` |
+| `--primary`          | `#A855F7`                |
+| `--primary-hover`    | `#7E22CE`                |
+| `--primary-soft`     | `#D8B4FE`                |
+| `--success`          | `#4ADE80`                |
+| `--danger`           | `#FB7185`                |
+| `--warning`          | `#FBBF24`                |
 
 ## Reglas visuales
 
@@ -106,6 +106,7 @@ Presupuestos, ejemplos y limitaciones conocidas— están en
 Durante onboarding, crear las categorías por usuario mediante una estrategia segura y repetible (con `is_system = true` según corresponda).
 
 ### Ingresos
+
 - Salario.
 - Freelance.
 - Ventas.
@@ -115,6 +116,7 @@ Durante onboarding, crear las categorías por usuario mediante una estrategia se
 - Otros ingresos.
 
 ### Gastos esenciales
+
 - Vivienda.
 - Servicios públicos.
 - Internet y telefonía.
@@ -126,6 +128,7 @@ Durante onboarding, crear las categorías por usuario mediante una estrategia se
 - Deudas y créditos.
 
 ### Gastos flexibles
+
 - Restaurantes.
 - Entretenimiento.
 - Suscripciones.
@@ -146,12 +149,12 @@ Durante onboarding, crear las categorías por usuario mediante una estrategia se
 
 Cuatro rutas trabajan sobre movimientos y no se solapan:
 
-| Ruta | Propósito |
-| --- | --- |
-| `/transactions` | Uso diario: crear, editar, duplicar y eliminar movimientos. |
-| `/ledger` | Historial financiero: consulta, filtros, ordenamiento, exportación CSV, edición y saldo acumulado. |
-| `/plan` | Plan mensual: planificación del mes y comparación Presupuesto vs. Actual. Fase 8.7. |
-| `/sheets` | Borradores estructurados: captura previa al registro. Fase 8.5, sin UI todavía. |
+| Ruta            | Propósito                                                                                          |
+| --------------- | -------------------------------------------------------------------------------------------------- |
+| `/transactions` | Uso diario: crear, editar, duplicar y eliminar movimientos.                                        |
+| `/ledger`       | Historial financiero: consulta, filtros, ordenamiento, exportación CSV, edición y saldo acumulado. |
+| `/plan`         | Plan mensual: planificación del mes y comparación Presupuesto vs. Actual. Fase 8.7.                |
+| `/sheets`       | Borradores estructurados: captura previa al registro. Fase 8.5.                                    |
 
 Ninguna reemplaza a las otras. `/ledger` y `/plan` son ambas de consulta, pero
 miran en direcciones opuestas: el Historial mira movimiento a movimiento hacia
@@ -188,6 +191,7 @@ atrás; el Plan mensual compara un mes entero contra lo que se había previsto.
 ### `/onboarding`
 
 Pasos:
+
 1. Bienvenida y nombre.
 2. Moneda principal, con COP por defecto.
 3. Primera cuenta financiera.
@@ -316,6 +320,7 @@ movimientos y saldo acumulado. **No es una superficie de captura de
 borradores**: esa es `/sheets`.
 
 **Columnas MVP:**
+
 - Fecha.
 - Descripción.
 - Cuenta.
@@ -326,6 +331,7 @@ borradores**: esa es `/sheets`.
 - Acciones.
 
 **Funciones MVP:**
+
 - TanStack Table.
 - Ordenamiento.
 - Búsqueda por descripción.
@@ -358,6 +364,7 @@ borradores**: esa es `/sheets`.
 - En móvil: tarjetas o scroll horizontal controlado y usable.
 
 **No incluir todavía:**
+
 - Edición inline.
 - Fórmulas.
 - Copiar/pegar desde Excel.
@@ -376,15 +383,33 @@ qué monedas no cuentan.
 
 ### `/sheets`
 
-**Ruta futura de la Fase 8.5. Todavía no tiene UI implementada:** el esquema
-está aplicado (`sheets`, `sheet_drafts`), pero no existen ni la ruta ni los
-componentes.
+**Hojas de cálculo.** Captura estructurada de borradores persistidos: rejilla de
+fila única por borrador, con las columnas comunes de movimientos (fecha,
+descripción, cuenta, tipo, categoría, monto, notas) y las columnas propias de
+texto de la hoja activa.
 
-**Hojas de cálculo.** Captura estructurada de borradores persistidos, con
-columnas propias de texto por hoja y registro explícito de ingresos y gastos.
+**Borradores en la parte superior.** El usuario elige una hoja, ve su lista de
+borradores y añade filas. Cada fila se edita en la celda (select para cuenta,
+tipo y categoría; input para el resto) y **se autoguarda al salir de la celda**:
+no hay botón de guardado por fila.
+
+**Nada se registra al editar.** El borde verde de validación y los textos de
+error por celda son un _oráculo_ de lo que aceptará `register_sheet_draft`: la
+validación de cada fila repite las reglas de la RPC (fechas ISO, montos enteros
+y positivos, categoría acorde al tipo, sin transferencias). Solo las filas
+válidas se ofrecen al registro.
+
+**Registro explícito.** Al pulsar «Registrar» se abre una confirmación que
+resume cuántos movimientos se crearán y cuántos borradores incompletos
+permanecerán (los textos acordados en `docs/07-hojas.md`, «Confirmar el
+registro en la interfaz»). Tras registrar, un diálogo resume el resultado y
+lleva a «Ver movimientos» (el Libro filtrado) o a seguir en la hoja. El plan
+mensual, presupuestos y dashboard se actualizan porque el registro crea
+movimientos reales en `transactions`.
 
 **No reemplaza `/transactions` ni `/ledger`.** Un borrador no registrado no
 aparece en ninguna de las dos, ni afecta saldos, dashboard o presupuestos.
+Desde la hoja **no se editan ni eliminan movimientos ya registrados**.
 
 **Moneda (M7, ver «Monedas»):** cada fila lleva la moneda de la cuenta que tenga
 escrita y una misma hoja puede mezclar monedas; una fila todavía sin cuenta
@@ -392,9 +417,9 @@ muestra su importe **sin código de moneda**, y cambiar de cuenta no convierte e
 importe, solo cambia el código que lo precede.
 
 **No incluir:**
+
 - Fórmulas y columnas calculadas.
 - Importación CSV: es la Fase 10 y opera sobre `transactions`.
-- Edición de movimientos ya registrados dentro de la hoja.
 - Acciones masivas.
 - Reordenamiento de filas.
 - Totales dentro de la rejilla y conversión de divisas.
@@ -411,6 +436,7 @@ Es una pantalla de lectura, análisis y configuración de la planificación. **N
 es un medio para pagar:** no inicia ni ejecuta ningún movimiento de dinero.
 
 **Bloques, en orden:**
+
 - Vista general: selector de mes y Resumen del mes (seis tarjetas).
 - Ingresos planeados.
 - Reparto 50/30/20.
@@ -433,6 +459,7 @@ cuentas en esa moneda, y una línea sobre una cuenta en otra se marca «Cuenta e
 USD: su aporte real no se cuenta».
 
 **Reglas de presentación:**
+
 - Distinguir siempre «Planeado» de «Actual»; nunca presentarlos como una sola
   columna.
 - La diferencia favorable o desfavorable se dice **en texto**. El color solo
@@ -468,6 +495,7 @@ USD: su aporte real no se cuenta».
 - Compatible con ambos temas.
 
 **No incluir en el primer release:**
+
 - Editar cualquier valor «Actual».
 - Copiar el plan de un mes a otro.
 - Reordenar líneas.
@@ -522,18 +550,21 @@ solo cambia `profiles.currency_code`). Reglas completas en
 
 ## Navegación
 
-En escritorio se muestran los siete destinos sin agrupar.
+En escritorio se muestran los ocho destinos en fila, sin agrupar.
 
-En móvil, cuatro ranuras. Ningún acceso desaparece: los cinco restantes viven
-en «Más», que abre una hoja inferior con sus etiquetas completas.
+En pantallas medianas hay cuatro ranuras principales (Dashboard, Movimientos,
+Presupuestos y Plan), y las cuatro secundarias viven en «Más», que abre un panel
+con sus etiquetas completas. En móviles, las ocho entran en «Menú». Ningún
+acceso desaparece.
 
-| Ranura | Contenido |
-| --- | --- |
-| Resumen | `/dashboard` |
-| Plan | `/plan` |
-| Movimientos | `/transactions` |
-| Más | `/ledger` (Historial financiero), `/budgets` (Presupuestos), `/sheets` (Hojas), `/accounts` (Cuentas), `/settings` (Ajustes) |
+| Ranura      | Contenido                                                                          |
+| ----------- | ---------------------------------------------------------------------------------- |
+| Resumen     | `/dashboard`                                                                       |
+| Plan        | `/plan`                                                                            |
+| Movimientos | `/transactions`                                                                    |
+| Más         | `/accounts` (Cuentas), `/ledger` (Libro), `/sheets` (Hojas), `/settings` (Ajustes) |
 
-Los nombres visibles son «Plan mensual», «Historial financiero», «Movimientos»,
-«Presupuestos», «Hojas», «Cuentas» y «Ajustes». En la barra móvil se abrevian a
-una palabra; en los encabezados de cada pantalla se escriben completos.
+Los nombres visibles son «Dashboard», «Cuentas», «Movimientos», «Libro»,
+«Hojas», «Presupuestos», «Plan mensual» y «Ajustes». En la barra móvil se
+abrevian a una palabra; en los encabezados de cada pantalla se escriben
+completos.

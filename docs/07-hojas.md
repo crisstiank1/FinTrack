@@ -1,8 +1,10 @@
 # FinTrack — Hojas de cálculo
 
 > Modelo de datos y reglas de registro. Fase 8.5 — Hojas de cálculo.
-> Paso 1 de la fase: esquema. Los «pasos» numeran entregables dentro de la
-> Fase 8.5; no son fases del roadmap de `docs/00-master-prompt.md`.
+> Esquema y UI implementados en `/sheets`; quedan fuera de esta fase la
+> importación CSV y el reordenamiento de filas. Los «pasos» numeraban
+> entregables dentro de la Fase 8.5; no son fases del roadmap de
+> `docs/00-master-prompt.md`.
 
 ---
 
@@ -17,10 +19,10 @@ Esa frontera es la idea central del modelo, y es deliberada: escribir en una
 hoja tiene que poder hacerse sin miedo, corrigiendo y dejándolo a medias, sin
 que cada tecla altere las cifras del mes.
 
-| Tabla | Contiene |
-| --- | --- |
-| `sheets` | Hoja con nombre y su definición de columnas |
-| `sheet_drafts` | Filas a medio escribir. Se borran al registrarse |
+| Tabla                        | Contiene                                             |
+| ---------------------------- | ---------------------------------------------------- |
+| `sheets`                     | Hoja con nombre y su definición de columnas          |
+| `sheet_drafts`               | Filas a medio escribir. Se borran al registrarse     |
 | `transactions.custom_fields` | Valores de las columnas propias, junto al movimiento |
 
 Una fila registrada **desaparece de la rejilla** y pasa a estar en Movimientos y
@@ -51,11 +53,11 @@ renombrar una columna perdería todo lo escrito en ella.
 
 La base de datos comprueba solo la forma exterior:
 
-| Restricción | Qué garantiza |
-| --- | --- |
-| `sheets_columns_is_array_check` | `columns` es un array |
-| `sheets_columns_max_check` | Como mucho 20 columnas |
-| `sheet_drafts_cells_is_object_check` | `cells` es un objeto |
+| Restricción                                  | Qué garantiza                |
+| -------------------------------------------- | ---------------------------- |
+| `sheets_columns_is_array_check`              | `columns` es un array        |
+| `sheets_columns_max_check`                   | Como mucho 20 columnas       |
+| `sheet_drafts_cells_is_object_check`         | `cells` es un objeto         |
 | `transactions_custom_fields_is_object_check` | `custom_fields` es un objeto |
 
 Las reglas internas quedan en la capa de aplicación, con Zod, y se
@@ -101,13 +103,13 @@ Las reglas generales están en `docs/11-reglas-de-moneda.md` —la referencia
 canónica, donde esta sección es la fase **M7**— y se aplican aquí sin
 excepciones:
 
-| Regla | Cómo se aplica en la hoja |
-| --- | --- |
-| No hay conversión de divisas | Ningún importe escrito en una celda se convierte, nunca |
-| Un total solo suma cuentas de una misma moneda | La hoja no muestra totales en esta fase; ver abajo |
-| La moneda la da la cuenta | La celda `account_id` decide el código que acompaña al importe |
-| Todo importe lleva su código de moneda | Con una única excepción: la fila que todavía no tiene cuenta |
-| Formato `es-CO`, sin decimales, exponente 0 | `formatAmount` se usa igual que en el resto de la app |
+| Regla                                          | Cómo se aplica en la hoja                                      |
+| ---------------------------------------------- | -------------------------------------------------------------- |
+| No hay conversión de divisas                   | Ningún importe escrito en una celda se convierte, nunca        |
+| Un total solo suma cuentas de una misma moneda | La hoja no muestra totales en esta fase; ver abajo             |
+| La moneda la da la cuenta                      | La celda `account_id` decide el código que acompaña al importe |
+| Todo importe lleva su código de moneda         | Con una única excepción: la fila que todavía no tiene cuenta   |
+| Formato `es-CO`, sin decimales, exponente 0    | `formatAmount` se usa igual que en el resto de la app          |
 
 ### Una hoja puede mezclar monedas
 
@@ -191,16 +193,16 @@ permiso ausente— sí se propagan como excepción y abortan.
 
 ### Códigos por campo
 
-| Campo | Códigos |
-| --- | --- |
-| `transaction_date` | `required`, `invalid_date` |
-| `description` | `required`, `description_too_long` |
-| `notes` | `notes_too_long` |
-| `account_id` | `required`, `invalid_uuid`, `account_not_found` |
-| `category_id` | `required`, `invalid_uuid`, `category_not_found`, `type_mismatch` |
-| `type` | `required`, `invalid_type`, `transfer_not_allowed` |
-| `amount_minor` | `required`, `invalid_amount`, `not_positive` |
-| `custom_fields.<slug>` | `custom_field_too_long` |
+| Campo                  | Códigos                                                           |
+| ---------------------- | ----------------------------------------------------------------- |
+| `transaction_date`     | `required`, `invalid_date`                                        |
+| `description`          | `required`, `description_too_long`                                |
+| `notes`                | `notes_too_long`                                                  |
+| `account_id`           | `required`, `invalid_uuid`, `account_not_found`                   |
+| `category_id`          | `required`, `invalid_uuid`, `category_not_found`, `type_mismatch` |
+| `type`                 | `required`, `invalid_type`, `transfer_not_allowed`                |
+| `amount_minor`         | `required`, `invalid_amount`, `not_positive`                      |
+| `custom_fields.<slug>` | `custom_field_too_long`                                           |
 
 `invalid_type` es un valor que no es ninguno de los tres conocidos;
 `transfer_not_allowed` es exactamente `'transfer'`, y se distinguen porque la
@@ -222,11 +224,11 @@ como julio o como septiembre según cómo esté configurado el servidor. Un gast
 guardado en el mes equivocado es un error silencioso, y en una app de finanzas
 sale caro.
 
-| Entrada | Resultado |
-| --- | --- |
-| `2026-09-07` | Válida |
-| `07/09/2026` | `invalid_date` — ambigua |
-| `2026-2-7` | `invalid_date` — sin ceros a la izquierda |
+| Entrada      | Resultado                                               |
+| ------------ | ------------------------------------------------------- |
+| `2026-09-07` | Válida                                                  |
+| `07/09/2026` | `invalid_date` — ambigua                                |
+| `2026-2-7`   | `invalid_date` — sin ceros a la izquierda               |
 | `2026-02-31` | `invalid_date` — tiene la forma correcta pero no existe |
 
 El último caso es el que justifica que además del patrón haya un cast dentro de
@@ -238,11 +240,11 @@ El último caso es el que justifica que además del patrón haya un cast dentro 
 podría guardar megabytes. La RPC los impone y los informa como cualquier otro
 error:
 
-| Campo | Tope |
-| --- | --- |
-| `description` | 250 caracteres, tras `btrim` |
-| `notes` | 1000 caracteres, si está presente |
-| Cada columna propia | 1000 caracteres |
+| Campo               | Tope                              |
+| ------------------- | --------------------------------- |
+| `description`       | 250 caracteres, tras `btrim`      |
+| `notes`             | 1000 caracteres, si está presente |
+| Cada columna propia | 1000 caracteres                   |
 
 Un valor de columna propia que se pase **no se recorta ni se descarta en
 silencio**: se devuelve como `{"field":"custom_fields.<slug>","code":"custom_field_too_long"}`
@@ -323,12 +325,12 @@ ruidosa, no silenciosa.
 
 ## Integridad y borrado
 
-| Restricción | Definición | Para qué |
-| --- | --- | --- |
-| `sheets_user_id_fkey` | → `auth.users(id)` `on delete cascade` | Borrar la cuenta borra sus hojas |
-| `sheet_drafts_user_id_fkey` | → `auth.users(id)` `on delete cascade` | Borrar la cuenta borra sus borradores |
-| `sheet_drafts_sheet_id_fkey` | → `sheets(id)` `on delete cascade` | Borrar una hoja se lleva sus borradores |
-| `sheet_drafts_sheet_same_user_fkey` | `(sheet_id, user_id)` → `sheets(id, user_id)`, `no action deferrable initially deferred` | Propiedad declarativa |
+| Restricción                         | Definición                                                                               | Para qué                                |
+| ----------------------------------- | ---------------------------------------------------------------------------------------- | --------------------------------------- |
+| `sheets_user_id_fkey`               | → `auth.users(id)` `on delete cascade`                                                   | Borrar la cuenta borra sus hojas        |
+| `sheet_drafts_user_id_fkey`         | → `auth.users(id)` `on delete cascade`                                                   | Borrar la cuenta borra sus borradores   |
+| `sheet_drafts_sheet_id_fkey`        | → `sheets(id)` `on delete cascade`                                                       | Borrar una hoja se lleva sus borradores |
+| `sheet_drafts_sheet_same_user_fkey` | `(sheet_id, user_id)` → `sheets(id, user_id)`, `no action deferrable initially deferred` | Propiedad declarativa                   |
 
 Son **dos claves foráneas hacia `sheets`, cada una con un trabajo**. La simple
 aporta la cascada; la compuesta aporta la garantía de propiedad y está diferida
@@ -374,12 +376,12 @@ inferencia en `ON CONFLICT`**. Aquí no se usa para eso.
 
 ## Índices
 
-| Índice | Estado |
-| --- | --- |
-| `sheets (user_id)` | Creado. Listar hojas y sostener la cascada de borrado de usuario |
-| `sheet_drafts (user_id)` | Creado. Solo para esa cascada: PostgreSQL no indexa las claves foráneas por su cuenta |
-| `(sheet_id, position)` | No se crea aparte: la restricción única ya genera un índice, y ese mismo resuelve la lectura ordenada de los borradores de una hoja |
-| GIN sobre `transactions.custom_fields` | **No se crea** |
+| Índice                                 | Estado                                                                                                                              |
+| -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `sheets (user_id)`                     | Creado. Listar hojas y sostener la cascada de borrado de usuario                                                                    |
+| `sheet_drafts (user_id)`               | Creado. Solo para esa cascada: PostgreSQL no indexa las claves foráneas por su cuenta                                               |
+| `(sheet_id, position)`                 | No se crea aparte: la restricción única ya genera un índice, y ese mismo resuelve la lectura ordenada de los borradores de una hoja |
+| GIN sobre `transactions.custom_fields` | **No se crea**                                                                                                                      |
 
 **Criterio para añadir el GIN:** cuando exista filtrado real por columnas
 propias y se conozca el operador. `->>` con igualdad pide un índice de
@@ -390,9 +392,10 @@ saber cuál se usa encarece cada escritura sin beneficio.
 
 ## Confirmar el registro en la interfaz
 
-Nota para el paso 4. «Registrar» es el momento en que unas filas de texto pasan
-a mover dinero, y el usuario tiene que entenderlo antes de pulsar, no después.
-Textos acordados:
+Implementado en el paso 4 (los pasos 2 y 3 —rejilla y registro— también lo
+están). «Registrar» es el momento en que unas filas de texto pasan a mover
+dinero, y el usuario tiene que entenderlo antes de pulsar, no después. Textos
+acordados, usados verbatim por `SheetGrid`:
 
 **Antes**
 
@@ -421,8 +424,9 @@ rejilla, conversión de divisas, acciones masivas sobre movimientos ya
 registrados, reordenamiento, RPC por lotes y edición de movimientos reales
 dentro de la hoja.
 
-El registro de varias filas se resolverá desde el cliente con concurrencia
-limitada en un paso posterior; no se crea una RPC por lotes todavía.
+El registro de varias filas se resuelve desde el cliente con concurrencia
+limitada (`useRegisterDrafts`, a tres en paralelo); no se crea una RPC por
+lotes.
 
 La importación CSV **no forma parte de las Hojas ni depende de ellas**: es la
 Fase 10 del roadmap y opera sobre `transactions`, no sobre `sheet_drafts`. El

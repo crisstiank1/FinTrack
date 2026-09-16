@@ -122,7 +122,9 @@ export interface UseBudgetProgressOptions {
  * no duplicar en caché datos que ya están pedidos.
  *
  * El gasto se lee **acotado al mes consultado**: `useTransactions` filtra por
- * rango de fechas y por `type: 'expense'` en el servidor. No se reutiliza
+ * rango de fechas y por `type: 'expense'` en el servidor, y pagina por dentro
+ * (M11), de modo que un mes con más de 1000 gastos llega entero sin truncarse.
+ * No se reutiliza
  * `useAllTransactions` del dashboard, que descarga el historial completo
  * paginado —hasta 50.000 filas— para poder acumular saldos desde el saldo
  * inicial de cada cuenta. Los presupuestos no necesitan nada de eso, y colgar

@@ -109,11 +109,11 @@ describe('AppLayout', () => {
     },
   )
 
-  it('elige el modo por el ancho: siete enlaces, cuatro y «Más», o «Menú»', () => {
+  it('elige el modo por el ancho: ocho enlaces, cuatro y «Más», o «Menú»', () => {
     const { unmount } = renderLayout(WIDTHS.wide)
     const nav = () => screen.getByRole('navigation', { name: 'Principal' })
 
-    expect(within(nav()).getAllByRole('link')).toHaveLength(7)
+    expect(within(nav()).getAllByRole('link')).toHaveLength(8)
     expect(within(nav()).queryByRole('button')).not.toBeInTheDocument()
     unmount()
     viewport.restore()
