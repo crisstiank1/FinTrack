@@ -69,62 +69,33 @@ Estilo: negro y morado profesional, alto contraste, especialmente para tablas, m
 
 ## Monedas
 
-FinTrack **no convierte divisas ni usa tipos de cambio** (decisión M1, sin
-cambio en M2). Reglas de presentación de monedas:
+FinTrack **no convierte divisas ni usa tipos de cambio.** Las reglas completas
+—principios, catálogo, moneda de presentación, filtros, transferencias, Plan,
+Presupuestos, ejemplos y limitaciones conocidas— están en
+`docs/11-reglas-de-moneda.md`. Aquí queda solo lo que afecta a la presentación:
 
 - **Todo importe se muestra con su código de moneda** (por ejemplo `USD 1.250`),
-  incluido en ejes de gráficos y filas del Libro financiero (M1).
-- **Los totales solo suman cuentas de una misma moneda.** Las pantallas eligen
-  una moneda de presentación: la principal del perfil si el usuario tiene alguna
-  cuenta en ella; si no, la de la primera cuenta (`resolvePresentationCurrency`).
-- Las cuentas en otras monedas **no se suman**: su saldo aparece aparte, en su
-  propia moneda, sin convertir. El Dashboard lo explica en pantalla: «Tus
-  cuentas en … no se suman: su saldo aparece aparte, sin convertir.» (M1).
-- **Catálogo:** COP, USD y ARS son las monedas seleccionables para cuentas
-  nuevas y para el onboarding. EUR y MXN son solo lectura: se formatean y pueden
-  conservarse al editar una cuenta que ya las tenga, pero no se ofrecen al crear
-  (D1 y D2).
+  incluido en ejes de gráficos y filas del Libro financiero.
+- **Los totales solo suman cuentas de una misma moneda.** Cada pantalla elige su
+  moneda de presentación: la principal del perfil si el usuario tiene alguna
+  cuenta en ella; si no, la de la primera cuenta
+  (`resolvePresentationCurrency`). Las cuentas en otras monedas aparecen aparte,
+  en su propia moneda.
+- **El Dashboard, el Plan y los Presupuestos esperan a conocer la moneda
+  principal** antes de mostrar cifras, en vez de enseñarlas un instante en otra
+  moneda.
+- **Catálogo:** COP, USD y ARS para cuentas nuevas y para el onboarding; EUR y
+  MXN solo se conservan al editar una cuenta que ya las tenga (D1 y D2).
 - **Moneda principal del perfil:** COP, USD o ARS, con COP por defecto. Se elige
-  durante el onboarding (D3) y hoy no se puede cambiar desde Settings (D7).
+  durante el onboarding (D3) y hoy no se puede cambiar desde Ajustes (D7).
 - **Cambiar la moneda de una cuenta:** bloqueado si la cuenta ya tiene
-  movimientos (D6); permitido sin movimientos. No comprueba si la cuenta tiene
-  líneas de aporte en el Plan: es una limitación que queda. Desde M5 el Plan ya
-  no deja crear aportes sobre cuentas en otra moneda, y marca las que existan.
-- **Filtro por moneda (M3):** `/transactions` y `/ledger` tienen un selector
-  «Moneda» con «Todas las monedas» y solo las monedas de las cuentas del
-  usuario (archivadas incluidas, y EUR/MXN si hay cuentas heredadas), con la
-  principal primero. Se oculta si el usuario tiene una sola moneda. Como
-  `transactions` no guarda moneda, filtrar por moneda es filtrar por las cuentas
-  en ella (`resolveCurrencyFilter`); si la moneda elegida ya no tiene cuentas,
-  se vuelve a «Todas». Es estado local, no va en la URL. Con «Todas», los
-  totales siguen separados por moneda.
-- **Transferencias entre monedas (M4):** siguen siendo dos movimientos, uno por
-  cuenta, pero cada pata guarda **su propio importe en la moneda de su cuenta**.
-  - Con la misma moneda, el formulario pide un solo «Monto» y las dos patas
-    llevan el mismo importe; un monto recibido distinto se rechaza (una
-    comisión se registra como gasto aparte).
-  - Con monedas distintas pide «Monto enviado (COP)» y, obligatorio, «Monto
-    recibido (USD)», con la nota «FinTrack no convierte divisas: registra
-    cuánto salió y cuánto entró». «Equivale a» usa la moneda de cada cuenta.
-  - Cada pata muestra su contraparte: `→ Cuenta USD · + USD 25` en la que sale
-    y `← Ahorros · − COP 100.000` en la que entra. Es información de la fila,
-    no una fila más: conteo, paginación y orden no cambian. Filtrando por una
-    moneda o una cuenta se ve solo la pata correspondiente, con la referencia a
-    la otra.
-  - No entran en ingresos, gastos, «Ahorro neto», «Tasa de ahorro» ni en el
-    balance del resumen del Libro. Sí mueven el saldo de cada cuenta y, por
-    tanto, el saldo de cada moneda y su saldo acumulado.
-  - Siguen sin poder editarse: se eliminan (se borran las dos patas) y se
-    vuelven a crear.
-- **Limitación conocida:** las transferencias entre monedas registradas antes
-  de M4 guardaron el mismo importe en las dos patas (p. ej. COP 100.000 que
-  «entran» como USD 100.000) y siguen así hasta que el usuario las elimine y
-  las vuelva a crear.
-- **Plan y Presupuestos (M5):** van enteros en la moneda de presentación, sin
-  desglose por moneda. Los ingresos, gastos y aportes en otras monedas no se
-  suman y se avisan («3 movimientos en otras monedas (USD, ARS) no se incluyen en
-  este Plan.»; en `/budgets`, «2 gastos en otras monedas (USD) no cuentan para
-  estos presupuestos.»). Un aporte cuenta en el Plan solo si la cuenta de destino está en la moneda del Plan. Las transferencias a cuentas de ahorro o inversión en otra moneda quedan registradas con su importe en esa moneda, pero el Plan no las suma ni las convierte.
+  movimientos (D6); permitido sin movimientos.
+- **Filtro por moneda (M3)**, **transferencias entre monedas (M4)** y **Plan y
+  Presupuestos en una sola moneda (M5)**: cada pantalla resume su parte más
+  abajo; el detalle y los textos exactos, en el documento de reglas.
+- **Limitaciones conocidas** (transferencias antiguas con el mismo importe en
+  las dos patas, cambio de moneda de una cuenta con líneas de aporte, y las
+  demás): listadas con su estado en el documento de reglas.
 
 ---
 
@@ -248,6 +219,15 @@ aparte» (D5, sin banner). La confirmación muestra cada saldo en su moneda.
 - Últimos movimientos.
 - Estados de carga, error y vacío.
 - Información consistente con `transactions`.
+
+**Moneda (ver «Monedas» y `docs/11-reglas-de-moneda.md`):** las cifras van en la
+moneda de presentación, con los saldos de otras monedas aparte y la nota
+«Cifras en COP. Tus cuentas en USD y ARS no se suman: su saldo aparece aparte,
+sin convertir.».
+Al elegir una cuenta, todo pasa a la moneda de esa cuenta y desaparecen la nota
+y los saldos aparte. El panel «Presupuestos» es la excepción: sus barras y
+alertas siguen en la moneda de los presupuestos, aunque la alerta global de
+ahorro neto negativo va en la moneda de la vista (M5).
 
 ### `/transactions`
 
@@ -448,18 +428,19 @@ el Plan las marca, ver «Monedas»).
 
 ### `/settings`
 
-- Perfil.
-- Moneda.
-- Tema.
-- Zona horaria.
-- Categorías.
-- Cierre de sesión.
+**Implementado hoy:** categorías y clasificación de gastos. El tema y el cierre
+de sesión viven en la cabecera, no en esta pantalla.
+
+**Previsto, sin implementar:** perfil, zona horaria y cambio de la moneda
+principal.
+
 - Dejar documentadas, pero **no implementar sin aprobación**:
   - Exportación completa de datos.
   - Eliminación de cuenta.
 
-**Moneda principal (D7):** hoy no se puede cambiar desde Ajustes; se cambia
-solo durante el onboarding. El cambio desde Settings queda fuera de M2.
+**Moneda principal (D7):** no se puede cambiar desde Ajustes; se elige solo
+durante el onboarding. Sigue fuera de alcance después de M5; ver
+`docs/11-reglas-de-moneda.md`.
 
 ---
 

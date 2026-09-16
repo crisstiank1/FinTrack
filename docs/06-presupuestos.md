@@ -69,12 +69,11 @@ ese mes.
 - **Los ingresos no cuentan.** Filtrar por tipo los excluye, y la base de datos
   ya impide presupuestar una categoría de ingreso.
 
-- **Solo cuentan los gastos en la moneda de los presupuestos (M5).** `budgets` no
-  guarda moneda: sus importes se entienden en la moneda de presentación, la
-  principal del perfil si el usuario tiene alguna cuenta en ella y, si no, la de
-  la primera cuenta. Es la misma moneda que usa `/plan`. Los gastos de cuentas
-  en otra moneda no se suman a ningún presupuesto, porque FinTrack no convierte
-  divisas; un gasto cuya cuenta no se conoce sí cuenta.
+- **Solo cuentan los gastos en la moneda de los presupuestos (M5).** `budgets`
+  no guarda moneda: sus importes se entienden en la moneda de presentación, la
+  misma que usa `/plan`. Los gastos de cuentas en otra moneda no se suman a
+  ningún presupuesto; uno cuya cuenta no se conoce sí cuenta. Cómo se elige esa
+  moneda y qué más implica: `docs/11-reglas-de-moneda.md`.
 
 Implementación: [`calculateBudgetableSpending`](../src/features/budgets/progress.ts)
 y, para la moneda, `useBudgetProgress`.

@@ -19,6 +19,23 @@ El resumen del Libro usa funciones de agregación de PostgREST
 (`select=type,total:amount_minor.sum()`). Está soportado desde PostgREST 12 y el
 proyecto reporta la versión 14.5, pero hay que confirmarlo en ejecución.
 
+> **Actualización posterior (M1–M6).** Este documento describe la Fase 7 tal
+> como se validó entonces y se conserva como registro histórico. Dos cosas ya no
+> se comportan así:
+>
+> 1. **La agregación de PostgREST se abandonó.** El proyecto la tiene
+>    desactivada (`.sum()` responde PGRST123), así que desde el commit `cf5cae8`
+>    el resumen del Libro se calcula **sumando en el cliente**, por páginas de
+>    1000 filas y pidiendo solo tres columnas (`fetchLedgerTotals`). La
+>    advertencia «No resolver esto sumando en el navegador» describe la decisión
+>    de la Fase 7, no la solución vigente; la RPC en SQL sigue siendo la
+>    alternativa si el rendimiento lo exigiera.
+> 2. **Las cifras se separan por moneda.** El resumen del Libro muestra una
+>    línea por moneda y el Dashboard presenta una sola moneda, así que las
+>    comprobaciones de abajo valen **con una sola moneda en alcance**, o
+>    comparando la línea de la moneda correspondiente. Reglas completas en
+>    `docs/11-reglas-de-moneda.md`.
+
 **Cómo probar:** abre `/ledger` con sesión iniciada.
 
 | Resultado | Significado |
@@ -75,7 +92,7 @@ categoría ni tipo** en el Libro:
 | --- | --- | --- |
 | KPI "Ingresos del mes" | Resumen "Ingresos" | Sí |
 | KPI "Gastos del mes" | Resumen "Gastos" | Sí |
-| KPI "Ahorro neto" | Resumen "Balance" | Sí |
+| KPI "Ahorro neto" | Resumen "Balance" | Sí, dentro de una misma moneda |
 
 > Nota: el Libro filtra por rango de fechas y el dashboard por mes. Para que la
 > comparación sea válida, pon en el Libro **Desde** = día 1 y **Hasta** = último

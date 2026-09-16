@@ -48,7 +48,7 @@
 | `name` | TEXT | |
 | `type` | TEXT | `cash`, `checking`, `savings`, `digital_wallet`, `credit_card`. |
 | `initial_balance_minor` | BIGINT | |
-| `currency_code` | TEXT | Sin restricción de valores en la base. El catálogo del cliente lo limita al crear (COP, USD, ARS) y conserva EUR/MXN solo al editar cuentas heredadas (M2). |
+| `currency_code` | TEXT | Sin restricción de valores en la base. El catálogo del cliente lo limita al crear (COP, USD, ARS) y conserva EUR/MXN solo al editar cuentas heredadas (M2). Es la moneda de la cuenta **y la de todos sus movimientos**. |
 | `color` | TEXT | |
 | `icon` | TEXT | |
 | `is_archived` | BOOLEAN | Valor predeterminado `false`. |
@@ -154,27 +154,26 @@
 
 ## Monedas
 
-Reglas de moneda vigentes (M1 a M5):
+Lo que la **base de datos** guarda sobre monedas, y solo eso. Las reglas
+funcionales vigentes (M1 a M5) —moneda de presentación, filtros, exclusiones,
+avisos y limitaciones— están en `docs/11-reglas-de-moneda.md`.
 
-- FinTrack **no convierte divisas ni usa tipos de cambio.** Cada importe se
-  guarda en su moneda y se muestra con su código (`USD 1.250`), sin convertir.
-- **Catálogo de monedas:** el dominio vive solo en el cliente
-  (`src/lib/currency.ts`). COP, USD y ARS se ofrecen al crear cuentas y durante
-  el onboarding; EUR y MXN son solo lectura: se formatean y pueden conservarse
-  al editar una cuenta que ya las tenga, pero no se ofrecen para cuentas nuevas.
-- **Moneda principal (`profiles.currency_code`):** COP, USD o ARS, con COP por
-  defecto. Se elige en el onboarding y no se puede cambiar desde Ajustes todavía.
-- **Totales por moneda:** los totales solo suman cuentas de una misma moneda.
-  La moneda de presentación es la principal del perfil si hay alguna cuenta en
-  ella; si no, la de la primera cuenta. Las cuentas en otras monedas se listan
-  aparte, sin sumarse ni convertirse (M1).
+- **Dónde vive la moneda.** Solo en dos columnas: `profiles.currency_code`, la
+  moneda principal del perfil, y `accounts.currency_code`, la de cada cuenta.
+- **`transactions` no guarda moneda propia.** La moneda de un movimiento es la
+  de su cuenta, resuelta por `account_id`. De ahí que filtrar por moneda sea
+  siempre filtrar por las cuentas de esa moneda, y que cambiar la moneda de una
+  cuenta cambie la lectura de todo su historial.
+- **`budgets` y las tablas del Plan tampoco la guardan.** Sus importes se
+  entienden en la moneda de presentación del momento.
+- **Ningún importe se convierte.** No hay tipos de cambio en el esquema ni en el
+  cliente, y `amount_minor` siempre está en unidades mínimas de la moneda de su
+  cuenta.
+- **Sin restricción de valores en la base:** el catálogo (COP, USD, ARS
+  seleccionables; EUR y MXN heredadas) lo aplica el cliente, en
+  `src/lib/currency.ts`.
 - **Cambio de moneda de una cuenta:** bloqueado en la UI si la cuenta ya tiene
-  movimientos, permitido si no los tiene. No se comprueba si la cuenta tiene
-  líneas de aporte en el Plan: es una limitación que queda. El Plan marca esas
-  líneas y ya no deja crear aportes sobre cuentas en otra moneda (M5).
-- **Plan y presupuestos (M5):** `budgets` y las tablas del Plan no guardan
-  moneda; sus importes se entienden en la moneda de presentación. Sus cifras
-  reales solo usan movimientos de cuentas en esa moneda. Un aporte cuenta en el Plan solo si la cuenta de destino está en la moneda del Plan. Las transferencias a cuentas de ahorro o inversión en otra moneda quedan registradas con su importe en esa moneda, pero el Plan no las suma ni las convierte.
+  movimientos, permitido si no los tiene. La base no lo impide.
 
 ---
 
