@@ -1,10 +1,11 @@
 import { z } from 'zod'
 
 import { ACCOUNT_TYPES } from '@/features/accounts/schemas'
+import { SELECTABLE_CURRENCY_CODES } from '@/lib/currency'
 
 export const welcomeStepSchema = z.object({
   displayName: z.string().min(1, 'Ingresa tu nombre').max(60, 'Máximo 60 caracteres'),
-  currencyCode: z.string().min(1, 'Selecciona una moneda'),
+  currencyCode: z.enum(SELECTABLE_CURRENCY_CODES, 'Selecciona una moneda'),
 })
 export type WelcomeStepValues = z.infer<typeof welcomeStepSchema>
 
@@ -15,6 +16,8 @@ export const draftAccountSchema = z.object({
     .number()
     .int('Debe ser un número entero')
     .nonnegative('El saldo no puede ser negativo'),
+  // El onboarding solo ofrece monedas del catálogo seleccionable (COP, USD, ARS).
+  currencyCode: z.enum(SELECTABLE_CURRENCY_CODES, 'Selecciona una moneda'),
 })
 export type DraftAccountValues = z.infer<typeof draftAccountSchema>
 

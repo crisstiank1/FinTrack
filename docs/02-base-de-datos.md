@@ -32,7 +32,7 @@
 | --- | --- | --- |
 | `id` | UUID | PK. Referencia `auth.users(id)`. |
 | `display_name` | TEXT | |
-| `currency_code` | TEXT | Valor predeterminado `COP`. |
+| `currency_code` | TEXT | Valor predeterminado `COP`. Moneda principal, elegida en el onboarding entre COP, USD y ARS (D3) y cambiable desde Ajustes desde M12. |
 | `timezone` | TEXT | Valor predeterminado `America/Bogota`. |
 | `theme_preference` | TEXT | `light`, `dark` o `system`. |
 | `onboarding_completed` | BOOLEAN | Valor predeterminado `false`. |
@@ -48,7 +48,7 @@
 | `name` | TEXT | |
 | `type` | TEXT | `cash`, `checking`, `savings`, `digital_wallet`, `credit_card`. |
 | `initial_balance_minor` | BIGINT | |
-| `currency_code` | TEXT | |
+| `currency_code` | TEXT | Sin restricción de valores en la base. El catálogo del cliente lo limita al crear (COP, USD, ARS) y conserva EUR/MXN solo al editar cuentas heredadas (M2). Es la moneda de la cuenta **y la de todos sus movimientos**. |
 | `color` | TEXT | |
 | `icon` | TEXT | |
 | `is_archived` | BOOLEAN | Valor predeterminado `false`. |
@@ -124,9 +124,15 @@
 
 5. Transferencias entre cuentas del mismo usuario:
    - No se consideran ingreso ni gasto en el dashboard consolidado.
-   - Conservan el saldo consolidado del usuario.
+   - Conservan el saldo consolidado **solo dentro de una misma moneda**. Entre
+     cuentas de monedas distintas cada pata mueve el saldo de su moneda: sale
+     de una y entra en la otra, sin convertir (M4).
    - Crean **dos movimientos vinculados** mediante `transfer_group_id`.
    - Tienen dirección interna (`incoming` / `outgoing`).
+   - Cada pata guarda su propio `amount_minor` en la moneda de su cuenta. Con
+     la misma moneda los dos importes son iguales; con monedas distintas son
+     los que el usuario registró. La base no exige que coincidan: la regla la
+     aplica el cliente (`createTransferSchema`).
 
 6. Tasa de ahorro:
 
@@ -143,6 +149,31 @@
 9. No crear “Ahorro” como gasto predeterminado:
    - Ahorrar se modela como **transferencia** a una cuenta de ahorro.
    - Las metas se crearán en una fase posterior.
+
+---
+
+## Monedas
+
+Lo que la **base de datos** guarda sobre monedas, y solo eso. Las reglas
+funcionales vigentes (M1 a M5) —moneda de presentación, filtros, exclusiones,
+avisos y limitaciones— están en `docs/11-reglas-de-moneda.md`.
+
+- **Dónde vive la moneda.** Solo en dos columnas: `profiles.currency_code`, la
+  moneda principal del perfil, y `accounts.currency_code`, la de cada cuenta.
+- **`transactions` no guarda moneda propia.** La moneda de un movimiento es la
+  de su cuenta, resuelta por `account_id`. De ahí que filtrar por moneda sea
+  siempre filtrar por las cuentas de esa moneda, y que cambiar la moneda de una
+  cuenta cambie la lectura de todo su historial.
+- **`budgets` y las tablas del Plan tampoco la guardan.** Sus importes se
+  entienden en la moneda de presentación del momento.
+- **Ningún importe se convierte.** No hay tipos de cambio en el esquema ni en el
+  cliente, y `amount_minor` siempre está en unidades mínimas de la moneda de su
+  cuenta.
+- **Sin restricción de valores en la base:** el catálogo (COP, USD, ARS
+  seleccionables; EUR y MXN heredadas) lo aplica el cliente, en
+  `src/lib/currency.ts`.
+- **Cambio de moneda de una cuenta:** bloqueado en la UI si la cuenta ya tiene
+  movimientos, permitido si no los tiene. La base no lo impide.
 
 ---
 

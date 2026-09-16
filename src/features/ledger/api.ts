@@ -1,3 +1,4 @@
+import { fetchTransferCounterparts, type TransferCounterpart } from '@/features/transactions/api'
 import { sortCurrencyCodes } from '@/lib/currency'
 import { supabase } from '@/lib/supabase'
 import type { Tables } from '@/types/database.types'
@@ -5,6 +6,13 @@ import type { Tables } from '@/types/database.types'
 export interface LedgerFilters {
   /** Búsqueda por descripción. */
   search?: string
+  /**
+   * Moneda elegida en el selector. La consulta no la lee: `transactions` no
+   * guarda moneda, así que la página la traduce a `accountIds`.
+   */
+  currencyCode?: string
+  /** Cuentas de la moneda elegida (ver `resolveCurrencyFilter`). */
+  accountIds?: string[]
   accountId?: string
   categoryId?: string
   type?: 'income' | 'expense' | 'transfer'
@@ -24,6 +32,11 @@ export interface LedgerPage {
   rows: Tables<'transactions'>[]
   /** Total de filas que cumplen los filtros, no las de esta página. */
   totalCount: number
+  /**
+   * Otra pata de cada transferencia de la página, por id de fila. Puede estar
+   * en otra página o fuera del filtro, así que se pide aparte; no añade filas.
+   */
+  counterparts: Map<string, TransferCounterpart>
 }
 
 /** Suma de un tipo de movimiento en una cuenta. */
@@ -83,6 +96,7 @@ interface FilterableQuery {
   gte(column: string, value: string): FilterableQuery
   lte(column: string, value: string): FilterableQuery
   ilike(column: string, pattern: string): FilterableQuery
+  in(column: string, values: readonly string[]): FilterableQuery
 }
 
 /**
@@ -95,6 +109,8 @@ function applyFilters<T>(query: T, userId: string, filters: LedgerFilters): T {
 
   const search = filters.search?.trim()
   if (search) scoped = scoped.ilike('description', `%${escapeSearchTerm(search)}%`)
+  // Una lista vacía no devolvería nada: se trata como «todas las monedas».
+  if (filters.accountIds?.length) scoped = scoped.in('account_id', filters.accountIds)
   if (filters.accountId) scoped = scoped.eq('account_id', filters.accountId)
   if (filters.categoryId) scoped = scoped.eq('category_id', filters.categoryId)
   if (filters.type) scoped = scoped.eq('type', filters.type)
@@ -129,7 +145,10 @@ export async function fetchLedgerPage(
     .range(from, from + pageSize - 1)
 
   if (error) throw error
-  return { rows: data ?? [], totalCount: count ?? 0 }
+
+  const rows = data ?? []
+  const counterparts = await fetchTransferCounterparts(userId, rows)
+  return { rows, totalCount: count ?? 0, counterparts }
 }
 
 /**

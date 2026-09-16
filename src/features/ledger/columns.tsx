@@ -4,6 +4,7 @@ import { Copy, Pencil, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { AmountCell } from '@/features/ledger/components/amount-cell'
 import { TypeBadge } from '@/features/ledger/components/type-badge'
+import { formatTransferCounterpart, type TransferCounterpart } from '@/features/transactions/api'
 import { formatAmount } from '@/lib/currency'
 import { formatShortDate } from '@/lib/dates'
 import type { Tables } from '@/types/database.types'
@@ -35,6 +36,8 @@ export interface LedgerColumnContext {
   balanceByDate?: Map<string, number>
   /** Moneda de `balanceByDate`. */
   balanceCurrency: string
+  /** Otra pata de cada transferencia, por id de fila (ver `fetchLedgerPage`). */
+  counterparts?: Map<string, TransferCounterpart>
   onEdit: (transaction: Transaction) => void
   onDuplicate: (transaction: Transaction) => void
   onDelete: (transaction: Transaction) => void
@@ -49,6 +52,7 @@ export function createLedgerColumns(context: LedgerColumnContext) {
     fallbackCurrency,
     balanceByDate,
     balanceCurrency,
+    counterparts,
     onEdit,
     onDuplicate,
     onDelete,
@@ -68,7 +72,24 @@ export function createLedgerColumns(context: LedgerColumnContext) {
       id: 'description',
       header: 'Descripción',
       meta: { label: 'Descripción' },
-      cell: (info) => <span className="font-medium text-foreground">{info.getValue()}</span>,
+      cell: ({ row, getValue }) => {
+        const counterpart = counterparts?.get(row.original.id)
+
+        return (
+          <>
+            <span className="font-medium text-foreground">{getValue()}</span>
+            {counterpart && (
+              <span className="block whitespace-nowrap text-xs text-muted-foreground">
+                {formatTransferCounterpart(
+                  counterpart,
+                  accountsById.get(counterpart.accountId),
+                  fallbackCurrency,
+                )}
+              </span>
+            )}
+          </>
+        )
+      },
     }),
 
     column.display({
@@ -150,10 +171,12 @@ export function createLedgerColumns(context: LedgerColumnContext) {
       meta: { align: 'right', label: 'Acciones' },
       cell: ({ row }) => {
         const transaction = row.original
+        // Una transferencia solo se edita si se conoce su otra pata (M8).
+        const canEdit = transaction.type !== 'transfer' || !!counterparts?.has(transaction.id)
 
         return (
           <div className="flex justify-end gap-1">
-            {transaction.type !== 'transfer' && (
+            {canEdit && (
               <Button
                 type="button"
                 variant="ghost"

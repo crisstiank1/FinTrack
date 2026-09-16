@@ -4,17 +4,25 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { Tables } from '@/types/database.types'
 
+import { TRANSFER_EDIT_WARNING } from '@/features/transactions/components/transfer-form'
+
 import Transactions from './Transactions'
 
 const useTransactions = vi.fn()
+const useTransferCounterparts = vi.fn()
+const createTransfer = vi.fn()
+const updateTransfer = vi.fn()
 const usePrimaryCurrency = vi.fn()
+const useAccounts = vi.fn()
 const mutation = () => ({ mutateAsync: vi.fn(), isPending: false })
 
 vi.mock('@/features/transactions/hooks', () => ({
   useTransactions: (filters: unknown) => useTransactions(filters),
+  useTransferCounterparts: (transactions: unknown) => useTransferCounterparts(transactions),
   useCreateTransaction: () => mutation(),
   useUpdateTransaction: () => mutation(),
-  useCreateTransfer: () => mutation(),
+  useCreateTransfer: () => ({ mutateAsync: createTransfer, isPending: false }),
+  useUpdateTransfer: () => ({ mutateAsync: updateTransfer, isPending: false }),
   useDeleteTransaction: () => mutation(),
   useDuplicateTransaction: () => mutation(),
 }))
@@ -26,7 +34,7 @@ const accounts = [
 ] as Tables<'accounts'>[]
 
 vi.mock('@/features/accounts/hooks', () => ({
-  useAccounts: () => ({ data: accounts }),
+  useAccounts: () => useAccounts(),
 }))
 
 vi.mock('@/features/profile/hooks', () => ({
@@ -81,7 +89,14 @@ beforeEach(() => {
   vi.setSystemTime(new Date(2026, 8, 12))
   useTransactions.mockReset()
   useTransactions.mockReturnValue({ data: [], isLoading: false })
+  useTransferCounterparts.mockReset()
+  useTransferCounterparts.mockReturnValue({ data: undefined })
+  createTransfer.mockReset()
+  createTransfer.mockResolvedValue([])
+  updateTransfer.mockReset()
+  updateTransfer.mockResolvedValue([])
   usePrimaryCurrency.mockReturnValue({ data: 'COP', isPending: false })
+  useAccounts.mockReturnValue({ data: accounts })
   currentSearch = ''
 })
 
@@ -180,6 +195,89 @@ describe('Transactions — cuenta y tipo', () => {
   })
 })
 
+describe('Transactions — moneda', () => {
+  function optionLabels(select: HTMLElement): string[] {
+    return within(select)
+      .getAllByRole('option')
+      .map((option) => option.textContent ?? '')
+  }
+
+  it('con una sola moneda no muestra el selector', () => {
+    useAccounts.mockReturnValue({
+      data: accounts.filter((account) => account.currency_code === 'COP'),
+    })
+    renderTransactions('/transactions?month=2026-08')
+
+    expect(screen.queryByLabelText('Moneda')).not.toBeInTheDocument()
+  })
+
+  it('ofrece solo las monedas de las cuentas, con la principal primero', () => {
+    usePrimaryCurrency.mockReturnValue({ data: 'USD', isPending: false })
+    renderTransactions('/transactions?month=2026-08')
+
+    expect(optionLabels(screen.getByLabelText('Moneda'))).toEqual([
+      'Todas las monedas',
+      'USD',
+      'COP',
+    ])
+  })
+
+  it('elegir una moneda pide solo sus cuentas y acota el selector de cuenta', () => {
+    renderTransactions('/transactions?month=2026-08')
+
+    fireEvent.change(screen.getByLabelText('Moneda'), { target: { value: 'COP' } })
+
+    expect(lastFilters()).toMatchObject({
+      currencyCode: 'COP',
+      accountIds: ['acc-bank', 'acc-old'],
+    })
+    expect(optionLabels(screen.getByLabelText('Cuenta'))).toEqual([
+      'Todas las cuentas',
+      'Banco',
+      'Cuenta vieja',
+    ])
+  })
+
+  it('elegir otra moneda limpia una cuenta que no es de esa moneda', () => {
+    renderTransactions('/transactions?month=2026-08')
+
+    fireEvent.change(screen.getByLabelText('Cuenta'), { target: { value: 'acc-usd' } })
+    fireEvent.change(screen.getByLabelText('Moneda'), { target: { value: 'COP' } })
+
+    expect(lastFilters()?.accountId).toBeUndefined()
+    expect(screen.getByLabelText('Cuenta')).toHaveValue('')
+  })
+
+  it('elegir la moneda de la cuenta seleccionada la conserva', () => {
+    renderTransactions('/transactions?month=2026-08')
+
+    fireEvent.change(screen.getByLabelText('Cuenta'), { target: { value: 'acc-usd' } })
+    fireEvent.change(screen.getByLabelText('Moneda'), { target: { value: 'USD' } })
+
+    expect(lastFilters()).toMatchObject({ accountId: 'acc-usd', accountIds: ['acc-usd'] })
+  })
+
+  it('volver a «Todas las monedas» deja de acotar por cuentas', () => {
+    renderTransactions('/transactions?month=2026-08')
+
+    fireEvent.change(screen.getByLabelText('Moneda'), { target: { value: 'USD' } })
+    fireEvent.change(screen.getByLabelText('Moneda'), { target: { value: '' } })
+
+    expect(lastFilters()?.currencyCode).toBeUndefined()
+    expect(lastFilters()?.accountIds).toBeUndefined()
+  })
+
+  it('la moneda no se escribe en la URL y cambiar el mes la conserva', () => {
+    renderTransactions('/transactions?month=2026-08')
+
+    fireEvent.change(screen.getByLabelText('Moneda'), { target: { value: 'USD' } })
+    fireEvent.change(monthInput(), { target: { value: '2026-07' } })
+
+    expect(currentSearch).toBe('?month=2026-07')
+    expect(lastFilters()).toMatchObject({ month: '2026-07', currencyCode: 'USD' })
+  })
+})
+
 describe('Transactions — formularios', () => {
   it('abrir «Nuevo movimiento» sigue funcionando con el mes en la URL', () => {
     renderTransactions('/transactions?month=2026-08')
@@ -246,5 +344,181 @@ describe('Transactions — moneda de cada fila', () => {
 
     expect(screen.getByText(/COP 250\.000/)).toBeInTheDocument()
     expect(screen.getByText(/USD 40/)).toBeInTheDocument()
+  })
+})
+
+describe('Transactions — transferencias entre monedas', () => {
+  const transferRows = [
+    row({
+      id: 't-out',
+      account_id: 'acc-bank',
+      type: 'transfer',
+      transfer_direction: 'outgoing',
+      transfer_group_id: 'g-1',
+      amount_minor: 100_000,
+      description: 'Paso a dólares',
+    }),
+    row({
+      id: 't-in',
+      account_id: 'acc-usd',
+      type: 'transfer',
+      transfer_direction: 'incoming',
+      transfer_group_id: 'g-1',
+      amount_minor: 25,
+      description: 'Paso a dólares',
+    }),
+  ]
+
+  it('muestra las dos patas, cada una en su moneda y con su contraparte', () => {
+    useTransactions.mockReturnValue({ data: transferRows, isLoading: false })
+    useTransferCounterparts.mockReturnValue({
+      data: new Map([
+        ['t-out', { accountId: 'acc-usd', amountMinor: 25, direction: 'incoming' }],
+        ['t-in', { accountId: 'acc-bank', amountMinor: 100_000, direction: 'outgoing' }],
+      ]),
+    })
+
+    renderTransactions('/transactions?month=2026-08')
+
+    expect(screen.getAllByText('Paso a dólares')).toHaveLength(2)
+    expect(screen.getByText('− COP 100.000')).toBeInTheDocument()
+    expect(screen.getByText('+ USD 25')).toBeInTheDocument()
+    expect(screen.getByText('→ Cuenta USD · + USD 25')).toBeInTheDocument()
+    expect(screen.getByText('← Banco · − COP 100.000')).toBeInTheDocument()
+  })
+
+  it('filtrando USD, la pata visible sigue indicando la cuenta COP de origen', () => {
+    useTransactions.mockReturnValue({ data: [transferRows[1]], isLoading: false })
+    useTransferCounterparts.mockReturnValue({
+      data: new Map([
+        ['t-in', { accountId: 'acc-bank', amountMinor: 100_000, direction: 'outgoing' }],
+      ]),
+    })
+
+    renderTransactions('/transactions?month=2026-08')
+    fireEvent.change(screen.getByLabelText('Moneda'), { target: { value: 'USD' } })
+
+    expect(lastFilters()).toMatchObject({ currencyCode: 'USD', accountIds: ['acc-usd'] })
+    expect(screen.getAllByText('Paso a dólares')).toHaveLength(1)
+    expect(screen.getByText('← Banco · − COP 100.000')).toBeInTheDocument()
+  })
+
+  it('registra cada pata con su propio importe', async () => {
+    renderTransactions('/transactions?month=2026-08')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Transferir' }))
+    const dialog = within(screen.getByRole('dialog'))
+    fireEvent.change(dialog.getByLabelText('Desde'), { target: { value: 'acc-bank' } })
+    fireEvent.change(dialog.getByLabelText('Hacia'), { target: { value: 'acc-usd' } })
+    fireEvent.change(dialog.getByLabelText('Monto enviado (COP)'), {
+      target: { value: '100000' },
+    })
+    fireEvent.change(dialog.getByLabelText('Monto recibido (USD)'), { target: { value: '25' } })
+    fireEvent.click(dialog.getByRole('button', { name: 'Transferir' }))
+
+    await vi.waitFor(() => expect(createTransfer).toHaveBeenCalledOnce())
+    expect(createTransfer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fromAccountId: 'acc-bank',
+        toAccountId: 'acc-usd',
+        fromAmountMinor: 100_000,
+        toAmountMinor: 25,
+      }),
+    )
+  })
+})
+
+describe('Transactions — editar transferencias (M8)', () => {
+  const transferRows = [
+    row({
+      id: 't-out',
+      account_id: 'acc-bank',
+      type: 'transfer',
+      transfer_direction: 'outgoing',
+      transfer_group_id: 'g-1',
+      amount_minor: 100_000,
+      description: 'Paso a dólares',
+    }),
+    row({
+      id: 't-in',
+      account_id: 'acc-usd',
+      type: 'transfer',
+      transfer_direction: 'incoming',
+      transfer_group_id: 'g-1',
+      amount_minor: 25,
+      description: 'Paso a dólares',
+    }),
+  ]
+
+  const counterparts = new Map([
+    ['t-out', { accountId: 'acc-usd', amountMinor: 25, direction: 'incoming' }],
+    ['t-in', { accountId: 'acc-bank', amountMinor: 100_000, direction: 'outgoing' }],
+  ])
+
+  beforeEach(() => {
+    useTransactions.mockReturnValue({ data: transferRows, isLoading: false })
+    useTransferCounterparts.mockReturnValue({ data: counterparts })
+  })
+
+  it('sin la otra pata cargada no ofrece editar', () => {
+    useTransferCounterparts.mockReturnValue({ data: undefined })
+
+    renderTransactions('/transactions?month=2026-08')
+
+    expect(screen.queryByRole('button', { name: 'Editar transferencia' })).not.toBeInTheDocument()
+    // Duplicar y eliminar siguen disponibles: no dependen de la otra pata.
+    expect(screen.getAllByRole('button', { name: 'Duplicar movimiento' })).toHaveLength(2)
+  })
+
+  it('abre la transferencia completa desde la pata que entra, en su sentido original', () => {
+    renderTransactions('/transactions?month=2026-08')
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Editar transferencia' })[1])
+
+    const dialog = within(screen.getByRole('dialog'))
+    expect(dialog.getByText('Editar transferencia')).toBeInTheDocument()
+    expect((dialog.getByLabelText('Desde') as HTMLSelectElement).value).toBe('acc-bank')
+    expect((dialog.getByLabelText('Hacia') as HTMLSelectElement).value).toBe('acc-usd')
+    expect((dialog.getByLabelText('Monto enviado (COP)') as HTMLInputElement).value).toBe('100.000')
+    expect((dialog.getByLabelText('Monto recibido (USD)') as HTMLInputElement).value).toBe('25')
+  })
+
+  it('guarda las dos patas con su grupo y cada importe en su moneda', async () => {
+    renderTransactions('/transactions?month=2026-08')
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Editar transferencia' })[0])
+    const dialog = within(screen.getByRole('dialog'))
+    fireEvent.change(dialog.getByLabelText('Monto recibido (USD)'), { target: { value: '30' } })
+
+    expect(dialog.getByText(TRANSFER_EDIT_WARNING)).toBeInTheDocument()
+
+    fireEvent.click(dialog.getByRole('button', { name: 'Guardar cambios' }))
+
+    await vi.waitFor(() => expect(updateTransfer).toHaveBeenCalledOnce())
+    expect(updateTransfer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        transferGroupId: 'g-1',
+        fromAccountId: 'acc-bank',
+        toAccountId: 'acc-usd',
+        fromAmountMinor: 100_000,
+        toAmountMinor: 30,
+        transactionDate: '2026-08-10',
+      }),
+    )
+    // Editar una transferencia no crea otra.
+    expect(createTransfer).not.toHaveBeenCalled()
+  })
+
+  it('«Transferir» abre el formulario vacío aunque se acabe de editar una', () => {
+    renderTransactions('/transactions?month=2026-08')
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Editar transferencia' })[0])
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /cerrar/i }))
+    fireEvent.click(screen.getByRole('button', { name: 'Transferir' }))
+
+    const dialog = within(screen.getByRole('dialog'))
+    expect(dialog.getByText('Transferir entre cuentas')).toBeInTheDocument()
+    expect((dialog.getByLabelText('Desde') as HTMLSelectElement).value).toBe('')
+    expect(dialog.getByRole('button', { name: 'Transferir' })).toBeInTheDocument()
   })
 })

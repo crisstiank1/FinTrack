@@ -9,7 +9,10 @@ import {
   deleteTransaction,
   duplicateTransaction,
   fetchTransactions,
+  fetchTransferCounterparts,
+  transferGroupIds,
   updateTransaction,
+  updateTransferPair,
   type TransactionFilters,
 } from './api'
 
@@ -20,6 +23,24 @@ export function useTransactions(filters: TransactionFilters) {
     queryKey: ['transactions', user?.id, filters],
     queryFn: () => fetchTransactions(user!.id, filters),
     enabled: !!user,
+  })
+}
+
+/**
+ * Contraparte de cada transferencia de la lista (ver `fetchTransferCounterparts`).
+ * La clave empieza por 'transactions' para que crear o borrar una transferencia
+ * la refresque con la invalidación que ya existe.
+ */
+export function useTransferCounterparts(
+  transactions: Parameters<typeof fetchTransferCounterparts>[1] | undefined,
+) {
+  const { user } = useAuth()
+  const groupIds = transferGroupIds(transactions ?? [])
+
+  return useQuery({
+    queryKey: ['transactions', user?.id, 'counterparts', groupIds],
+    queryFn: () => fetchTransferCounterparts(user!.id, transactions ?? []),
+    enabled: !!user && groupIds.length > 0,
   })
 }
 
@@ -51,6 +72,21 @@ export function useCreateTransfer() {
   return useMutation({
     mutationFn: (input: Omit<Parameters<typeof createTransferPair>[0], 'userId'>) =>
       createTransferPair({ ...input, userId: user!.id }),
+    onSuccess: invalidate,
+  })
+}
+
+/**
+ * Edita una transferencia entera (M8). Invalida lo mismo que crearla: las dos
+ * patas cambian de importe o de cuenta, así que los saldos también.
+ */
+export function useUpdateTransfer() {
+  const { user } = useAuth()
+  const invalidate = useInvalidateTransactions()
+
+  return useMutation({
+    mutationFn: (input: Omit<Parameters<typeof updateTransferPair>[0], 'userId'>) =>
+      updateTransferPair({ ...input, userId: user!.id }),
     onSuccess: invalidate,
   })
 }

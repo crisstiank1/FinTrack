@@ -8,6 +8,7 @@ const context = {
   accountsById: new Map([
     ['acc-1', { name: 'Bancolombia', currency_code: 'COP' }],
     ['acc-2', { name: 'Ahorros', currency_code: 'COP' }],
+    ['acc-usd', { name: 'Cuenta USD', currency_code: 'USD' }],
   ]),
   categoriesById: new Map([['cat-1', { name: 'Alimentación' }]]),
   fallbackCurrency: 'COP',
@@ -115,6 +116,39 @@ describe('buildLedgerCsv', () => {
       .reduce((sum, line) => sum + Number(line.split(';')[7]), 0)
 
     expect(total).toBe(0)
+  })
+
+  it('una transferencia entre monedas exporta cada pata con su importe y su moneda', () => {
+    const csv = buildLedgerCsv(
+      [
+        tx({
+          id: 't-out',
+          category_id: null,
+          type: 'transfer',
+          transfer_direction: 'outgoing',
+          transfer_group_id: 'g-1',
+          amount_minor: 100_000,
+        }),
+        tx({
+          id: 't-in',
+          account_id: 'acc-usd',
+          category_id: null,
+          type: 'transfer',
+          transfer_direction: 'incoming',
+          transfer_group_id: 'g-1',
+          amount_minor: 25,
+        }),
+      ],
+      context,
+    )
+
+    const [outgoing, incoming] = rows(csv)
+      .slice(1)
+      .map((line) => line.split(';'))
+
+    // Monto (7) y Moneda (8): la pareja ya no suma cero, pero cada fila dice en qué moneda va.
+    expect([outgoing[7], outgoing[8], outgoing[6]]).toEqual(['-100000', 'COP', 'g-1'])
+    expect([incoming[7], incoming[8], incoming[6]]).toEqual(['25', 'USD', 'g-1'])
   })
 
   it('marca dirección y grupo de la transferencia para poder auditarla', () => {

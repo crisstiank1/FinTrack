@@ -1,4 +1,9 @@
 import type { TransactionForCalculation } from '@/lib/calculations'
+import {
+  partitionByAccountCurrency,
+  sortCurrencyCodes,
+  type CurrencyExclusions,
+} from '@/lib/currency'
 
 import {
   ALLOCATION_GROUPS,
@@ -115,10 +120,12 @@ export interface PlanTransferLeg {
   amount_minor: number
 }
 
-/** Cuenta vista solo como portadora de un tipo, para emparejar transferencias. */
+/** Cuenta vista como portadora de un tipo, para emparejar transferencias. */
 export interface PlanAccountTypeRow {
   id: string
   type: string
+  /** Solo hace falta para acotar los aportes a la moneda del Plan. */
+  currency_code?: string
 }
 
 export interface CategoryClassificationRow {
@@ -414,10 +421,50 @@ function isContributionAccountType(value: string): boolean {
  * `origen ≠ objetivo`, así que todo candidato que habría contado sigue aquí.
  */
 export function buildTransferContributionCandidates(
-  transactions: PlanTransferLeg[],
-  accounts: PlanAccountTypeRow[],
+  transactions: readonly PlanTransferLeg[],
+  accounts: readonly PlanAccountTypeRow[],
+  currencyCode?: string,
 ): TransferContributionCandidate[] {
-  const typeByAccount = new Map(accounts.map((account) => [account.id, account.type]))
+  return pairContributionTransfers(transactions, accounts)
+    .filter((transfer) => !currencyCode || isInCurrency(transfer.destinationCurrency, currencyCode))
+    .map(({ amountMinor, destinationAccountType, sourceAccountType }) => ({
+      amountMinor,
+      destinationAccountType,
+      sourceAccountType,
+    }))
+}
+
+/**
+ * Moneda de destino de cada aporte que el Plan deja fuera por estar en otra
+ * moneda: uno por transferencia. La pata entrante va en la moneda de su cuenta
+ * y el Plan no convierte divisas, así que un aporte a una cuenta de ahorro en
+ * USD no puede sumarse a un Plan en COP. La moneda de origen no importa: un
+ * aporte desde USD a una cuenta de ahorro en COP sí cuenta, y en COP.
+ */
+export function foreignCurrencyContributions(
+  transactions: readonly PlanTransferLeg[],
+  accounts: readonly PlanAccountTypeRow[],
+  currencyCode: string,
+): string[] {
+  return pairContributionTransfers(transactions, accounts)
+    .map((transfer) => transfer.destinationCurrency)
+    .filter((code): code is string => !isInCurrency(code, currencyCode))
+}
+
+/** Una cuenta sin moneda conocida se trata como de la moneda de la pantalla. */
+function isInCurrency(accountCurrency: string | undefined, currencyCode: string): boolean {
+  return accountCurrency === undefined || accountCurrency === currencyCode
+}
+
+interface ContributionTransfer extends TransferContributionCandidate {
+  destinationCurrency: string | undefined
+}
+
+function pairContributionTransfers(
+  transactions: readonly PlanTransferLeg[],
+  accounts: readonly PlanAccountTypeRow[],
+): ContributionTransfer[] {
+  const accountById = new Map(accounts.map((account) => [account.id, account]))
 
   const legsByGroup = new Map<string, PlanTransferLeg[]>()
 
@@ -430,7 +477,7 @@ export function buildTransferContributionCandidates(
     else legsByGroup.set(transaction.transfer_group_id, [transaction])
   }
 
-  const candidates: TransferContributionCandidate[] = []
+  const transfers: ContributionTransfer[] = []
 
   for (const legs of legsByGroup.values()) {
     if (legs.length !== 2) continue
@@ -439,21 +486,67 @@ export function buildTransferContributionCandidates(
     const outgoing = legs.filter((leg) => leg.transfer_direction === 'outgoing')
     if (incoming.length !== 1 || outgoing.length !== 1) continue
 
-    const destinationAccountType = typeByAccount.get(incoming[0].account_id)
-    const sourceAccountType = typeByAccount.get(outgoing[0].account_id)
+    const destination = accountById.get(incoming[0].account_id)
+    const destinationAccountType = destination?.type
+    const sourceAccountType = accountById.get(outgoing[0].account_id)?.type
     if (destinationAccountType === undefined || sourceAccountType === undefined) continue
 
     if (!isContributionAccountType(destinationAccountType)) continue
     if (sourceAccountType === destinationAccountType) continue
 
-    candidates.push({
+    transfers.push({
       amountMinor: incoming[0].amount_minor,
       destinationAccountType,
       sourceAccountType,
+      destinationCurrency: destination?.currency_code,
     })
   }
 
-  return candidates
+  return transfers
+}
+
+/** El mes del Plan acotado a una moneda (ver `scopePlanMonthToCurrency`). */
+export interface PlanMonthInCurrency<T> {
+  /** Ingresos y gastos de cuentas en la moneda del Plan. Sin transferencias. */
+  categorized: T[]
+  /** Aportes cuya cuenta de destino está en la moneda del Plan. */
+  contributions: TransferContributionCandidate[]
+  /** Ingresos, gastos y aportes que quedaron fuera por estar en otra moneda. */
+  exclusions: CurrencyExclusions
+}
+
+/**
+ * Acota los movimientos del mes a la moneda del Plan, **una sola vez** y antes
+ * de cualquier cálculo: ingresos, gastos, líneas, reparto, aportes y Restante
+ * salen todos de este resultado, así que no pueden descuadrarse entre sí.
+ *
+ * Quedan fuera, y se cuentan para el aviso, los ingresos y gastos de cuentas en
+ * otra moneda y los aportes hacia cuentas de ahorro o inversión en otra moneda.
+ * Las demás transferencias no se cuentan: el Plan nunca las usa.
+ */
+export function scopePlanMonthToCurrency<T extends PlanTransferLeg & PlanCategorizedTransaction>(
+  transactions: readonly T[],
+  accounts: readonly (PlanAccountTypeRow & { currency_code: string })[],
+  currencyCode: string,
+): PlanMonthInCurrency<T> {
+  const currencyByAccountId = new Map(
+    accounts.map((account) => [account.id, account.currency_code]),
+  )
+  const { included, exclusions } = partitionByAccountCurrency(
+    transactions.filter((transaction) => transaction.type !== 'transfer'),
+    currencyByAccountId,
+    currencyCode,
+  )
+  const foreignContributions = foreignCurrencyContributions(transactions, accounts, currencyCode)
+
+  return {
+    categorized: included,
+    contributions: buildTransferContributionCandidates(transactions, accounts, currencyCode),
+    exclusions: {
+      count: exclusions.count + foreignContributions.length,
+      currencyCodes: sortCurrencyCodes([...exclusions.currencyCodes, ...foreignContributions]),
+    },
+  }
 }
 
 /* -------------------------------------------------------------------------- */

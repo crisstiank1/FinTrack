@@ -131,3 +131,91 @@ describe('OnboardingWizard', () => {
     })
   })
 })
+
+describe('OnboardingWizard — monedas', () => {
+  beforeEach(() => {
+    inserts.length = 0
+  })
+
+  it('preselecciona la moneda principal en cada cuenta al llegar al paso de cuentas', async () => {
+    const user = userEvent.setup()
+    renderWizard()
+
+    await user.type(screen.getByLabelText('¿Cómo te llamas?'), 'Ana')
+    await user.selectOptions(screen.getByLabelText('Moneda principal'), 'USD')
+    await user.click(screen.getByRole('button', { name: /continuar/i }))
+    await screen.findByText('Paso 2 de 4')
+
+    expect(screen.getByLabelText('Moneda')).toHaveValue('USD')
+
+    await user.click(screen.getByRole('button', { name: /agregar otra cuenta/i }))
+    expect(screen.getAllByLabelText('Moneda')[1]).toHaveValue('USD')
+  })
+
+  it('muestra el aviso de D5 cuando una cuenta queda en otra moneda que la principal', async () => {
+    const user = userEvent.setup()
+    renderWizard()
+
+    await user.type(screen.getByLabelText('¿Cómo te llamas?'), 'Ana')
+    await user.selectOptions(screen.getByLabelText('Moneda principal'), 'USD')
+    await user.click(screen.getByRole('button', { name: /continuar/i }))
+    await screen.findByText('Paso 2 de 4')
+
+    await user.type(screen.getByLabelText('Nombre'), 'Cuenta en ARS')
+    expect(screen.queryByText(/Esta cuenta no se sumará a tus totales/)).not.toBeInTheDocument()
+
+    await user.selectOptions(screen.getByLabelText('Moneda'), 'ARS')
+
+    expect(
+      screen.getByText('Esta cuenta no se sumará a tus totales en USD: su saldo aparecerá aparte'),
+    ).toBeInTheDocument()
+  })
+
+  it('inserta la moneda elegida para cada cuenta', async () => {
+    const user = userEvent.setup()
+    renderWizard()
+
+    await user.type(screen.getByLabelText('¿Cómo te llamas?'), 'Ana')
+    await user.selectOptions(screen.getByLabelText('Moneda principal'), 'USD')
+    await user.click(screen.getByRole('button', { name: /continuar/i }))
+    await screen.findByText('Paso 2 de 4')
+
+    await user.type(screen.getByLabelText('Nombre'), 'Ahorro en ARS')
+    await user.selectOptions(screen.getByLabelText('Moneda'), 'ARS')
+    await user.click(screen.getByRole('button', { name: /agregar otra cuenta/i }))
+    await user.type(screen.getAllByLabelText('Nombre')[1], 'Bolsillo en COP')
+    await user.selectOptions(screen.getAllByLabelText('Moneda')[1], 'COP')
+    await user.click(screen.getByRole('button', { name: /continuar/i }))
+    await screen.findByText('Paso 3 de 4')
+    await user.click(screen.getByRole('button', { name: /crear categorías y continuar/i }))
+    await screen.findByText('Paso 4 de 4')
+    await user.click(screen.getByRole('button', { name: /ir a mi dashboard/i }))
+
+    await waitFor(() => {
+      expect(inserts.find((insert) => insert.table === 'accounts')?.rows).toEqual([
+        expect.objectContaining({ name: 'Ahorro en ARS', currency_code: 'ARS' }),
+        expect.objectContaining({ name: 'Bolsillo en COP', currency_code: 'COP' }),
+      ])
+    })
+  })
+
+  it('muestra en la confirmación cada saldo en su propia moneda', async () => {
+    const user = userEvent.setup()
+    renderWizard()
+
+    await user.type(screen.getByLabelText('¿Cómo te llamas?'), 'Ana')
+    await user.selectOptions(screen.getByLabelText('Moneda principal'), 'USD')
+    await user.click(screen.getByRole('button', { name: /continuar/i }))
+    await screen.findByText('Paso 2 de 4')
+
+    await user.type(screen.getByLabelText('Nombre'), 'Ahorro en ARS')
+    await user.selectOptions(screen.getByLabelText('Moneda'), 'ARS')
+    await user.type(screen.getByLabelText('Saldo inicial'), '1250')
+    await user.click(screen.getByRole('button', { name: /continuar/i }))
+    await screen.findByText('Paso 3 de 4')
+    await user.click(screen.getByRole('button', { name: /crear categorías y continuar/i }))
+    await screen.findByText('Paso 4 de 4')
+
+    expect(screen.getByText(/ARS 1\.250/)).toBeInTheDocument()
+  })
+})

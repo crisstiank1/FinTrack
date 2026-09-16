@@ -89,6 +89,7 @@ import {
 import {
   allocationGroupDiffKind,
   contributionLineLabel,
+  excludedMovementsNote,
   planRowDiffKind,
   DELETE_CONTRIBUTION_DESCRIPTION,
   DELETE_CONTRIBUTION_TITLE,
@@ -114,7 +115,8 @@ import {
   toPlannedIncomeSources,
   toPlannedLineAmounts,
 } from '@/features/plan/read-model'
-import { formatAmount } from '@/lib/currency'
+import { usePrimaryCurrency } from '@/features/profile/hooks'
+import { formatAmount, resolvePresentationCurrency } from '@/lib/currency'
 import { currentMonthKey, formatMonthLabel } from '@/lib/dates'
 import type { Tables } from '@/types/database.types'
 
@@ -235,6 +237,15 @@ export default function Plan() {
 
   const { data: accounts = [] } = useAccounts()
   const { data: categories = [] } = useCategories()
+  const primaryCurrency = usePrimaryCurrency()
+
+  // FinTrack no convierte divisas: el Plan y sus presupuestos van en una sola
+  // moneda, la de presentación (la principal si hay alguna cuenta en ella; si
+  // no, la de la primera cuenta), igual que el dashboard y el libro. Lo de otras
+  // monedas se excluye y se avisa. Mientras la moneda principal carga, las
+  // cifras esperan para no mostrarse un instante en otra moneda.
+  const currencyCode = resolvePresentationCurrency(primaryCurrency.data, accounts)
+  const planCurrencyCode = primaryCurrency.isPending ? undefined : currencyCode
 
   const planMonthQuery = usePlanMonth(monthKey)
   const planMonthId = planMonthQuery.data?.id
@@ -244,13 +255,13 @@ export default function Plan() {
   const budgetsQuery = useEffectiveCategoryBudgets(monthKey)
   // Solo para la nota del formulario de líneas: no bloquea la pantalla.
   const { data: zeroBudgetCategoryIds } = useZeroBudgetCategoryIds(monthKey)
-  const actualsQuery = usePlanActuals({ monthKey, planMonthId })
+  const actualsQuery = usePlanActuals({ monthKey, planMonthId, currencyCode: planCurrencyCode })
   const incomeSourcesQuery = usePlanIncomeSources(planMonthId)
   const allocationsQuery = usePlanAllocations(planMonthId)
   const incomeSourceCategoriesQuery = usePlanIncomeSourceCategories(planMonthId)
   // Saldo al cierre del mes. Fuera de `isPending` e `isError` a propósito: es
   // contexto, y su bloque dice por su cuenta si carga o si falló.
-  const contributionBalancesQuery = usePlanContributionBalances(monthKey)
+  const contributionBalancesQuery = usePlanContributionBalances(monthKey, planCurrencyCode)
 
   const createPlanMonth = useCreatePlanMonth()
   const saveIncomeSource = useSaveIncomeSource()
@@ -273,12 +284,10 @@ export default function Plan() {
   const allocationsPending = planMonthId ? allocationsQuery.isPending : false
   const allocationsError = planMonthId ? allocationsQuery.isError : false
 
-  // El MVP no convierte divisas: se usa la moneda de la primera cuenta como
-  // moneda de presentación, mismo criterio que el dashboard y /budgets.
-  const currencyCode = accounts[0]?.currency_code ?? 'COP'
   const monthLabel = formatMonthLabel(monthKey)
 
   const isPending =
+    primaryCurrency.isPending ||
     planMonthQuery.isPending ||
     linesQuery.isPending ||
     classificationsQuery.isPending ||
@@ -471,6 +480,7 @@ export default function Plan() {
         savingsContributionsMinor: actuals.savingsContributionsMinor,
         savingsPlannedMinor,
       },
+      excludedNote: excludedMovementsNote(actuals.exclusions),
       hasMovements:
         actuals.incomeActualMinor > 0 ||
         actuals.expenseActualMinor > 0 ||
@@ -564,7 +574,11 @@ export default function Plan() {
     [linePartition],
   )
 
-  const lineProgressQuery = usePlanLineProgress({ monthKey, categoryIds: lineCategoryIds })
+  const lineProgressQuery = usePlanLineProgress({
+    monthKey,
+    categoryIds: lineCategoryIds,
+    currencyCode: planCurrencyCode,
+  })
 
   /** Progreso por categoría, para que el panel no tenga que buscar en la lista. */
   const progressByCategory = useMemo(() => {
@@ -704,12 +718,21 @@ export default function Plan() {
           name: line.name,
           accountName: account?.name ?? 'Cuenta no disponible',
           isAccountArchived: account?.is_archived ?? false,
+          otherCurrencyCode:
+            account && account.currency_code !== currencyCode ? account.currency_code : undefined,
           plannedMinor: line.planned_minor ?? 0,
         }
       }),
-      hasActiveAccounts: accounts.some((account) => account.type === kind && !account.is_archived),
-      availableAccountCount: selectAvailableContributionAccounts(accounts, kind, usedAccountIds)
-        .length,
+      hasActiveAccounts: accounts.some(
+        (account) =>
+          account.type === kind && !account.is_archived && account.currency_code === currencyCode,
+      ),
+      availableAccountCount: selectAvailableContributionAccounts(
+        accounts,
+        kind,
+        usedAccountIds,
+        currencyCode,
+      ).length,
       isBusy: saveContributionLine.isPending || deletePlanLine.isPending,
       onAdd: () => setEditingContribution({ kind, lineId: 'new' }),
       onEdit: (lineId) => setEditingContribution({ kind, lineId }),
@@ -923,6 +946,17 @@ export default function Plan() {
 
       {!isError && !isPending && model && (
         <>
+          {/* Antes que todo lo demás, también en un mes vacío: explica por qué
+              faltan movimientos que el usuario sí registró. */}
+          {model.excludedNote && (
+            <p
+              role="note"
+              className="mt-6 rounded-lg border border-border bg-card p-3 text-sm text-muted-foreground"
+            >
+              {model.excludedNote}
+            </p>
+          )}
+
           {/* Un mes sin plan no es un error, así que no se anuncia como tal: es
               un estado normal, y las cifras reales se siguen mostrando. */}
           {!hasPlan && model.hasMovements && (
@@ -1168,6 +1202,7 @@ export default function Plan() {
                       accounts,
                       editingContribution.kind,
                       usedAccountIds,
+                      currencyCode,
                     )
               }
               defaultValues={

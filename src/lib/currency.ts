@@ -30,14 +30,52 @@ export function formatCompactAmount(amountMinor: number): string {
   }).format(amountMinor)
 }
 
-export const CURRENCIES = [
-  { code: 'COP', label: 'Peso colombiano (COP)' },
-  { code: 'USD', label: 'Dólar estadounidense (USD)' },
-  { code: 'EUR', label: 'Euro (EUR)' },
-  { code: 'MXN', label: 'Peso mexicano (MXN)' },
-] as const
+/** Códigos del catálogo completo de monedas de FinTrack. */
+export const CURRENCY_CODES = ['COP', 'USD', 'ARS', 'EUR', 'MXN'] as const
 
-export type CurrencyCode = (typeof CURRENCIES)[number]['code']
+export type CurrencyCode = (typeof CURRENCY_CODES)[number]
+
+// Un Record y no un array: si se añade una moneda sin etiqueta, falla la compilación.
+const CURRENCY_LABELS: Record<CurrencyCode, string> = {
+  COP: 'Peso colombiano (COP)',
+  USD: 'Dólar estadounidense (USD)',
+  ARS: 'Peso argentino (ARS)',
+  EUR: 'Euro (EUR)',
+  MXN: 'Peso mexicano (MXN)',
+}
+
+/** Catálogo completo: monedas que FinTrack sabe formatear. */
+export const CURRENCIES: readonly { code: CurrencyCode; label: string }[] = CURRENCY_CODES.map(
+  (code) => ({ code, label: CURRENCY_LABELS[code] }),
+)
+
+/**
+ * Monedas que se ofrecen al crear cuentas y en el onboarding. EUR y MXN son
+ * solo lectura: se siguen formateando y pueden conservarse al editar una cuenta
+ * que ya las tenga, pero no se ofrecen para cuentas nuevas.
+ */
+export const SELECTABLE_CURRENCY_CODES = ['COP', 'USD', 'ARS'] as const
+
+export type SelectableCurrencyCode = (typeof SELECTABLE_CURRENCY_CODES)[number]
+
+const SELECTABLE = new Set<string>(SELECTABLE_CURRENCY_CODES)
+
+/**
+ * Opciones de un selector de moneda. Al crear ofrecen COP, USD y ARS; al editar
+ * añaden al final la moneda heredada de la cuenta si está fuera de las
+ * ofrecidas (por ejemplo EUR o MXN), para que esas cuentas sigan siendo
+ * editables.
+ */
+export function currencyOptions(
+  inheritedCode?: string | null,
+): readonly { code: CurrencyCode; label: string }[] {
+  const selectable = CURRENCIES.filter((currency) => SELECTABLE.has(currency.code))
+  const inherited = inheritedCode
+    ? CURRENCIES.find((currency) => currency.code === inheritedCode)
+    : undefined
+  if (!inherited || selectable.includes(inherited)) return selectable
+  return [...selectable, inherited]
+}
 
 /**
  * Orden en que se listan varias monedas a la vez. La moneda principal va
@@ -56,6 +94,89 @@ export function sortCurrencyCodes(codes: Iterable<string>, primaryCode?: string 
   return [...new Set(codes)].sort((a, b) => rank(a) - rank(b) || a.localeCompare(b))
 }
 
+/** Alcance efectivo del filtro de moneda de Movimientos y del Libro financiero. */
+export interface CurrencyFilterScope {
+  /**
+   * Monedas que ofrece el selector, en orden de presentación. Salen de las
+   * cuentas del usuario, archivadas incluidas porque tienen historial. Con
+   * menos de dos, el selector se oculta.
+   */
+  currencyCodes: string[]
+  /** Moneda que realmente acota, o `undefined` para todas. */
+  currencyCode?: string
+  /** Cuentas de esa moneda. `undefined` cuando no se acota; nunca vacío. */
+  accountIds?: string[]
+}
+
+/**
+ * Traduce la moneda elegida en el selector a las cuentas por las que filtrar.
+ *
+ * `transactions` no guarda moneda: la define la cuenta, así que filtrar por
+ * moneda es filtrar por las cuentas en ella. Si el selector está oculto (una
+ * sola moneda) o la moneda elegida ya no tiene cuentas, no se acota: nunca se
+ * pide al servidor una lista de cuentas vacía.
+ */
+export function resolveCurrencyFilter(
+  accounts: readonly { id: string; currency_code: string }[],
+  selectedCode: string | undefined,
+  primaryCode?: string | null,
+): CurrencyFilterScope {
+  const currencyCodes = sortCurrencyCodes(
+    accounts.map((account) => account.currency_code),
+    primaryCode,
+  )
+
+  if (!selectedCode || currencyCodes.length < 2 || !currencyCodes.includes(selectedCode)) {
+    return { currencyCodes }
+  }
+
+  return {
+    currencyCodes,
+    currencyCode: selectedCode,
+    accountIds: accounts
+      .filter((account) => account.currency_code === selectedCode)
+      .map((account) => account.id),
+  }
+}
+
+/** Lo que una pantalla de una sola moneda deja fuera de sus cifras. */
+export interface CurrencyExclusions {
+  count: number
+  /** Monedas de lo excluido, sin repetir y en orden de presentación. */
+  currencyCodes: string[]
+}
+
+/**
+ * Separa las filas cuya cuenta está en `currencyCode` de las que están en otra.
+ *
+ * El Plan y los presupuestos muestran una sola moneda y no convierten divisas:
+ * lo de otras monedas no se suma, solo se cuenta para avisarlo. Una fila cuya
+ * cuenta no se conoce no tiene moneda y se queda dentro, igual que el Libro y
+ * Movimientos la muestran en la moneda de respaldo.
+ */
+export function partitionByAccountCurrency<T extends { account_id: string }>(
+  rows: readonly T[],
+  currencyByAccountId: ReadonlyMap<string, string>,
+  currencyCode: string,
+): { included: T[]; exclusions: CurrencyExclusions } {
+  const included: T[] = []
+  const excludedCurrencies: string[] = []
+
+  for (const row of rows) {
+    const rowCurrency = currencyByAccountId.get(row.account_id)
+    if (rowCurrency === undefined || rowCurrency === currencyCode) included.push(row)
+    else excludedCurrencies.push(rowCurrency)
+  }
+
+  return {
+    included,
+    exclusions: {
+      count: excludedCurrencies.length,
+      currencyCodes: sortCurrencyCodes(excludedCurrencies),
+    },
+  }
+}
+
 /**
  * Moneda en la que se presentan las cifras agregadas de una pantalla.
  *
@@ -72,4 +193,22 @@ export function resolvePresentationCurrency(
     return primaryCode
   }
   return accounts[0]?.currency_code ?? primaryCode ?? 'COP'
+}
+
+/**
+ * Cuentas que conservarán su moneda al cambiar la principal (M12).
+ *
+ * Cambiar la moneda principal no migra cuentas: si el usuario pasa de COP a USD
+ * teniendo cuentas en COP, esas cuentas siguen en COP y sus totales aparecen
+ * aparte, o incluso dejan de existir cuentas en la nueva principal y la
+ * presentación recae en la primera cuenta. Este conteo alimenta la advertencia
+ * de Ajustes; `0` si no hay nada que advertir.
+ */
+export function accountsKeptInCurrentCurrency(
+  accounts: readonly { currency_code: string }[],
+  currentCurrencyCode: string,
+  nextCurrencyCode: string,
+): number {
+  if (currentCurrencyCode === nextCurrencyCode) return 0
+  return accounts.filter((account) => account.currency_code === currentCurrencyCode).length
 }

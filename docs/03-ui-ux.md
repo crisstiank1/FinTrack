@@ -67,6 +67,40 @@ Estilo: negro y morado profesional, alto contraste, especialmente para tablas, m
 
 ---
 
+## Monedas
+
+FinTrack **no convierte divisas ni usa tipos de cambio.** Las reglas completas
+—principios, catálogo, moneda de presentación, filtros, transferencias, Plan,
+Presupuestos, ejemplos y limitaciones conocidas— están en
+`docs/11-reglas-de-moneda.md`. Aquí queda solo lo que afecta a la presentación:
+
+- **Todo importe se muestra con su código de moneda** (por ejemplo `USD 1.250`),
+  incluido en ejes de gráficos y filas del Libro financiero.
+- **Los totales solo suman cuentas de una misma moneda.** Cada pantalla elige su
+  moneda de presentación: la principal del perfil si el usuario tiene alguna
+  cuenta en ella; si no, la de la primera cuenta
+  (`resolvePresentationCurrency`). Las cuentas en otras monedas aparecen aparte,
+  en su propia moneda.
+- **El Dashboard, el Plan y los Presupuestos esperan a conocer la moneda
+  principal** antes de mostrar cifras, en vez de enseñarlas un instante en otra
+  moneda.
+- **Catálogo:** COP, USD y ARS para cuentas nuevas y para el onboarding; EUR y
+  MXN solo se conservan al editar una cuenta que ya las tenga (D1 y D2).
+- **Moneda principal del perfil:** COP, USD o ARS, con COP por defecto. Se elige
+  durante el onboarding (D3) y en Ajustes desde M12.
+- **Cambiar la moneda de una cuenta:** bloqueado si la cuenta ya tiene
+  movimientos (D6); permitido sin movimientos.
+- **Filtro por moneda (M3)**, **transferencias entre monedas (M4)**, **Plan y
+  Presupuestos en una sola moneda (M5)**, **Hojas sin moneda propia (M7)** y
+  **transferencias editables sin cambiar de moneda (M8)**: cada pantalla resume
+  su parte más abajo; el detalle y los textos exactos, en el documento de
+  reglas.
+- **Limitaciones conocidas** (transferencias antiguas con el mismo importe en
+  las dos patas, cambio de moneda de una cuenta con líneas de aporte, y las
+  demás): listadas con su estado en el documento de reglas.
+
+---
+
 ## Categorías predeterminadas
 
 Durante onboarding, crear las categorías por usuario mediante una estrategia segura y repetible (con `is_system = true` según corresponda).
@@ -162,11 +196,54 @@ Pasos:
 6. Posibilidad de agregar otra cuenta.
 7. Confirmación y redirección a `/dashboard`.
 
+**Monedas en el onboarding (M2):** la moneda principal se elige entre COP,
+USD y ARS, con COP por defecto (D3). Cada cuenta elige su propia moneda del
+mismo catálogo, con la moneda principal preseleccionada (D4). Si una cuenta
+queda en otra moneda que la principal, debajo de su selector se muestra:
+«Esta cuenta no se sumará a tus totales en {principal}: su saldo aparecerá
+aparte» (D5, sin banner). La confirmación muestra cada saldo en su moneda.
+
 ### `/dashboard`
+
+**Disposición (M13).** Dos columnas a partir de 1024px:
+
+| Zona              | Qué lleva                                                                       |
+| ----------------- | ------------------------------------------------------------------------------- |
+| Izquierda (340px) | «Cargar movimiento» y «Mes y cuenta»                                            |
+| Derecha           | Saldo consolidado, las cuatro cifras del mes, los dos gráficos y «Presupuestos» |
+| Abajo, a lo ancho | «Últimos movimientos» del mes                                                   |
+
+Los movimientos cierran la página a lo ancho y no en una columna lateral: ahí
+quedaban estrechos y obligaban a recortar las descripciones. En móvil todo se
+apila, con los controles primero.
+
+La columna izquierda **no depende de los datos**: sigue en pantalla mientras
+cargan los movimientos, si la consulta falla y si todavía no hay ninguno.
+
+**Cargar movimiento (M13).** Alta directa, sin abrir ningún diálogo:
+
+- Conmutador Gasto / Ingreso; al cambiarlo cambian las categorías ofrecidas.
+- Cuenta (rótulo «Cuenta»; se anuncia «Cuenta del movimiento» para no confundirse
+  con el filtro de la vista). Arranca en una cuenta de la moneda de la vista.
+- Importe en grande, en la moneda de la cuenta elegida. **No hay selector de
+  moneda:** la moneda la define la cuenta, como en el resto de la aplicación.
+- Categorías como chips: las ocho más usadas del mes y el resto tras «Más…». La
+  elegida se ve siempre, aunque quede fuera de esas ocho.
+- Fecha, con hoy por defecto.
+- **Nota (opcional)**, que se guarda como descripción del movimiento; si se deja
+  vacía, se guarda el nombre de la categoría. Así nunca se registra un
+  movimiento sin descripción sin tener que pedirla dos veces.
+- «Agregar» guarda con el mismo esquema y la misma mutación que `/transactions`,
+  y avisa con el mismo _toast_. Después se vacían importe, categoría y nota, y se
+  conservan tipo, cuenta y fecha: lo normal es anotar varios seguidos.
+- Si falla el guardado, lo escrito se conserva para reintentar.
+- **En móvil el panel se esconde:** un formulario arriba empujaría las cifras
+  fuera de la pantalla, así que ahí el alta sigue en el botón flotante y su
+  diálogo. El botón «Movimiento completo» abre ese mismo diálogo en escritorio,
+  para lo que el panel rápido no cubre (notas largas, otra descripción).
 
 - Selector de mes.
 - Selector opcional de cuenta.
-- Botón “Registrar movimiento”.
 - KPIs:
   - Saldo total.
   - Ingresos del mes.
@@ -177,9 +254,36 @@ Pasos:
 - Gráfico de ingresos versus gastos.
 - Gráfico de gasto por categoría.
 - Tendencia de saldo.
-- Últimos movimientos.
+- **Presupuestos por categoría (M13):** todas las categorías de gasto del mes en
+  una rejilla, cada una con su barra o, si no tiene presupuesto, con «Sin
+  presupuesto este mes» y lo gastado. **El importe se escribe en la propia
+  celda**, sin abrir ninguna ventana: el campo trae el presupuesto vigente —o el
+  marcador «Sin límite» si no hay— y, en cuanto la cifra cambia, aparecen el
+  botón «Guardar» y las dos opciones de alcance, «Desde este mes en adelante» y
+  «Solo este mes». En un mes ya cerrado solo se ofrece la segunda y se explica
+  por qué; Escape deshace lo escrito y devuelve la celda a lectura. El editor
+  comparte `budgetSchema` con `/budgets` —mismo formato de monto, mismo aviso al
+  poner 0— y **conserva la distinción entre plantilla y excepción**, que es justo
+  lo que un campo numérico suelto no sabe expresar.
+- **Últimos movimientos:** hasta diez del mes, del más reciente al más antiguo,
+  con su importe en la moneda de su cuenta y la contraparte de las
+  transferencias. Cada ingreso o gasto se puede **editar** desde aquí (M13);
+  una transferencia no, porque son dos patas y hay que verlas juntas (M8).
+  **No se elimina desde el dashboard:** eso vive en `/transactions`. «Ver todos»
+  abre `/transactions` en el mes que se está viendo.
 - Estados de carga, error y vacío.
 - Información consistente con `transactions`.
+
+**Moneda (ver «Monedas» y `docs/11-reglas-de-moneda.md`):** las cifras van en la
+moneda de presentación, con los saldos de otras monedas aparte y la nota
+«Cifras en COP. Tus cuentas en USD y ARS no se suman: su saldo aparece aparte,
+sin convertir.».
+Al elegir una cuenta, todo pasa a la moneda de esa cuenta y desaparecen la nota
+y los saldos aparte. El panel «Presupuestos» es la excepción: sus barras y
+alertas siguen en la moneda de los presupuestos, aunque la alerta global de
+ahorro neto negativo va en la moneda de la vista (M5). Ese panel tampoco sigue
+al filtro de cuenta, y desde M13 lo dice en su cabecera: «septiembre 2026 ·
+todas las cuentas».
 
 ### `/transactions`
 
@@ -187,10 +291,20 @@ Pasos:
 - Crear, editar, duplicar y eliminar movimientos.
 - Filtros básicos.
 - Acepta `?month=YYYY-MM`. Sin parámetro, o con uno inválido, abre el mes
-  actual; `?month=` vacío muestra todos los meses. Cuenta y tipo no van en la
-  URL.
+  actual; `?month=` vacío muestra todos los meses. Moneda, cuenta y tipo no van
+  en la URL.
+- Filtro por moneda (M3, ver «Monedas»): con una moneda elegida, el selector de
+  cuenta solo muestra cuentas en ella, y elegir otra moneda limpia una cuenta
+  que no le corresponde.
 - Formulario validado con Zod.
-- Transferencias entre cuentas.
+- Transferencias entre cuentas, también entre monedas distintas (M4, ver
+  «Monedas»): dos líneas, una por cuenta, cada una con su importe, su moneda y
+  su contraparte.
+- Editar una transferencia (M8, ver «Monedas»): el botón abre las dos patas en
+  un mismo formulario —cuentas, importes, fecha y descripción— y las guarda
+  juntas. Cada cuenta solo puede cambiarse por otra de su misma moneda, y al
+  cambiar importes o cuentas se avisa de que los saldos se ajustan. El botón
+  solo aparece cuando se conoce la otra pata.
 - Confirmación de eliminación.
 - Estados de carga y vacío.
 
@@ -215,13 +329,32 @@ borradores**: esa es `/sheets`.
 - TanStack Table.
 - Ordenamiento.
 - Búsqueda por descripción.
-- Filtros por periodo, cuenta, categoría y tipo.
+- Filtros por periodo, moneda, cuenta, categoría y tipo.
+  - Moneda (M3, ver «Monedas»): acota la tabla, las tarjetas, el resumen, la
+    paginación y el CSV. El selector de cuenta solo muestra cuentas de la
+    moneda elegida, elegir otra moneda limpia una cuenta que no le corresponde,
+    y «Limpiar filtros» también la quita.
 - Paginación server-side.
 - Cabecera sticky.
-- Selector de columnas.
-- Resumen de ingresos, gastos, balance y cantidad de movimientos.
-- Exportar CSV respetando filtros.
-- Modal de edición.
+- Selector de columnas: se cierra con Escape, devolviendo el foco al botón, y al
+  tocar fuera. En pantalla estrecha el panel se ancla a la izquierda del botón y
+  se limita al ancho disponible, para no salirse por el borde (M9).
+- Resumen de ingresos, gastos, balance y cantidad de movimientos. Con varias
+  monedas, una línea por moneda; filtrando una moneda sin movimientos, los
+  ceros se muestran en esa moneda.
+- Saldo acumulado solo cuando todas las cuentas del alcance comparten moneda:
+  filtrando por una moneda o por una cuenta. Si no, se explica «Filtra por una
+  moneda o una cuenta para verlo».
+- Transferencias (M4, ver «Monedas»): cada pata es una fila con su importe y su
+  moneda; la descripción, en la tabla y en las tarjetas, añade la contraparte.
+  Editar una de sus filas abre la transferencia entera (M8), en la tabla y en
+  las tarjetas por igual.
+- Exportar CSV respetando filtros. Las transferencias no llevan columnas de
+  contraparte: cada fila trae su «Moneda» y el «Grupo de transferencia» basta
+  para emparejarlas. En una transferencia entre monedas, sumar «Monto» sobre la
+  pareja ya no da cero: cada fila va en su moneda.
+- Modal de edición: el de movimientos, o el de la transferencia completa si la
+  fila es una de sus patas (M8).
 - En móvil: tarjetas o scroll horizontal controlado y usable.
 
 **No incluir todavía:**
@@ -237,6 +370,10 @@ borradores**: esa es `/sheets`.
 Ruta existente. Presupuesto mensual por categoría, progreso y alertas.
 Acepta `?month=YYYY-MM`. Modelo y reglas: `docs/06-presupuestos.md`.
 
+Importes y gastado en la moneda de presentación (M5, ver «Monedas»). Si hay
+gastos del mes en otras monedas, un aviso encima de la lista dice cuántos y en
+qué monedas no cuentan.
+
 ### `/sheets`
 
 **Ruta futura de la Fase 8.5. Todavía no tiene UI implementada:** el esquema
@@ -249,12 +386,18 @@ columnas propias de texto por hoja y registro explícito de ingresos y gastos.
 **No reemplaza `/transactions` ni `/ledger`.** Un borrador no registrado no
 aparece en ninguna de las dos, ni afecta saldos, dashboard o presupuestos.
 
+**Moneda (M7, ver «Monedas»):** cada fila lleva la moneda de la cuenta que tenga
+escrita y una misma hoja puede mezclar monedas; una fila todavía sin cuenta
+muestra su importe **sin código de moneda**, y cambiar de cuenta no convierte el
+importe, solo cambia el código que lo precede.
+
 **No incluir:**
 - Fórmulas y columnas calculadas.
 - Importación CSV: es la Fase 10 y opera sobre `transactions`.
 - Edición de movimientos ya registrados dentro de la hoja.
 - Acciones masivas.
 - Reordenamiento de filas.
+- Totales dentro de la rejilla y conversión de divisas.
 
 Modelo y reglas: `docs/07-hojas.md`.
 
@@ -280,6 +423,14 @@ es un medio para pagar:** no inicia ni ejecuta ningún movimiento de dinero.
 La deuda no tiene bloque de planificación propio: se planifica como cualquier
 categoría de gasto, desde `/budgets`, y aparece como grupo del reparto y como
 fila del cuadro Presupuesto vs. Actual.
+
+**Moneda (M5, ver «Monedas»):** todo el Plan va en la moneda de presentación,
+que se muestra junto al mes. Si hay movimientos del mes en otras monedas, un
+aviso encima de todo dice cuántos y en qué monedas no se incluyen, también en un
+mes sin nada que comparar. En «Ahorro e inversión» el saldo suma solo cuentas en
+esa moneda y dice cuántas quedan fuera; el formulario de aportes solo ofrece
+cuentas en esa moneda, y una línea sobre una cuenta en otra se marca «Cuenta en
+USD: su aporte real no se cuenta».
 
 **Reglas de presentación:**
 - Distinguir siempre «Planeado» de «Actual»; nunca presentarlos como una sola
@@ -307,9 +458,11 @@ fila del cuadro Presupuesto vs. Actual.
   fila dice «{nombre} · {cuenta} · COP X», con «Archivada» si su cuenta se
   archivó después. Sin plan del mes no hay lista ni botones.
 - Sin cuentas activas del tipo, en lugar del botón se dice «Necesitas una cuenta
-  de ahorro para planificar un aporte.» con enlace a Cuentas; con todas ya
-  ocupadas este mes, «Todas tus cuentas de ahorro ya tienen un aporte planeado
-  este mes.».
+  de ahorro para planificar un aporte.» con enlace a Cuentas; si las que hay
+  están todas en otra moneda, la frase nombra la del Plan —«Necesitas una cuenta
+  de ahorro en COP para planificar un aporte.» (M10)—, porque a quien ya tiene
+  una cuenta de ahorro la frase general le suena a error; con todas ya ocupadas
+  este mes, «Todas tus cuentas de ahorro ya tienen un aporte planeado este mes.».
 - La reconciliación del presupuesto es plegable y nace plegada, con su titular
   visible; los demás bloques se muestran abiertos.
 - Compatible con ambos temas.
@@ -336,17 +489,34 @@ Modelo, fórmulas y reglas: `docs/09-plan-mensual.md`.
 - Listar saldos.
 - No eliminar cuentas con movimientos.
 
+**Moneda de las cuentas (M2):** al crear se ofrecen COP, USD y ARS, con sus
+etiquetas completas («Peso colombiano (COP)», «Dólar estadounidense (USD)»,
+«Peso argentino (ARS)»). EUR y MXN son solo lectura: se siguen formateando y,
+al editar una cuenta que ya está en esas monedas, aparecen como opción heredada
+para poder guardar sin perder la moneda (D1); no se ofrecen para cuentas
+nuevas. Cambiar la moneda de una cuenta existente está bloqueado si la cuenta
+ya tiene movimientos, con el texto «La moneda no se puede cambiar porque la
+cuenta ya tiene movimientos» (D6). Sin movimientos, el cambio se permite. No se
+comprueba si la cuenta tiene líneas de aporte en el Plan (limitación que queda;
+el Plan las marca, ver «Monedas»).
+
 ### `/settings`
 
-- Perfil.
-- Moneda.
-- Tema.
-- Zona horaria.
-- Categorías.
-- Cierre de sesión.
+**Implementado hoy:** categorías y clasificación de gastos, y el cambio de la
+moneda principal del perfil (M12). El tema y el cierre de sesión viven en la
+cabecera, no en esta pantalla.
+
+**Previsto, sin implementar:** perfil y zona horaria.
+
 - Dejar documentadas, pero **no implementar sin aprobación**:
   - Exportación completa de datos.
   - Eliminación de cuenta.
+
+**Moneda principal (M12):** el selector ofrece solo COP, USD y ARS, igual que el
+onboarding. Cambiar de moneda pide confirmación: si hay cuentas en la moneda
+actual, el diálogo avisa de cuántas conservarán su moneda (ninguna se migra;
+solo cambia `profiles.currency_code`). Reglas completas en
+`docs/11-reglas-de-moneda.md`.
 
 ---
 

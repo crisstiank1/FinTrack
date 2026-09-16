@@ -14,16 +14,18 @@ import {
   type AccountsStepValues,
   type DraftAccountValues,
 } from '@/features/onboarding/schemas'
-import { formatAmount } from '@/lib/currency'
+import { formatAmount, currencyOptions, type SelectableCurrencyCode } from '@/lib/currency'
 
 interface AccountsStepProps {
   defaultValues?: DraftAccountValues[]
-  currencyCode: string
+  currencyCode: SelectableCurrencyCode
   onBack: () => void
   onNext: (values: DraftAccountValues[]) => void
 }
 
-const EMPTY_ACCOUNT: DraftAccountValues = { name: '', type: 'cash', initialBalance: 0 }
+function emptyAccount(currencyCode: SelectableCurrencyCode): DraftAccountValues {
+  return { name: '', type: 'cash', initialBalance: 0, currencyCode }
+}
 
 export function AccountsStep({ defaultValues, currencyCode, onBack, onNext }: AccountsStepProps) {
   const {
@@ -37,7 +39,8 @@ export function AccountsStep({ defaultValues, currencyCode, onBack, onNext }: Ac
     resolver: zodResolver(accountsStepSchema),
     mode: 'onBlur',
     defaultValues: {
-      accounts: defaultValues && defaultValues.length > 0 ? defaultValues : [EMPTY_ACCOUNT],
+      accounts:
+        defaultValues && defaultValues.length > 0 ? defaultValues : [emptyAccount(currencyCode)],
     },
   })
 
@@ -55,47 +58,76 @@ export function AccountsStep({ defaultValues, currencyCode, onBack, onNext }: Ac
       </div>
 
       <div className="flex max-h-80 flex-col gap-4 overflow-y-auto pr-1">
-        {fields.map((field, index) => (
-          <div key={field.id} className="rounded-lg border border-border p-4">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-foreground">Cuenta {index + 1}</span>
-              {fields.length > 1 && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => remove(index)}
-                  aria-label={`Quitar cuenta ${index + 1}`}
-                >
-                  <Trash2 className="size-4" aria-hidden="true" />
-                </Button>
-              )}
-            </div>
-
-            <div className="mt-3 flex flex-col gap-3">
-              <div className="flex flex-col gap-2">
-                <Label htmlFor={`account-${index}-name`}>Nombre</Label>
-                <Input
-                  id={`account-${index}-name`}
-                  placeholder="Ej. Cuenta de ahorros"
-                  aria-invalid={!!errors.accounts?.[index]?.name}
-                  {...register(`accounts.${index}.name` as const)}
-                />
-                {errors.accounts?.[index]?.name && (
-                  <p className="text-sm text-destructive">{errors.accounts[index]?.name?.message}</p>
+        {fields.map((field, index) => {
+          const accountCurrency = watch(`accounts.${index}.currencyCode` as const)
+          return (
+            <div key={field.id} className="rounded-lg border border-border p-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-foreground">Cuenta {index + 1}</span>
+                {fields.length > 1 && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => remove(index)}
+                    aria-label={`Quitar cuenta ${index + 1}`}
+                  >
+                    <Trash2 className="size-4" aria-hidden="true" />
+                  </Button>
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="mt-3 flex flex-col gap-3">
                 <div className="flex flex-col gap-2">
-                  <Label htmlFor={`account-${index}-type`}>Tipo</Label>
-                  <Select id={`account-${index}-type`} {...register(`accounts.${index}.type` as const)}>
-                    {accountTypeOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </Select>
+                  <Label htmlFor={`account-${index}-name`}>Nombre</Label>
+                  <Input
+                    id={`account-${index}-name`}
+                    placeholder="Ej. Cuenta de ahorros"
+                    aria-invalid={!!errors.accounts?.[index]?.name}
+                    {...register(`accounts.${index}.name` as const)}
+                  />
+                  {errors.accounts?.[index]?.name && (
+                    <p className="text-sm text-destructive">
+                      {errors.accounts[index]?.name?.message}
+                    </p>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor={`account-${index}-type`}>Tipo</Label>
+                    <Select
+                      id={`account-${index}-type`}
+                      {...register(`accounts.${index}.type` as const)}
+                    >
+                      {accountTypeOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor={`account-${index}-currency`}>Moneda</Label>
+                    <Select
+                      id={`account-${index}-currency`}
+                      aria-invalid={!!errors.accounts?.[index]?.currencyCode}
+                      {...register(`accounts.${index}.currencyCode` as const)}
+                    >
+                      {currencyOptions().map((currency) => (
+                        <option key={currency.code} value={currency.code}>
+                          {currency.label}
+                        </option>
+                      ))}
+                    </Select>
+                    {accountCurrency !== currencyCode && (
+                      <p className="text-xs text-muted-foreground">
+                        Esta cuenta no se sumará a tus totales en {currencyCode}: su saldo aparecerá
+                        aparte
+                      </p>
+                    )}
+                  </div>
                 </div>
 
                 <div className="flex flex-col gap-2">
@@ -119,18 +151,18 @@ export function AccountsStep({ defaultValues, currencyCode, onBack, onNext }: Ac
                       Equivale a{' '}
                       {formatAmount(
                         Number(watch(`accounts.${index}.initialBalance` as const)) || 0,
-                        currencyCode,
+                        accountCurrency,
                       )}
                     </p>
                   )}
                 </div>
               </div>
             </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
 
-      <Button type="button" variant="outline" onClick={() => append(EMPTY_ACCOUNT)}>
+      <Button type="button" variant="outline" onClick={() => append(emptyAccount(currencyCode))}>
         <Plus className="size-4" aria-hidden="true" />
         Agregar otra cuenta
       </Button>

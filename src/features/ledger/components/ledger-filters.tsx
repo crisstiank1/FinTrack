@@ -15,6 +15,8 @@ interface LedgerFiltersBarProps {
   onChange: (filters: LedgerFilters) => void
   accounts: Tables<'accounts'>[]
   categories: Tables<'categories'>[]
+  /** Monedas de las cuentas del usuario. Con menos de dos no se muestra el selector. */
+  currencyCodes: string[]
 }
 
 export function LedgerFiltersBar({
@@ -24,6 +26,7 @@ export function LedgerFiltersBar({
   onChange,
   accounts,
   categories,
+  currencyCodes,
 }: LedgerFiltersBarProps) {
   // Con un tipo elegido, ofrecer categorías del otro tipo solo produce
   // combinaciones que nunca devuelven resultados.
@@ -31,8 +34,14 @@ export function LedgerFiltersBar({
     ? categories.filter((category) => category.type === filters.type)
     : categories
 
+  // Lo mismo con la moneda: una cuenta de otra moneda nunca devolvería filas.
+  const availableAccounts = filters.currencyCode
+    ? accounts.filter((account) => account.currency_code === filters.currencyCode)
+    : accounts
+
   const hasFilters =
     Boolean(searchInput) ||
+    Boolean(filters.currencyCode) ||
     Boolean(filters.accountId) ||
     Boolean(filters.categoryId) ||
     Boolean(filters.type) ||
@@ -69,6 +78,34 @@ export function LedgerFiltersBar({
           </div>
         </div>
 
+        {currencyCodes.length > 1 && (
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="ledger-currency">Moneda</Label>
+            <Select
+              id="ledger-currency"
+              value={filters.currencyCode ?? ''}
+              onChange={(event) => {
+                const currencyCode = event.target.value || undefined
+                // Cambiar de moneda puede dejar seleccionada una cuenta de la
+                // moneda anterior, que no devolvería ninguna fila.
+                const keepsAccount =
+                  !currencyCode ||
+                  accounts.find((account) => account.id === filters.accountId)?.currency_code ===
+                    currencyCode
+
+                update({ currencyCode, accountId: keepsAccount ? filters.accountId : undefined })
+              }}
+            >
+              <option value="">Todas las monedas</option>
+              {currencyCodes.map((code) => (
+                <option key={code} value={code}>
+                  {code}
+                </option>
+              ))}
+            </Select>
+          </div>
+        )}
+
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="ledger-account">Cuenta</Label>
           <Select
@@ -77,7 +114,7 @@ export function LedgerFiltersBar({
             onChange={(event) => update({ accountId: event.target.value || undefined })}
           >
             <option value="">Todas las cuentas</option>
-            {accounts.map((account) => (
+            {availableAccounts.map((account) => (
               <option key={account.id} value={account.id}>
                 {account.name}
                 {account.is_archived ? ' (archivada)' : ''}

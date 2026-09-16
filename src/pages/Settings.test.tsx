@@ -12,6 +12,9 @@ const useCategoryClassifications = vi.fn()
 const createClassification = vi.fn()
 const updateClassification = vi.fn()
 const deleteClassification = vi.fn()
+const usePrimaryCurrency = vi.fn()
+const updatePrimaryCurrency = vi.fn()
+const useAccounts = vi.fn()
 const toastError = vi.fn()
 const toastSuccess = vi.fn()
 
@@ -27,6 +30,15 @@ vi.mock('@/features/categories/classifications/hooks', () => ({
   useCreateCategoryClassification: () => ({ mutateAsync: createClassification, isPending: false }),
   useUpdateCategoryClassification: () => ({ mutateAsync: updateClassification, isPending: false }),
   useDeleteCategoryClassification: () => ({ mutateAsync: deleteClassification, isPending: false }),
+}))
+
+vi.mock('@/features/profile/hooks', () => ({
+  usePrimaryCurrency: () => usePrimaryCurrency(),
+  useUpdatePrimaryCurrency: () => ({ mutateAsync: updatePrimaryCurrency, isPending: false }),
+}))
+
+vi.mock('@/features/accounts/hooks', () => ({
+  useAccounts: () => useAccounts(),
 }))
 
 vi.mock('sonner', () => ({
@@ -88,6 +100,12 @@ beforeEach(() => {
   updateClassification.mockResolvedValue(undefined)
   deleteClassification.mockReset()
   deleteClassification.mockResolvedValue(undefined)
+  usePrimaryCurrency.mockReset()
+  usePrimaryCurrency.mockReturnValue({ data: 'COP', isPending: false })
+  updatePrimaryCurrency.mockReset()
+  updatePrimaryCurrency.mockResolvedValue(undefined)
+  useAccounts.mockReset()
+  useAccounts.mockReturnValue({ data: [] })
   toastError.mockClear()
   toastSuccess.mockClear()
 })
@@ -272,5 +290,82 @@ describe('Settings — clasificación de gastos', () => {
     for (const prohibido of [/sugerencia/i, /autom/i, /clasificar todo/i, /aplicar a todas/i]) {
       expect(screen.queryByText(prohibido)).not.toBeInTheDocument()
     }
+  })
+})
+
+describe('Settings — moneda principal (M12)', () => {
+  it('muestra seleccionada la moneda actual del perfil', () => {
+    renderSettings()
+
+    expect(screen.getByLabelText('Moneda principal')).toHaveValue('COP')
+  })
+
+  it('elegir otra moneda abre la confirmación y no aplica todavía', async () => {
+    const user = userEvent.setup()
+    renderSettings()
+
+    await user.selectOptions(screen.getByLabelText('Moneda principal'), 'USD')
+
+    expect(screen.getByRole('alertdialog')).toBeInTheDocument()
+    expect(updatePrimaryCurrency).not.toHaveBeenCalled()
+  })
+
+  it('confirmar aplica el cambio y avisa', async () => {
+    const user = userEvent.setup()
+    renderSettings()
+
+    await user.selectOptions(screen.getByLabelText('Moneda principal'), 'USD')
+    await user.click(screen.getByRole('button', { name: 'Cambiar moneda' }))
+
+    await waitFor(() => expect(updatePrimaryCurrency).toHaveBeenCalledWith('USD'))
+    expect(toastSuccess).toHaveBeenCalled()
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+  })
+
+  it('cancelar deja la moneda en su sitio', async () => {
+    const user = userEvent.setup()
+    renderSettings()
+
+    await user.selectOptions(screen.getByLabelText('Moneda principal'), 'USD')
+    await user.click(screen.getByRole('button', { name: 'Cancelar' }))
+
+    expect(updatePrimaryCurrency).not.toHaveBeenCalled()
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Moneda principal')).toHaveValue('COP')
+  })
+
+  it('avisa de las cuentas que conservarán la moneda actual', async () => {
+    const user = userEvent.setup()
+    useAccounts.mockReturnValue({ data: [{ id: 'acc-1', currency_code: 'COP' }] })
+    renderSettings()
+
+    await user.selectOptions(screen.getByLabelText('Moneda principal'), 'USD')
+
+    const dialog = screen.getByRole('alertdialog')
+    expect(within(dialog).getByText(/Tienes 1 cuenta en COP/)).toBeInTheDocument()
+    expect(within(dialog).getByText(/conservarán su moneda/)).toBeInTheDocument()
+  })
+
+  it('sin cuentas en la moneda actual no hay advertencia', async () => {
+    const user = userEvent.setup()
+    renderSettings()
+
+    await user.selectOptions(screen.getByLabelText('Moneda principal'), 'USD')
+
+    const dialog = screen.getByRole('alertdialog')
+    expect(within(dialog).getByText(/Ninguna cuenta cambia de moneda/)).toBeInTheDocument()
+    expect(within(dialog).queryByText(/conservarán su moneda/)).not.toBeInTheDocument()
+  })
+
+  it('un fallo al guardar se muestra y no se cuenta como éxito', async () => {
+    const user = userEvent.setup()
+    updatePrimaryCurrency.mockRejectedValue(new Error('boom'))
+    renderSettings()
+
+    await user.selectOptions(screen.getByLabelText('Moneda principal'), 'USD')
+    await user.click(screen.getByRole('button', { name: 'Cambiar moneda' }))
+
+    await waitFor(() => expect(toastError).toHaveBeenCalled())
+    expect(toastSuccess).not.toHaveBeenCalled()
   })
 })

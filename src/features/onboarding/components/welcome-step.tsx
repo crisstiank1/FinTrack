@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
 import { welcomeStepSchema, type WelcomeStepValues } from '@/features/onboarding/schemas'
-import { CURRENCIES } from '@/lib/currency'
+import { currencyOptions } from '@/lib/currency'
 
 interface WelcomeStepProps {
   defaultValues?: WelcomeStepValues
@@ -27,7 +27,9 @@ export function WelcomeStep({ defaultValues, onNext }: WelcomeStepProps) {
   return (
     <form className="flex flex-col gap-6" onSubmit={handleSubmit(onNext)} noValidate>
       <div className="flex flex-col gap-1.5">
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">¡Bienvenido a FinTrack!</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+          ¡Bienvenido a FinTrack!
+        </h1>
         <p className="text-sm text-muted-foreground">
           Cuéntanos un poco de ti para personalizar tu cuenta.
         </p>
@@ -52,7 +54,7 @@ export function WelcomeStep({ defaultValues, onNext }: WelcomeStepProps) {
       <div className="flex flex-col gap-2">
         <Label htmlFor="onboarding-currency">Moneda principal</Label>
         <Select id="onboarding-currency" {...register('currencyCode')}>
-          {CURRENCIES.map((currency) => (
+          {currencyOptions().map((currency) => (
             <option key={currency.code} value={currency.code}>
               {currency.label}
             </option>

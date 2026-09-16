@@ -35,8 +35,9 @@ export function ConfirmationStep({
         <SummaryRow label="Cuentas" value={`${accounts.length}`} />
         {accounts.map((account) => (
           <p key={account.name} className="pl-3 text-sm text-muted-foreground">
-            {account.name} ({accountTypeOptions.find((option) => option.value === account.type)?.label}
-            ) · {formatAmount(account.initialBalance, profile?.currencyCode ?? 'COP')}
+            {account.name} (
+            {accountTypeOptions.find((option) => option.value === account.type)?.label}) ·{' '}
+            {formatAmount(account.initialBalance, account.currencyCode)}
           </p>
         ))}
         <SummaryRow label="Categorías" value={`${DEFAULT_CATEGORIES.length} predeterminadas`} />

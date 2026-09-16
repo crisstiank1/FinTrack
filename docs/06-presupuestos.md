@@ -69,7 +69,14 @@ ese mes.
 - **Los ingresos no cuentan.** Filtrar por tipo los excluye, y la base de datos
   ya impide presupuestar una categoría de ingreso.
 
-Implementación: [`calculateBudgetableSpending`](../src/features/budgets/progress.ts).
+- **Solo cuentan los gastos en la moneda de los presupuestos (M5).** `budgets`
+  no guarda moneda: sus importes se entienden en la moneda de presentación, la
+  misma que usa `/plan`. Los gastos de cuentas en otra moneda no se suman a
+  ningún presupuesto; uno cuya cuenta no se conoce sí cuenta. Cómo se elige esa
+  moneda y qué más implica: `docs/11-reglas-de-moneda.md`.
+
+Implementación: [`calculateBudgetableSpending`](../src/features/budgets/progress.ts)
+y, para la moneda, `useBudgetProgress`.
 
 ---
 
@@ -311,6 +318,18 @@ hay nada que marcar como leído ni tabla que mantener.
 - **A una categoría archivada no se le propone ajustar nada.** Se informa del
   umbral y se marca como archivada, porque la acción que sugeriría el enlace no
   está disponible para ella.
+
+### Gastos en otras monedas
+
+Si en el mes hay gastos que no cuentan por estar en otra moneda, `/budgets` lo
+avisa encima de la lista: «2 gastos en otras monedas (USD) no cuentan para estos
+presupuestos.» En singular, «1 gasto en otra moneda (USD) no cuenta para estos
+presupuestos.» Sin aviso si no hay ninguno.
+
+El panel «Presupuestos» del Dashboard muestra sus barras y alertas en esa misma
+moneda aunque el Dashboard esté filtrado por una cuenta en otra. La alerta global
+(«Gastaste … más de lo que ingresaste») sigue saliendo del resumen en pantalla y
+va en su moneda.
 
 ### Presupuesto de cero
 

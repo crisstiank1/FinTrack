@@ -1,8 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo } from 'react'
 
+import { useAccounts } from '@/features/accounts/hooks'
 import { useAuth } from '@/features/auth/auth-provider'
 import { useTransactions } from '@/features/transactions/hooks'
+import { partitionByAccountCurrency, type CurrencyExclusions } from '@/lib/currency'
 import { currentMonthKey } from '@/lib/dates'
 
 import { deleteBudget, fetchBudgets, insertBudget, updateBudget } from './api'
@@ -105,6 +107,12 @@ export interface UseBudgetProgressOptions {
    * hacen falta para consultar meses pasados.
    */
   categoryIds: string[]
+  /**
+   * Moneda de los presupuestos. Sus importes no guardan moneda y se entienden
+   * en esta; solo cuenta el gasto de cuentas en ella. `undefined` mientras no se
+   * conoce: el progreso espera en vez de mezclar monedas.
+   */
+  currencyCode: string | undefined
 }
 
 /**
@@ -123,23 +131,50 @@ export interface UseBudgetProgressOptions {
  *
  * La clave de esa consulta empieza por 'transactions', así que las mutaciones
  * de movimientos ya existentes la refrescan sin trabajo adicional.
+ *
+ * FinTrack no convierte divisas: los gastos de cuentas en otra moneda no se
+ * suman a ningún presupuesto. Se devuelven contados en `exclusions` para que la
+ * pantalla lo avise.
  */
-export function useBudgetProgress({ monthKey, categoryIds }: UseBudgetProgressOptions) {
+export function useBudgetProgress({
+  monthKey,
+  categoryIds,
+  currencyCode,
+}: UseBudgetProgressOptions) {
   const budgetsQuery = useBudgets()
   const expensesQuery = useTransactions({ month: monthKey, type: 'expense' })
+  const accountsQuery = useAccounts()
 
   const budgets = budgetsQuery.data
   const expenses = expensesQuery.data
+  const accounts = accountsQuery.data
 
-  const data = useMemo<BudgetProgress[] | undefined>(() => {
-    if (!budgets || !expenses) return undefined
-    return buildBudgetProgressList(budgets, expenses, categoryIds, monthKey)
-  }, [budgets, expenses, categoryIds, monthKey])
+  const result = useMemo<
+    { progress: BudgetProgress[]; exclusions: CurrencyExclusions } | undefined
+  >(() => {
+    if (!budgets || !expenses || !accounts || !currencyCode) return undefined
+
+    const { included, exclusions } = partitionByAccountCurrency(
+      expenses,
+      new Map(accounts.map((account) => [account.id, account.currency_code])),
+      currencyCode,
+    )
+    return {
+      progress: buildBudgetProgressList(budgets, included, categoryIds, monthKey),
+      exclusions,
+    }
+  }, [budgets, expenses, accounts, currencyCode, categoryIds, monthKey])
 
   return {
-    data,
-    isPending: budgetsQuery.isPending || expensesQuery.isPending,
-    isError: budgetsQuery.isError || expensesQuery.isError,
-    error: budgetsQuery.error ?? expensesQuery.error,
+    data: result?.progress,
+    /** Gastos del mes que no cuentan por estar en otra moneda. */
+    exclusions: result?.exclusions,
+    isPending:
+      budgetsQuery.isPending ||
+      expensesQuery.isPending ||
+      accountsQuery.isPending ||
+      currencyCode === undefined,
+    isError: budgetsQuery.isError || expensesQuery.isError || accountsQuery.isError,
+    error: budgetsQuery.error ?? expensesQuery.error ?? accountsQuery.error,
   }
 }

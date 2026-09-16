@@ -10,14 +10,20 @@ import { IconPicker } from '@/components/ui/icon-picker'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
-import { accountSchema, accountTypeOptions, type AccountFormValues } from '@/features/accounts/schemas'
-import { CURRENCIES, formatAmount } from '@/lib/currency'
+import {
+  accountSchema,
+  accountTypeOptions,
+  type AccountFormValues,
+} from '@/features/accounts/schemas'
+import { currencyOptions, formatAmount } from '@/lib/currency'
 
 interface AccountFormProps {
   defaultValues?: Partial<AccountFormValues>
   onSubmit: (values: AccountFormValues) => void | Promise<void>
   submitLabel?: string
   isSubmitting?: boolean
+  /** Bloquea el selector de moneda cuando la cuenta ya tiene movimientos (D6). */
+  currencyLocked?: boolean
 }
 
 export function AccountForm({
@@ -25,6 +31,7 @@ export function AccountForm({
   onSubmit,
   submitLabel = 'Guardar',
   isSubmitting,
+  currencyLocked = false,
 }: AccountFormProps) {
   const {
     register,
@@ -82,13 +89,30 @@ export function AccountForm({
 
         <div className="flex flex-col gap-2">
           <Label htmlFor="account-currency">Moneda</Label>
-          <Select id="account-currency" {...register('currencyCode')}>
-            {CURRENCIES.map((currency) => (
+          <Select
+            id="account-currency"
+            disabled={currencyLocked}
+            aria-invalid={!!errors.currencyCode}
+            aria-describedby={
+              errors.currencyCode || currencyLocked ? 'account-currency-hint' : undefined
+            }
+            {...register('currencyCode')}
+          >
+            {currencyOptions(defaultValues?.currencyCode).map((currency) => (
               <option key={currency.code} value={currency.code}>
-                {currency.code}
+                {currency.label}
               </option>
             ))}
           </Select>
+          {errors.currencyCode ? (
+            <p id="account-currency-hint" className="text-sm text-destructive">
+              {errors.currencyCode.message}
+            </p>
+          ) : currencyLocked ? (
+            <p id="account-currency-hint" className="text-xs text-muted-foreground">
+              La moneda no se puede cambiar porque la cuenta ya tiene movimientos
+            </p>
+          ) : null}
         </div>
       </div>
 
@@ -114,12 +138,18 @@ export function AccountForm({
 
       <div className="flex flex-col gap-2">
         <span className="text-sm font-medium text-foreground">Ícono</span>
-        <IconPicker value={icon} onChange={(value) => setValue('icon', value, { shouldValidate: true })} />
+        <IconPicker
+          value={icon}
+          onChange={(value) => setValue('icon', value, { shouldValidate: true })}
+        />
       </div>
 
       <div className="flex flex-col gap-2">
         <span className="text-sm font-medium text-foreground">Color</span>
-        <ColorPicker value={color} onChange={(value) => setValue('color', value, { shouldValidate: true })} />
+        <ColorPicker
+          value={color}
+          onChange={(value) => setValue('color', value, { shouldValidate: true })}
+        />
       </div>
 
       <Button type="submit" disabled={isSubmitting}>

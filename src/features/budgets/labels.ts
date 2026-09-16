@@ -111,3 +111,19 @@ export function budgetAlertMessage(
   const percent = formatBudgetPercent(progress.ratio ?? 0)
   return `${categoryName} va por el ${percent} de su presupuesto.`
 }
+
+/**
+ * Aviso de los gastos del mes que no cuentan para ningún presupuesto por estar
+ * en cuentas de otra moneda. `null` si no hay ninguno.
+ */
+export function excludedExpensesNote(exclusions: {
+  count: number
+  currencyCodes: readonly string[]
+}): string | null {
+  if (exclusions.count === 0) return null
+
+  const codes = exclusions.currencyCodes.join(', ')
+  return exclusions.count === 1
+    ? `1 gasto en otra moneda (${codes}) no cuenta para estos presupuestos.`
+    : `${exclusions.count} gastos en otras monedas (${codes}) no cuentan para estos presupuestos.`
+}

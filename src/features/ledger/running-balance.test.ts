@@ -7,8 +7,8 @@ import {
 } from './running-balance'
 
 const accounts = [
-  { id: 'acc-1', initial_balance_minor: 100_000 },
-  { id: 'acc-2', initial_balance_minor: 50_000 },
+  { id: 'acc-1', currency_code: 'COP', initial_balance_minor: 100_000 },
+  { id: 'acc-2', currency_code: 'COP', initial_balance_minor: 50_000 },
 ]
 
 function tx(overrides: Partial<BalanceTransaction>): BalanceTransaction {
@@ -92,11 +92,65 @@ describe('buildDailyBalances', () => {
           transaction_date: '2026-09-08',
         }),
       ],
-      'acc-2',
+      { accountId: 'acc-2' },
     )
 
     // Solo el saldo inicial de acc-2 más la transferencia recibida.
     expect(balances.get('2026-09-08')).toBe(90_000)
+  })
+
+  it('limita el saldo a las cuentas de la moneda indicada', () => {
+    const withUsd = [...accounts, { id: 'usd-1', currency_code: 'USD', initial_balance_minor: 700 }]
+
+    const balances = buildDailyBalances(
+      withUsd,
+      [
+        tx({ amount_minor: 30_000, account_id: 'acc-1', transaction_date: '2026-09-08' }),
+        tx({
+          type: 'income',
+          amount_minor: 200,
+          account_id: 'usd-1',
+          transaction_date: '2026-09-08',
+        }),
+        tx({ amount_minor: 100, account_id: 'usd-1', transaction_date: '2026-09-09' }),
+      ],
+      { currencyCode: 'USD' },
+    )
+
+    // Solo el saldo inicial de la cuenta USD y sus movimientos, sin los pesos.
+    expect(balances.get('2026-09-08')).toBe(900)
+    expect(balances.get('2026-09-09')).toBe(800)
+  })
+
+  it('una transferencia entre monedas el mismo día cuenta en cada moneda con su importe', () => {
+    const withUsd = [...accounts, { id: 'usd-1', currency_code: 'USD', initial_balance_minor: 300 }]
+    const sameDay = [
+      tx({ type: 'income', amount_minor: 50, account_id: 'usd-1', transaction_date: '2026-09-08' }),
+      tx({
+        type: 'transfer',
+        transfer_direction: 'outgoing',
+        account_id: 'acc-1',
+        amount_minor: 400_000,
+        transaction_date: '2026-09-08',
+      }),
+      tx({
+        type: 'transfer',
+        transfer_direction: 'incoming',
+        account_id: 'usd-1',
+        amount_minor: 100,
+        transaction_date: '2026-09-08',
+      }),
+    ]
+
+    const usd = buildDailyBalances(withUsd, sameDay, { currencyCode: 'USD' })
+    const cop = buildDailyBalances(withUsd, sameDay, { currencyCode: 'COP' })
+
+    // Saldo al cierre del día: el orden de las patas dentro del día no importa.
+    expect(usd.get('2026-09-08')).toBe(450)
+    expect(cop.get('2026-09-08')).toBe(-250_000)
+    expect(buildDailyBalances(withUsd, [...sameDay].reverse(), { currencyCode: 'USD' })).toEqual(
+      usd,
+    )
   })
 
   it('devuelve un mapa vacío sin movimientos', () => {
@@ -120,11 +174,16 @@ describe('runningBalanceCurrency', () => {
   })
 
   it('con una cuenta filtrada devuelve la moneda de esa cuenta', () => {
-    expect(runningBalanceCurrency(mixed, 'usd-1')).toBe('USD')
+    expect(runningBalanceCurrency(mixed, { accountId: 'usd-1' })).toBe('USD')
+  })
+
+  it('con una moneda filtrada devuelve esa moneda aunque haya cuentas en otras', () => {
+    expect(runningBalanceCurrency(mixed, { currencyCode: 'COP' })).toBe('COP')
   })
 
   it('devuelve null sin cuentas en el alcance', () => {
     expect(runningBalanceCurrency([])).toBeNull()
-    expect(runningBalanceCurrency(mixed, 'no-existe')).toBeNull()
+    expect(runningBalanceCurrency(mixed, { accountId: 'no-existe' })).toBeNull()
+    expect(runningBalanceCurrency(mixed, { accountId: 'usd-1', currencyCode: 'COP' })).toBeNull()
   })
 })

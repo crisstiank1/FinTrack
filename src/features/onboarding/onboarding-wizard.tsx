@@ -55,7 +55,7 @@ export function OnboardingWizard() {
           name: account.name,
           type: account.type,
           initial_balance_minor: account.initialBalance,
-          currency_code: profile.currencyCode,
+          currency_code: account.currencyCode,
           icon: ACCOUNT_TYPE_ICON[account.type],
           color: SWATCHES[index % SWATCHES.length],
         })),
@@ -108,7 +108,9 @@ export function OnboardingWizard() {
 
       <div
         key={`${step}-${direction}`}
-        className={direction === 'forward' ? 'animate-wizard-step-forward' : 'animate-wizard-step-back'}
+        className={
+          direction === 'forward' ? 'animate-wizard-step-forward' : 'animate-wizard-step-back'
+        }
       >
         {step === 1 && (
           <WelcomeStep
@@ -130,7 +132,9 @@ export function OnboardingWizard() {
             }}
           />
         )}
-        {step === 3 && <CategoriesStep onBack={() => goTo(2, 'back')} onNext={() => goTo(4, 'forward')} />}
+        {step === 3 && (
+          <CategoriesStep onBack={() => goTo(2, 'back')} onNext={() => goTo(4, 'forward')} />
+        )}
         {step === 4 && (
           <ConfirmationStep
             profile={profile}

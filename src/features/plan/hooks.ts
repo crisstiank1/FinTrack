@@ -9,6 +9,7 @@ import { buildBudgetProgressList, type BudgetProgress } from '@/features/budgets
 import { resolveBudget } from '@/features/budgets/resolution'
 import { useTransactions } from '@/features/transactions/hooks'
 import { calculateMonthlyIncome } from '@/lib/calculations'
+import { partitionByAccountCurrency, type CurrencyExclusions } from '@/lib/currency'
 import { monthRange } from '@/lib/dates'
 
 import {
@@ -58,9 +59,9 @@ import {
 import {
   buildClassificationMap,
   buildIncomeActualBySource,
-  buildTransferContributionCandidates,
   partitionPlanLines,
   planLineCategoryIds,
+  scopePlanMonthToCurrency,
   toBalanceTransactions,
   toPlanExpenseTransactions,
   type IncomeActualBySource,
@@ -369,6 +370,11 @@ export interface UsePlanLineProgressOptions {
   monthKey: string
   /** Categorías de las líneas a evaluar, de `planLineCategoryIds`. */
   categoryIds: string[]
+  /**
+   * Moneda del Plan. Solo cuenta el gasto de cuentas en ella. `undefined`
+   * mientras no se conoce: el progreso espera en vez de mezclar monedas.
+   */
+  currencyCode: string | undefined
 }
 
 /**
@@ -386,23 +392,36 @@ export interface UsePlanLineProgressOptions {
 export function usePlanLineProgress({
   monthKey,
   categoryIds,
+  currencyCode,
 }: UsePlanLineProgressOptions): DerivedState<BudgetProgress[]> {
   const budgetsQuery = useBudgets()
   const transactionsQuery = useTransactions({ month: monthKey })
+  const accountsQuery = useAccounts()
 
   const budgets = budgetsQuery.data
   const transactions = transactionsQuery.data
+  const accounts = accountsQuery.data
 
   const data = useMemo(() => {
-    if (!budgets || !transactions) return undefined
-    return buildBudgetProgressList(budgets, transactions, categoryIds, monthKey)
-  }, [budgets, transactions, categoryIds, monthKey])
+    if (!budgets || !transactions || !accounts || !currencyCode) return undefined
+
+    const { included } = partitionByAccountCurrency(
+      transactions,
+      new Map(accounts.map((account) => [account.id, account.currency_code])),
+      currencyCode,
+    )
+    return buildBudgetProgressList(budgets, included, categoryIds, monthKey)
+  }, [budgets, transactions, accounts, currencyCode, categoryIds, monthKey])
 
   return {
     data,
-    isPending: budgetsQuery.isPending || transactionsQuery.isPending,
-    isError: budgetsQuery.isError || transactionsQuery.isError,
-    error: budgetsQuery.error ?? transactionsQuery.error,
+    isPending:
+      budgetsQuery.isPending ||
+      transactionsQuery.isPending ||
+      accountsQuery.isPending ||
+      currencyCode === undefined,
+    isError: budgetsQuery.isError || transactionsQuery.isError || accountsQuery.isError,
+    error: budgetsQuery.error ?? transactionsQuery.error ?? accountsQuery.error,
   }
 }
 
@@ -416,12 +435,19 @@ export interface PlanActuals {
   savingsContributionsMinor: number
   investmentContributionsMinor: number
   incomeBySource: IncomeActualBySource
+  /** Ingresos, gastos y aportes del mes que no entran por estar en otra moneda. */
+  exclusions: CurrencyExclusions
 }
 
 export interface UsePlanActualsOptions {
   monthKey: string
   /** `undefined` cuando el mes no tiene plan. */
   planMonthId: string | undefined
+  /**
+   * Moneda del Plan. `undefined` mientras no se conoce: las cifras esperan en
+   * vez de mostrarse un instante con monedas mezcladas.
+   */
+  currencyCode: string | undefined
 }
 
 /**
@@ -445,6 +471,7 @@ export interface UsePlanActualsOptions {
 export function usePlanActuals({
   monthKey,
   planMonthId,
+  currencyCode,
 }: UsePlanActualsOptions): DerivedState<PlanActuals> {
   const transactionsQuery = useTransactions({ month: monthKey })
   const linesQuery = usePlanLines(monthKey)
@@ -465,15 +492,26 @@ export function usePlanActuals({
   const links = linksQuery.data
 
   const data = useMemo<PlanActuals | undefined>(() => {
-    if (!transactions || !lines || !classifications || !accounts || !sources || !links) {
+    if (
+      !transactions ||
+      !lines ||
+      !classifications ||
+      !accounts ||
+      !sources ||
+      !links ||
+      !currencyCode
+    ) {
       return undefined
     }
 
-    const expenses = toPlanExpenseTransactions(transactions)
+    // Una sola vez y antes de todo: cada cifra de abajo sale de este recorte,
+    // así que ingresos, gastos, aportes y Restante no pueden descuadrarse.
+    const month = scopePlanMonthToCurrency(transactions, accounts, currencyCode)
+    const expenses = toPlanExpenseTransactions(month.categorized)
     const partition = partitionPlanLines(lines)
     // Un solo emparejamiento para las dos cifras: ahorro e inversión se
     // separan después, dentro de `sumTransferContributions`.
-    const contributions = buildTransferContributionCandidates(transactions, accounts)
+    const contributions = month.contributions
 
     return {
       incomeActualMinor: calculateMonthlyIncome(expenses),
@@ -487,12 +525,13 @@ export function usePlanActuals({
       savingsContributionsMinor: sumTransferContributions(contributions, 'savings'),
       investmentContributionsMinor: sumTransferContributions(contributions, 'investment'),
       incomeBySource: buildIncomeActualBySource(
-        transactions,
+        month.categorized,
         links,
         sources.map((source) => source.id),
       ),
+      exclusions: month.exclusions,
     }
-  }, [transactions, lines, classifications, accounts, sources, links])
+  }, [transactions, lines, classifications, accounts, sources, links, currencyCode])
 
   return {
     data,
@@ -502,7 +541,8 @@ export function usePlanActuals({
       classificationsQuery.isPending ||
       accountsQuery.isPending ||
       sourcesQuery.isPending ||
-      linksQuery.isPending,
+      linksQuery.isPending ||
+      currencyCode === undefined,
     isError:
       transactionsQuery.isError ||
       linesQuery.isError ||
@@ -523,9 +563,14 @@ export function usePlanActuals({
 /** Saldo acumulado de un tipo de cuenta, con las cuentas que lo componen. */
 export interface AccountTypeBalance {
   balanceMinor: number
-  /** Todas las cuentas del tipo, archivadas incluidas. `0` = no hay ninguna. */
+  /**
+   * Cuentas del tipo en la moneda del Plan, archivadas incluidas. `0` = no hay
+   * ninguna en esa moneda.
+   */
   accountCount: number
   archivedCount: number
+  /** Cuentas del tipo en otra moneda: su saldo no se suma. */
+  otherCurrencyCount: number
 }
 
 export interface ContributionBalances {
@@ -556,8 +601,14 @@ export interface ContributionBalances {
  * que además hace falta entera para emparejar transferencias —el origen de un
  * aporte suele ser una cuenta corriente—. De ahí se derivan los identificadores
  * de ahorro e inversión, que son los únicos cuyo historial se pide.
+ *
+ * Solo suman las cuentas en la moneda del Plan: el Plan no convierte divisas.
+ * Las de otra moneda se cuentan aparte para decirlo.
  */
-export function usePlanContributionBalances(monthKey: string): DerivedState<ContributionBalances> {
+export function usePlanContributionBalances(
+  monthKey: string,
+  currencyCode: string | undefined,
+): DerivedState<ContributionBalances> {
   const accountsQuery = useAccounts()
   const accounts = accountsQuery.data
   const asOfDate = monthRange(monthKey).end
@@ -565,36 +616,44 @@ export function usePlanContributionBalances(monthKey: string): DerivedState<Cont
   const accountIds = useMemo(
     () =>
       (accounts ?? [])
-        .filter((account) => account.type === 'savings' || account.type === 'investment')
+        .filter(
+          (account) =>
+            (account.type === 'savings' || account.type === 'investment') &&
+            account.currency_code === currencyCode,
+        )
         .map((account) => account.id),
-    [accounts],
+    [accounts, currencyCode],
   )
 
   const historyQuery = useTransactionsByAccounts(accountIds, asOfDate, {
-    enabled: accounts !== undefined,
+    enabled: accounts !== undefined && currencyCode !== undefined,
   })
   const history = historyQuery.data
 
   const data = useMemo<ContributionBalances | undefined>(() => {
-    if (!accounts || !history) return undefined
+    if (!accounts || !history || !currencyCode) return undefined
 
     const transactions = toBalanceTransactions(history)
+    const inCurrency = accounts.filter((account) => account.currency_code === currencyCode)
 
     const balanceOf = (accountType: 'savings' | 'investment'): AccountTypeBalance => {
-      const ofType = accounts.filter((account) => account.type === accountType)
+      const ofType = inCurrency.filter((account) => account.type === accountType)
       return {
-        balanceMinor: calculateBalanceForAccountType(accounts, transactions, accountType),
+        balanceMinor: calculateBalanceForAccountType(inCurrency, transactions, accountType),
         accountCount: ofType.length,
         archivedCount: ofType.filter((account) => account.is_archived).length,
+        otherCurrencyCount: accounts.filter(
+          (account) => account.type === accountType && account.currency_code !== currencyCode,
+        ).length,
       }
     }
 
     return { savings: balanceOf('savings'), investment: balanceOf('investment'), asOfDate }
-  }, [accounts, history, asOfDate])
+  }, [accounts, history, asOfDate, currencyCode])
 
   return {
     data,
-    isPending: accountsQuery.isPending || historyQuery.isPending,
+    isPending: accountsQuery.isPending || historyQuery.isPending || currencyCode === undefined,
     isError: accountsQuery.isError || historyQuery.isError,
     error: accountsQuery.error ?? historyQuery.error,
   }

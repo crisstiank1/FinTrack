@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 import { AccountForm } from './account-form'
@@ -68,7 +68,10 @@ describe('AccountForm', () => {
     await user.click(screen.getByRole('radio', { name: 'home' }))
     await user.click(screen.getByRole('button', { name: /guardar/i }))
 
-    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ icon: 'home' }), expect.anything())
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ icon: 'home' }),
+      expect.anything(),
+    )
   })
 
   it('ofrece «Cuenta de inversión» y envía type investment', async () => {
@@ -113,5 +116,54 @@ describe('AccountForm', () => {
       expect.objectContaining({ name: 'Inversiones', type: 'investment', initialBalance: 250_000 }),
       expect.anything(),
     )
+  })
+})
+
+describe('AccountForm — moneda', () => {
+  it('ofrece COP, USD y ARS con etiquetas, y no ofrece EUR ni MXN', () => {
+    render(<AccountForm onSubmit={vi.fn()} />)
+
+    expect(screen.getByRole('option', { name: 'Peso colombiano (COP)' })).toHaveValue('COP')
+    expect(screen.getByRole('option', { name: 'Dólar estadounidense (USD)' })).toHaveValue('USD')
+    expect(screen.getByRole('option', { name: 'Peso argentino (ARS)' })).toHaveValue('ARS')
+    expect(screen.queryByRole('option', { name: 'Euro (EUR)' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: 'Peso mexicano (MXN)' })).not.toBeInTheDocument()
+  })
+
+  it('al editar una cuenta en EUR conserva EUR como opción heredada', () => {
+    render(
+      <AccountForm
+        onSubmit={vi.fn()}
+        defaultValues={{ name: 'Cuenta europea', currencyCode: 'EUR' }}
+      />,
+    )
+
+    expect(screen.getByLabelText('Moneda')).toHaveValue('EUR')
+    expect(screen.getByRole('option', { name: 'Euro (EUR)' })).toHaveValue('EUR')
+  })
+
+  it('bloquea la moneda y lo explica cuando la cuenta ya tiene movimientos', () => {
+    render(
+      <AccountForm
+        onSubmit={vi.fn()}
+        currencyLocked
+        defaultValues={{ name: 'Cuenta en euros', currencyCode: 'EUR' }}
+      />,
+    )
+
+    expect(screen.getByLabelText('Moneda')).toBeDisabled()
+    expect(
+      screen.getByText('La moneda no se puede cambiar porque la cuenta ya tiene movimientos'),
+    ).toBeInTheDocument()
+  })
+
+  it('muestra el error cuando la moneda queda fuera del catálogo', async () => {
+    render(<AccountForm onSubmit={vi.fn()} />)
+
+    const currencySelect = screen.getByLabelText('Moneda')
+    fireEvent.change(currencySelect, { target: { value: 'PEN' } })
+    fireEvent.blur(currencySelect)
+
+    expect(await screen.findByText('Selecciona una moneda')).toBeInTheDocument()
   })
 })

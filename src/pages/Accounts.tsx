@@ -47,6 +47,12 @@ export default function Accounts() {
   const [editingAccount, setEditingAccount] = useState<Tables<'accounts'> | null>(null)
   const [archivingAccount, setArchivingAccount] = useState<Tables<'accounts'> | null>(null)
 
+  // Cuentas con al menos un movimiento: su moneda queda bloqueada al editar (D6).
+  const accountIdsWithMovements = useMemo(
+    () => new Set(transactions.map((transaction) => transaction.account_id)),
+    [transactions],
+  )
+
   function openCreateForm() {
     setEditingAccount(null)
     setFormOpen(true)
@@ -158,12 +164,13 @@ export default function Accounts() {
                     name: editingAccount.name,
                     type: editingAccount.type as AccountFormValues['type'],
                     initialBalance: editingAccount.initial_balance_minor,
-                    currencyCode: editingAccount.currency_code,
+                    currencyCode: editingAccount.currency_code as AccountFormValues['currencyCode'],
                     icon: editingAccount.icon ?? 'wallet',
                     color: editingAccount.color ?? '#E83E8C',
                   }
                 : undefined
             }
+            currencyLocked={editingAccount ? accountIdsWithMovements.has(editingAccount.id) : false}
             onSubmit={handleSubmit}
             submitLabel={editingAccount ? 'Guardar cambios' : 'Crear cuenta'}
             isSubmitting={createAccount.isPending || updateAccount.isPending}

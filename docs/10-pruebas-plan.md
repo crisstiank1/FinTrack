@@ -10,11 +10,16 @@ versiones.
 
 | Migración | Versión | Estado |
 | --- | --- | --- |
-| M1 — `ampliar_tipos_de_cuenta` | `20260909032514` | Aplicada |
-| M2 — `crear_clasificacion_categorias` | `20260909231843` | Aplicada |
-| M3 — `crear_plan_mensual` | `20260910015311` | Aplicada |
+| Migración 1 — `ampliar_tipos_de_cuenta` | `20260909032514` | Aplicada |
+| Migración 2 — `crear_clasificacion_categorias` | `20260909231843` | Aplicada |
+| Migración 3 — `crear_plan_mensual` | `20260910015311` | Aplicada |
 
-**Qué se ha verificado de M3:**
+Se numeran «Migración 1, 2 y 3»: «M1» a «M5» se reservan en la documentación
+actual para las fases de moneda (`docs/11-reglas-de-moneda.md`). Los nombres de
+fixture de los bloques (`M2 gasto A`, `M3 ahorro`…) son datos de prueba y
+conservan su nombre.
+
+**Qué se ha verificado de la migración 3:**
 
 - **Ensayo completo** del archivo dentro de `begin; … rollback;` contra el
   esquema real, sin errores, y con las cinco tablas todavía inexistentes
@@ -213,13 +218,13 @@ consultas, no una garantía de la base de datos.
 
 # Preflight de fixtures
 
-Se ejecuta **antes de aplicar M3** y **antes de cualquier bloque**. Confirma que
+Se ejecuta **antes de aplicar la migración 3** y **antes de cualquier bloque**. Confirma que
 el rol `authenticated` puede crear y leer las filas de apoyo que los bloques dan
 por hechas, con las columnas que realmente usan.
 
 No toca ninguna tabla del Plan mensual: solo `categories` y `accounts`, que ya
-existen desde la Fase 2. Por eso puede ejecutarse hoy, con M3 todavía sin
-aplicar.
+existen desde la Fase 2. Por eso puede ejecutarse hoy, con la migración 3
+todavía sin aplicar.
 
 Cada apartado va por separado y termina en `rollback;`.
 
@@ -328,7 +333,8 @@ rollback;
 ```
 
 **Esperado:** 4 filas insertadas y 4 leídas, una por tipo. La fila
-`investment` es además la confirmación en contexto de que M1 está aplicada: si
+`investment` es además la confirmación en contexto de que la migración 1 está
+aplicada: si
 `accounts_type_check` no tuviera ese valor, el `INSERT` fallaría aquí.
 
 ## P.4 — Colisión de nombres de fixture
@@ -389,8 +395,8 @@ que puede correrse primero si hay dudas sobre las identidades.
 | Fallo | Diagnóstico | Qué hacer |
 | --- | --- | --- |
 | P.1 o P.2: el `INSERT` es denegado | La identidad no existe, o `request.jwt.claims` no se está aplicando | Revisar el UUID; sin esto no funciona ninguna prueba |
-| P.1 o P.2: el `INSERT` pasa pero el `SELECT` devuelve 0 | La política de `SELECT` sobre `categories` no deja leer lo propio | Detenerse: sería un fallo de la Fase 2, no de M3 |
-| P.3: falla la fila `investment` | M1 no está aplicada, o `accounts_type_check` no la incluye | Detenerse y reauditar M1 |
+| P.1 o P.2: el `INSERT` pasa pero el `SELECT` devuelve 0 | La política de `SELECT` sobre `categories` no deja leer lo propio | Detenerse: sería un fallo de la Fase 2, no de la migración 3 |
+| P.3: falla la fila `investment` | La migración 1 no está aplicada, o `accounts_type_check` no la incluye | Detenerse y reauditar la migración 1 |
 | P.4: devuelve alguna fila | Colisión de nombres con datos existentes | Renombrar la fixture en los bloques afectados |
 
 En ningún caso se resuelve borrando datos de la identidad de prueba, elevando
@@ -398,10 +404,11 @@ privilegios ni desactivando controles.
 
 ---
 
-# Bloque 0 — `category_classifications` (M2)
+# Bloque 0 — `category_classifications` (migración 2)
 
-Valida el comportamiento de la tabla de M2: RLS, la restricción única y el
-trigger `validate_category_classification`. M2 se aplicó manualmente y se
+Valida el comportamiento de la tabla de la migración 2: RLS, la restricción
+única y el trigger `validate_category_classification`. Esa migración se aplicó
+manualmente y se
 verificó por auditoría del esquema —que comprueba que las reglas *existen*—;
 este bloque comprueba que *funcionan*.
 
@@ -1557,7 +1564,7 @@ entero queda pendiente; no hay variante degradada que merezca la pena.
 
 | Bloque | Casos | Cubre |
 | --- | --- | --- |
-| 0 | 8 | `category_classifications` (M2): RLS, U1, T1 y la FK compuesta |
+| 0 | 8 | `category_classifications` (migración 2): RLS, U1, T1 y la FK compuesta |
 | 1 | ~28 | RLS, C1–C9, U2, U5, U8–U12, F4, F4b, F7, longitudes |
 | 2 | 5 | `validate_income_source_category` |
 | 3 | 12 | `validate_plan_line`, ambos tipos de cuenta y el `else` defensivo |
@@ -1565,16 +1572,16 @@ entero queda pendiente; no hay variante degradada que merezca la pena.
 
 ## Qué se verificó en cada migración
 
-- **M1** — `accounts_type_check` con los seis valores y
+- **Migración 1** — `accounts_type_check` con los seis valores y
   `accounts_id_user_id_key` creada; comprobado con `pg_constraint`,
   `pg_indexes` y dos inserciones de prueba en transacción revertida: una cuenta
   `investment` aceptada y un tipo inventado rechazado con SQLSTATE 23514.
-- **M2** — auditoría remota del esquema antes de registrar la migración en el
+- **Migración 2** — auditoría remota del esquema antes de registrar la migración en el
   historial: RLS activa, `validate_category_classification()` como
   `security invoker` con `search_path` vacío, y el filtro de pertenencia en su
   `SELECT`. **El comportamiento se ejecutó en el bloque 0: 9/9 coinciden con lo
   documentado**, incluidas las precedencias de 0.2 y 0.8-b.
-- **M3** — ensayo completo en transacción revertida y auditoría estructural de
+- **Migración 3** — ensayo completo en transacción revertida y auditoría estructural de
   21 controles, todos en `OK`. **Los bloques 1 a 4 se ejecutaron: 61/64
   coinciden con lo documentado**; las tres discrepancias están en «Hallazgos
   de la ejecución» (H1–H3), ninguna bloqueante.

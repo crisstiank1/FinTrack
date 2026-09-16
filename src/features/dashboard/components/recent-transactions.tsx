@@ -1,5 +1,6 @@
-import { ArrowLeftRight } from 'lucide-react'
+import { ArrowLeftRight, Pencil } from 'lucide-react'
 
+import { Button } from '@/components/ui/button'
 import { formatAmount } from '@/lib/currency'
 import { formatShortDate } from '@/lib/dates'
 import { getIcon } from '@/lib/icons'
@@ -12,20 +13,27 @@ interface RecentTransactionsProps {
   accountsById: Map<string, DashboardAccount>
   categoriesById: Map<string, DashboardCategory>
   fallbackCurrency: string
+  /** Abre el movimiento para corregirlo. Sin esta prop, la lista es de consulta. */
+  onEdit?: (transactionId: string) => void
 }
 
 /**
  * Últimos movimientos del mes, en modo consulta.
  *
- * A diferencia de la fila de /transactions, aquí no hay editar/duplicar/eliminar:
- * el dashboard es para leer el estado financiero, y las acciones destructivas
- * viven donde el usuario ya tiene el contexto completo del movimiento.
+ * A diferencia de la fila de /transactions, aquí solo se puede **editar**
+ * (M13): corregir de inmediato el gasto que se acaba de anotar es parte de
+ * anotarlo. Duplicar y, sobre todo, eliminar siguen viviendo donde el usuario
+ * tiene el contexto completo del movimiento, no en un panel de lectura.
+ *
+ * Una transferencia no se edita aquí: son dos patas y hay que verlas juntas
+ * (M8), así que su fila no ofrece el botón.
  */
 export function RecentTransactions({
   transactions,
   accountsById,
   categoriesById,
   fallbackCurrency,
+  onEdit,
 }: RecentTransactionsProps) {
   return (
     <ul className="flex flex-col divide-y divide-border">
@@ -72,6 +80,19 @@ export function RecentTransactions({
               {isNegative ? '−' : '+'}{' '}
               {formatAmount(transaction.amount_minor, account?.currency_code ?? fallbackCurrency)}
             </span>
+
+            {onEdit && !isTransfer && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="size-8 shrink-0"
+                onClick={() => onEdit(transaction.id)}
+                aria-label={`Editar ${transaction.description}`}
+              >
+                <Pencil className="size-3.5" aria-hidden="true" />
+              </Button>
+            )}
           </li>
         )
       })}
