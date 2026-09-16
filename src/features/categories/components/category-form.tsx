@@ -16,6 +16,12 @@ import {
 
 interface CategoryFormProps {
   defaultValues?: Partial<CategoryFormValues>
+  /**
+   * Fija el tipo y oculta su selector. Lo usa el dashboard al crear una
+   * categoría para ponerle presupuesto: solo los gastos se presupuestan, así
+   * que ofrecer «Ingreso» ahí sería abrir un camino que termina en error.
+   */
+  fixedType?: CategoryFormValues['type']
   onSubmit: (values: CategoryFormValues) => void | Promise<void>
   submitLabel?: string
   isSubmitting?: boolean
@@ -23,6 +29,7 @@ interface CategoryFormProps {
 
 export function CategoryForm({
   defaultValues,
+  fixedType,
   onSubmit,
   submitLabel = 'Guardar',
   isSubmitting,
@@ -41,6 +48,7 @@ export function CategoryForm({
       icon: 'more-horizontal',
       color: '#E83E8C',
       ...defaultValues,
+      ...(fixedType ? { type: fixedType } : {}),
     },
   })
 
@@ -48,7 +56,15 @@ export function CategoryForm({
   const color = watch('color')
 
   return (
-    <form className="flex flex-col gap-4" onSubmit={handleSubmit(onSubmit)} noValidate>
+    <form
+      className="flex flex-col gap-4"
+      // Con el tipo fijado, se impone también al enviar: el valor no depende de
+      // un campo que el usuario no ve. Sin él, el envío es exactamente el de antes.
+      onSubmit={handleSubmit(
+        fixedType ? (values) => onSubmit({ ...values, type: fixedType }) : onSubmit,
+      )}
+      noValidate
+    >
       <div className="flex flex-col gap-2">
         <Label htmlFor="category-name">Nombre</Label>
         <Input
@@ -65,16 +81,18 @@ export function CategoryForm({
         )}
       </div>
 
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="category-type">Tipo</Label>
-        <Select id="category-type" {...register('type')}>
-          {categoryTypeOptions.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </Select>
-      </div>
+      {!fixedType && (
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="category-type">Tipo</Label>
+          <Select id="category-type" {...register('type')}>
+            {categoryTypeOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </Select>
+        </div>
+      )}
 
       <div className="flex flex-col gap-2">
         <span className="text-sm font-medium text-foreground">Ícono</span>

@@ -209,45 +209,86 @@ aparte» (D5, sin banner). La confirmación muestra cada saldo en su moneda.
 
 ### `/dashboard`
 
-**Disposición (M13).** Dos columnas a partir de 1024px:
+**Cabecera (M14).** A la izquierda, el título, el mes y la nota de moneda; a la
+derecha, en fila, el selector de mes, el de cuenta y un botón «?». En móvil los
+filtros bajan bajo el título. Los filtros van en la cabecera porque afectan a
+toda la vista, y siguen en pantalla mientras cargan los movimientos, si la
+consulta falla y si todavía no hay ninguno.
 
-| Zona              | Qué lleva                                                                       |
-| ----------------- | ------------------------------------------------------------------------------- |
-| Izquierda (340px) | «Cargar movimiento» y «Mes y cuenta»                                            |
-| Derecha           | Saldo consolidado, las cuatro cifras del mes, los dos gráficos y «Presupuestos» |
-| Abajo, a lo ancho | «Últimos movimientos» del mes                                                   |
+El «?» se abre al pasar el ratón, al llegar con el teclado y al tocarlo; un toque
+lo deja fijo. Escape y tocar fuera lo cierran. Dice:
 
-Los movimientos cierran la página a lo ancho y no en una columna lateral: ahí
-quedaban estrechos y obligaban a recortar las descripciones. En móvil todo se
-apila, con los controles primero.
+> **Mes y cuenta** — Elige el mes y, si quieres, una cuenta para revisar tus
+> cifras y gráficos. Los presupuestos se muestran para el mes en la moneda del
+> Plan.
 
-La columna izquierda **no depende de los datos**: sigue en pantalla mientras
-cargan los movimientos, si la consulta falla y si todavía no hay ninguno.
+**Disposición.** A partir de 1024px, dos columnas:
 
-**Cargar movimiento (M13).** Alta directa, sin abrir ningún diálogo:
+| Zona      | Qué lleva                                                                       |
+| --------- | ------------------------------------------------------------------------------- |
+| Izquierda | «Cargar movimiento» (340px)                                                     |
+| Derecha   | Saldo consolidado, las cuatro cifras del mes, los dos gráficos y «Presupuestos» |
+
+Los dos gráficos van uno al lado del otro solo desde 1280px; entre 1024 y 1279px
+se apilan, porque la columna mide unos 620px y el donut con su leyenda no cabe en
+la mitad. **Por debajo de 1024px todo va en una columna y el formulario no se
+muestra en línea:** el alta vive en el botón flotante y su diálogo, que se
+ocultan desde 1024px. Así la acción de registrar existe en todos los anchos,
+tabletas incluidas.
+
+**Cargar movimiento.** Alta directa, sin abrir ningún diálogo:
 
 - Conmutador Gasto / Ingreso; al cambiarlo cambian las categorías ofrecidas.
 - Cuenta (rótulo «Cuenta»; se anuncia «Cuenta del movimiento» para no confundirse
-  con el filtro de la vista). Arranca en una cuenta de la moneda de la vista.
-- Importe en grande, en la moneda de la cuenta elegida. **No hay selector de
-  moneda:** la moneda la define la cuenta, como en el resto de la aplicación.
-- Categorías como chips: las ocho más usadas del mes y el resto tras «Más…». La
-  elegida se ve siempre, aunque quede fuera de esas ocho.
+  con el filtro de la cabecera). Arranca en la primera cuenta activa de la moneda
+  de la vista y **no cambia sola** si después se cambia el filtro: moverla bajo
+  una edición en curso sería peor.
+- **Monto (COP)**, **Monto (USD)** o **Monto (ARS)**, según la cuenta. El campo
+  lleva un **«$» fijo** fuera del valor —no se puede borrar ni llega al importe
+  guardado— y empieza vacío, con `0` solo de marcador. Como el «$» es el mismo en
+  las tres monedas, la moneda la dicen la etiqueta y la línea de debajo: «Se
+  registrará en COP» sin importe y «Se registrará como USD 40» con él. **Nunca
+  «Equivale a»:** FinTrack no convierte divisas. Cambiar de cuenta entre monedas
+  no toca el número escrito. **No hay selector de moneda.**
+- Categorías como chips: hasta ocho y el resto tras «Más…». Primero las más
+  usadas en el mes en pantalla; las demás, y todas cuando el mes no tiene
+  movimientos, en orden alfabético. La elegida se ve siempre.
 - Fecha, con hoy por defecto.
-- **Nota (opcional)**, que se guarda como descripción del movimiento; si se deja
-  vacía, se guarda el nombre de la categoría. Así nunca se registra un
-  movimiento sin descripción sin tener que pedirla dos veces.
-- «Agregar» guarda con el mismo esquema y la misma mutación que `/transactions`,
-  y avisa con el mismo _toast_. Después se vacían importe, categoría y nota, y se
-  conservan tipo, cuenta y fecha: lo normal es anotar varios seguidos.
-- Si falla el guardado, lo escrito se conserva para reintentar.
-- **En móvil el panel se esconde:** un formulario arriba empujaría las cifras
-  fuera de la pantalla, así que ahí el alta sigue en el botón flotante y su
-  diálogo. El botón «Movimiento completo» abre ese mismo diálogo en escritorio,
-  para lo que el panel rápido no cubre (notas largas, otra descripción).
+- **Nota (opcional)**, que se guarda como descripción; si queda vacía, se guarda
+  el nombre de la categoría.
+- «Agregar» guarda con el mismo esquema y la misma mutación que `/transactions`.
+  Después se vacían importe, categoría y nota, y se conservan tipo, cuenta y
+  fecha. Si falla, lo escrito se conserva para reintentar.
 
-- Selector de mes.
-- Selector opcional de cuenta.
+**Presupuestos.** Una rejilla con **solo las categorías que tienen presupuesto en
+el mes, incluido un presupuesto explícito de 0** (que se muestra como «Presupuesto
+en COP 0», sin barra). Las demás no ocupan tarjeta. Cada celda muestra nombre,
+barra o estado, lo gastado y lo presupuestado, con los textos de siempre
+(«Quedan…», «Excedido por…»), y la marca «Archivada» si su categoría se archivó.
+
+La cabecera del panel dice su alcance: «septiembre 2026 · en COP · no cambia con
+el filtro de cuenta». Sin presupuestos, el panel muestra un estado vacío con el
+botón «Agregar presupuesto».
+
+- **Editar:** el lápiz de cada celda abre `BudgetForm` en un diálogo, con el
+  importe vigente ya escrito (un 0 explícito abre con 0) y la elección entre
+  «Desde este mes en adelante» y «Solo este mes»; en un mes cerrado, solo la
+  segunda.
+- **Agregar presupuesto** abre un diálogo en pasos: elegir una categoría de gasto
+  activa sin presupuesto en el mes, **o** «Crear categoría de gasto», que usa el
+  formulario de categorías de Ajustes con el tipo fijado en Gasto (sin selector
+  de tipo). La categoría recién creada queda elegida y el paso siguiente es su
+  presupuesto, con `BudgetForm`.
+- Los diálogos de presupuesto del dashboard muestran el mismo «$» fijo en el
+  monto; `/budgets` conserva su campo de siempre.
+- Una categoría creada desde aquí **no tiene clasificación**: en `/plan` su gasto
+  aparece en «Sin clasificar» y no entra en ningún grupo del reparto hasta
+  clasificarla en Ajustes.
+
+**Movimientos.** El dashboard **ya no lista movimientos** (M14): ni últimos
+movimientos ni edición desde aquí. La consulta, la edición y la eliminación viven
+en `/transactions`.
+
 - KPIs:
   - Saldo total.
   - Ingresos del mes.
@@ -258,23 +299,6 @@ cargan los movimientos, si la consulta falla y si todavía no hay ninguno.
 - Gráfico de ingresos versus gastos.
 - Gráfico de gasto por categoría.
 - Tendencia de saldo.
-- **Presupuestos por categoría (M13):** todas las categorías de gasto del mes en
-  una rejilla, cada una con su barra o, si no tiene presupuesto, con «Sin
-  presupuesto este mes» y lo gastado. **El importe se escribe en la propia
-  celda**, sin abrir ninguna ventana: el campo trae el presupuesto vigente —o el
-  marcador «Sin límite» si no hay— y, en cuanto la cifra cambia, aparecen el
-  botón «Guardar» y las dos opciones de alcance, «Desde este mes en adelante» y
-  «Solo este mes». En un mes ya cerrado solo se ofrece la segunda y se explica
-  por qué; Escape deshace lo escrito y devuelve la celda a lectura. El editor
-  comparte `budgetSchema` con `/budgets` —mismo formato de monto, mismo aviso al
-  poner 0— y **conserva la distinción entre plantilla y excepción**, que es justo
-  lo que un campo numérico suelto no sabe expresar.
-- **Últimos movimientos:** hasta diez del mes, del más reciente al más antiguo,
-  con su importe en la moneda de su cuenta y la contraparte de las
-  transferencias. Cada ingreso o gasto se puede **editar** desde aquí (M13);
-  una transferencia no, porque son dos patas y hay que verlas juntas (M8).
-  **No se elimina desde el dashboard:** eso vive en `/transactions`. «Ver todos»
-  abre `/transactions` en el mes que se está viendo.
 - Estados de carga, error y vacío.
 - Información consistente con `transactions`.
 
@@ -286,8 +310,8 @@ Al elegir una cuenta, todo pasa a la moneda de esa cuenta y desaparecen la nota
 y los saldos aparte. El panel «Presupuestos» es la excepción: sus barras y
 alertas siguen en la moneda de los presupuestos, aunque la alerta global de
 ahorro neto negativo va en la moneda de la vista (M5). Ese panel tampoco sigue
-al filtro de cuenta, y desde M13 lo dice en su cabecera: «septiembre 2026 ·
-todas las cuentas».
+al filtro de cuenta, y desde M14 lo dice en su cabecera: «septiembre 2026 · en
+COP · no cambia con el filtro de cuenta».
 
 ### `/transactions`
 

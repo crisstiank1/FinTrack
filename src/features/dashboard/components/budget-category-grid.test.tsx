@@ -7,7 +7,9 @@ import type { BudgetProgress } from '@/features/budgets/progress'
 import { BudgetCategoryGrid, type BudgetCategoryItem } from './budget-category-grid'
 
 function item(
-  overrides: Partial<BudgetCategoryItem> & { progress?: Partial<BudgetProgress> } = {},
+  overrides: Omit<Partial<BudgetCategoryItem>, 'progress'> & {
+    progress?: Partial<BudgetProgress>
+  } = {},
 ): BudgetCategoryItem {
   const { progress, ...rest } = overrides
 
@@ -29,38 +31,20 @@ function item(
   }
 }
 
-const sinPresupuesto = item({
-  categoryId: 'cat-fun',
-  categoryName: 'Ocio',
+/** Presupuesto explícito de 0: sin barra, pero asignado. */
+const enCero = item({
+  categoryId: 'cat-gifts',
+  categoryName: 'Regalos',
   progress: {
-    categoryId: 'cat-fun',
+    categoryId: 'cat-gifts',
     budgetMinor: null,
-    spentMinor: 30_000,
+    spentMinor: 20_000,
     remainingMinor: null,
     ratio: null,
     status: 'unbudgeted',
-    source: null,
+    source: 'exception',
   },
 })
-
-const month = '2026-09'
-
-function renderGrid(props: Partial<Parameters<typeof BudgetCategoryGrid>[0]> = {}) {
-  const onSave = props.onSave ?? vi.fn()
-
-  render(
-    <BudgetCategoryGrid
-      items={[item(), sinPresupuesto]}
-      currencyCode="COP"
-      monthKey={month}
-      allowTemplate
-      {...props}
-      onSave={onSave}
-    />,
-  )
-
-  return onSave
-}
 
 /** Celda de una categoría, por su nombre. */
 function cell(name: string) {
@@ -68,102 +52,60 @@ function cell(name: string) {
 }
 
 describe('BudgetCategoryGrid', () => {
-  it('lista todas las categorías, con presupuesto y sin él', () => {
-    renderGrid()
+  it('muestra la barra, lo gastado y lo presupuestado de cada categoría', () => {
+    render(<BudgetCategoryGrid items={[item()]} currencyCode="COP" onEdit={vi.fn()} />)
 
-    expect(cell('Alimentación').getByRole('progressbar')).toHaveAttribute('aria-valuenow', '92')
-    // Sin presupuesto no se dibuja una barra al 0 %: se dice con palabras.
-    expect(cell('Ocio').queryByRole('progressbar')).not.toBeInTheDocument()
-    expect(cell('Ocio').getByText('Sin presupuesto este mes')).toBeInTheDocument()
-    expect(cell('Ocio').getByText('COP 30.000')).toBeInTheDocument()
+    const celda = cell('Alimentación')
+    expect(celda.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '92')
+    expect(celda.getByText('COP 120.000')).toBeInTheDocument()
+    expect(celda.getByText(/de COP 130\.000/)).toBeInTheDocument()
   })
 
-  it('cada celda trae su importe, y la que no tiene presupuesto queda vacía', () => {
-    renderGrid()
-
-    expect((screen.getByLabelText('Presupuesto de Alimentación') as HTMLInputElement).value).toBe(
-      '130000',
+  it('un presupuesto excedido dice por cuánto', () => {
+    render(
+      <BudgetCategoryGrid
+        items={[
+          item({
+            progress: {
+              budgetMinor: 100_000,
+              spentMinor: 120_000,
+              remainingMinor: -20_000,
+              ratio: 1.2,
+              status: 'over',
+            },
+          }),
+        ]}
+        currencyCode="COP"
+        onEdit={vi.fn()}
+      />,
     )
-    expect((screen.getByLabelText('Presupuesto de Ocio') as HTMLInputElement).value).toBe('')
+
+    expect(cell('Alimentación').getByText('Excedido por COP 20.000')).toBeInTheDocument()
   })
 
-  it('el alcance y «Guardar» aparecen solo en la celda que se está tocando', async () => {
-    const user = userEvent.setup()
-    renderGrid()
+  it('un presupuesto de 0 se ve y lo dice con palabras, sin barra', () => {
+    render(<BudgetCategoryGrid items={[enCero]} currencyCode="COP" onEdit={vi.fn()} />)
 
-    expect(screen.queryByRole('button', { name: 'Guardar' })).not.toBeInTheDocument()
-
-    await user.type(screen.getByLabelText('Presupuesto de Ocio'), '80000')
-
-    // Una sola celda abierta: un «Guardar» y un juego de alcances en toda la rejilla.
-    expect(screen.getAllByRole('button', { name: 'Guardar' })).toHaveLength(1)
-    expect(cell('Ocio').getByRole('radio', { name: 'Desde este mes en adelante' })).toBeChecked()
-    expect(cell('Alimentación').queryByRole('radio')).not.toBeInTheDocument()
+    const celda = cell('Regalos')
+    expect(celda.queryByRole('progressbar')).not.toBeInTheDocument()
+    expect(celda.getByText(/Presupuesto en COP 0/)).toBeInTheDocument()
   })
 
-  it('guarda el importe escrito con el alcance elegido', async () => {
+  it('editar devuelve la categoría completa para abrir su formulario', async () => {
     const user = userEvent.setup()
-    const onSave = renderGrid()
+    const onEdit = vi.fn()
+    const alimentacion = item()
+    render(<BudgetCategoryGrid items={[alimentacion]} currencyCode="COP" onEdit={onEdit} />)
 
-    const campo = screen.getByLabelText('Presupuesto de Alimentación')
-    await user.clear(campo)
-    await user.type(campo, '150000')
-    await user.click(cell('Alimentación').getByRole('radio', { name: 'Solo este mes' }))
-    await user.click(cell('Alimentación').getByRole('button', { name: 'Guardar' }))
+    await user.click(screen.getByRole('button', { name: 'Editar presupuesto de Alimentación' }))
 
-    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ categoryId: 'cat-food' }), {
-      amount: 150000,
-      scope: 'exception',
-    })
+    expect(onEdit).toHaveBeenCalledWith(alimentacion)
   })
 
-  it('en un mes cerrado solo deja ajustar ese mes', async () => {
-    const user = userEvent.setup()
-    renderGrid({ allowTemplate: false })
+  it('no hay campos que editar en la celda: se edita en el diálogo', () => {
+    render(<BudgetCategoryGrid items={[item()]} currencyCode="COP" onEdit={vi.fn()} />)
 
-    await user.type(screen.getByLabelText('Presupuesto de Ocio'), '80000')
-
-    const celda = cell('Ocio')
-    expect(celda.getByRole('radio', { name: 'Solo este mes' })).toBeChecked()
-    expect(
-      celda.queryByRole('radio', { name: 'Desde este mes en adelante' }),
-    ).not.toBeInTheDocument()
-    expect(celda.getByText(/ya pasó: solo puedes ajustar ese mes/)).toBeInTheDocument()
-  })
-
-  it('un importe con decimales no se guarda y se explica por qué', async () => {
-    const user = userEvent.setup()
-    const onSave = renderGrid()
-
-    await user.type(screen.getByLabelText('Presupuesto de Ocio'), '80,5')
-    await user.click(cell('Ocio').getByRole('button', { name: 'Guardar' }))
-
-    expect(cell('Ocio').getByText(/sin decimales/)).toBeInTheDocument()
-    expect(onSave).not.toHaveBeenCalled()
-  })
-
-  it('avisa de lo que significa un presupuesto en 0', async () => {
-    const user = userEvent.setup()
-    renderGrid()
-
-    await user.type(screen.getByLabelText('Presupuesto de Ocio'), '0')
-
-    expect(cell('Ocio').getByText(/no tendrá barra, porcentaje ni alertas/)).toBeInTheDocument()
-  })
-
-  it('«Cancelar» cierra la celda y devuelve el importe guardado', async () => {
-    const user = userEvent.setup()
-    const onSave = renderGrid()
-
-    const campo = screen.getByLabelText('Presupuesto de Alimentación')
-    await user.clear(campo)
-    await user.type(campo, '999')
-    await user.click(cell('Alimentación').getByRole('button', { name: 'Cancelar' }))
-
-    expect((screen.getByLabelText('Presupuesto de Alimentación') as HTMLInputElement).value).toBe(
-      '130000',
-    )
-    expect(onSave).not.toHaveBeenCalled()
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
   })
 
   it('marca las categorías archivadas', () => {
@@ -171,21 +113,18 @@ describe('BudgetCategoryGrid', () => {
       <BudgetCategoryGrid
         items={[item({ categoryName: 'Antigua', isArchived: true })]}
         currencyCode="COP"
-        monthKey={month}
-        allowTemplate
-        onSave={vi.fn()}
+        onEdit={vi.fn()}
       />,
     )
 
     expect(cell('Antigua').getByText('Archivada')).toBeInTheDocument()
   })
 
-  it('mientras se guarda no deja volver a enviar', async () => {
-    const user = userEvent.setup()
-    renderGrid({ isSubmitting: true })
+  it('mientras se guarda no deja abrir otro presupuesto', () => {
+    render(<BudgetCategoryGrid items={[item()]} currencyCode="COP" onEdit={vi.fn()} isSubmitting />)
 
-    await user.type(screen.getByLabelText('Presupuesto de Ocio'), '80000')
-
-    expect(cell('Ocio').getByRole('button', { name: 'Guardar' })).toBeDisabled()
+    expect(
+      screen.getByRole('button', { name: 'Editar presupuesto de Alimentación' }),
+    ).toBeDisabled()
   })
 })

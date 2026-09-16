@@ -5,10 +5,10 @@ import { Loader2, Plus } from 'lucide-react'
 import type { z } from 'zod'
 
 import { Button } from '@/components/ui/button'
-import { CurrencyInput } from '@/components/ui/currency-input'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
+import { AmountInput } from '@/features/dashboard/components/amount-input'
 import { CategoryChips, type CategoryChip } from '@/features/dashboard/components/category-chips'
 import {
   transactionDefaultValues,
@@ -101,8 +101,11 @@ export function QuickTransactionForm({
       return index === -1 ? Number.MAX_SAFE_INTEGER : index
     }
 
+    // Primero las más usadas del mes; las demás, y todas si el mes no tiene
+    // movimientos, en orden alfabético. Se ordena aquí y no se confía en el
+    // orden de llegada, para que la lista no dependa de cómo se consultó.
     return [...ofType]
-      .sort((a, b) => rank(a.id) - rank(b.id))
+      .sort((a, b) => rank(a.id) - rank(b.id) || a.name.localeCompare(b.name, 'es'))
       .map((category) => ({ id: category.id, name: category.name, icon: category.icon }))
   }, [categories, type, frequentCategoryIds])
 
@@ -191,19 +194,27 @@ export function QuickTransactionForm({
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <Label htmlFor="quick-amount">Monto</Label>
-        <CurrencyInput
+        {/* La etiqueta dice la moneda: el «$» es el mismo en COP, USD y ARS y
+            no la distingue. FinTrack no convierte, así que el texto de debajo
+            dice cómo se registrará, no a cuánto equivale. */}
+        <Label htmlFor="quick-amount">Monto ({amountCurrency})</Label>
+        <AmountInput
           id="quick-amount"
           aria-invalid={!!errors.amount}
+          aria-describedby="quick-amount-hint"
           value={amount}
           onChange={(value) => setValue('amount', value, { shouldValidate: true })}
           className="h-12 text-xl font-semibold tabular-nums"
         />
         {errors.amount ? (
-          <p className="text-sm text-destructive">{errors.amount.message}</p>
+          <p id="quick-amount-hint" className="text-sm text-destructive">
+            {errors.amount.message}
+          </p>
         ) : (
-          <p className="text-xs text-muted-foreground">
-            Equivale a {formatAmount(amount, amountCurrency)}
+          <p id="quick-amount-hint" className="text-xs text-muted-foreground">
+            {amount > 0
+              ? `Se registrará como ${formatAmount(amount, amountCurrency)}`
+              : `Se registrará en ${amountCurrency}`}
           </p>
         )}
       </div>

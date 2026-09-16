@@ -31,6 +31,11 @@ function renderForm(onSubmit = vi.fn()) {
   return onSubmit
 }
 
+/** El campo de monto, cuya etiqueta lleva la moneda de la cuenta: «Monto (COP)». */
+function amountField() {
+  return screen.getByLabelText(/^Monto \(/) as HTMLInputElement
+}
+
 function chips() {
   return within(screen.getByRole('radiogroup', { name: 'Categoría' }))
 }
@@ -47,7 +52,7 @@ describe('QuickTransactionForm', () => {
     const user = userEvent.setup()
     const onSubmit = renderForm()
 
-    await user.type(screen.getByLabelText('Monto'), '15000')
+    await user.type(amountField(), '15000')
     await user.click(chips().getByRole('radio', { name: 'Alimentación' }))
     await user.click(screen.getByRole('button', { name: 'Agregar' }))
 
@@ -76,7 +81,7 @@ describe('QuickTransactionForm', () => {
     expect(chips().getByRole('radio', { name: 'Salario' })).toBeInTheDocument()
     expect(chips().queryByRole('radio', { name: 'Alimentación' })).not.toBeInTheDocument()
 
-    await user.type(screen.getByLabelText('Monto'), '300000')
+    await user.type(amountField(), '300000')
     await user.click(chips().getByRole('radio', { name: 'Salario' }))
     await user.click(screen.getByRole('button', { name: 'Agregar' }))
 
@@ -100,7 +105,7 @@ describe('QuickTransactionForm', () => {
     const user = userEvent.setup()
     const onSubmit = renderForm()
 
-    await user.type(screen.getByLabelText('Monto'), '15000')
+    await user.type(amountField(), '15000')
     await user.click(chips().getByRole('radio', { name: 'Alimentación' }))
     await user.type(screen.getByLabelText('Nota (opcional)'), 'Mercado del sábado')
     await user.click(screen.getByRole('button', { name: 'Agregar' }))
@@ -110,23 +115,42 @@ describe('QuickTransactionForm', () => {
     )
   })
 
-  it('el importe se lee en la moneda de la cuenta elegida', async () => {
+  it('la etiqueta y la línea de ayuda dicen la moneda de la cuenta, sin «Equivale a»', async () => {
     const user = userEvent.setup()
     renderForm()
 
-    await user.type(screen.getByLabelText('Monto'), '40')
-    expect(screen.getByText('Equivale a COP 40')).toBeInTheDocument()
+    expect(screen.getByLabelText('Monto (COP)')).toBeInTheDocument()
+    expect(screen.getByText('Se registrará en COP')).toBeInTheDocument()
 
+    await user.type(amountField(), '40')
+    expect(screen.getByText('Se registrará como COP 40')).toBeInTheDocument()
+    expect(screen.queryByText(/Equivale a/)).not.toBeInTheDocument()
+  })
+
+  it('cambiar de cuenta entre monedas no convierte ni toca el número escrito', async () => {
+    const user = userEvent.setup()
+    renderForm()
+
+    await user.type(amountField(), '40')
     await user.selectOptions(screen.getByLabelText('Cuenta del movimiento'), 'acc-usd')
 
-    expect(screen.getByText('Equivale a USD 40')).toBeInTheDocument()
+    expect(screen.getByLabelText('Monto (USD)')).toHaveValue('40')
+    expect(screen.getByText('Se registrará como USD 40')).toBeInTheDocument()
+  })
+
+  it('el monto empieza vacío, con un «$» fijo fuera del valor', () => {
+    renderForm()
+
+    expect(amountField().value).toBe('')
+    expect(amountField()).toHaveAttribute('placeholder', '0')
+    expect(screen.getByText('$')).toHaveAttribute('aria-hidden', 'true')
   })
 
   it('no registra nada sin categoría', async () => {
     const user = userEvent.setup()
     const onSubmit = renderForm()
 
-    await user.type(screen.getByLabelText('Monto'), '15000')
+    await user.type(amountField(), '15000')
     await user.click(screen.getByRole('button', { name: 'Agregar' }))
 
     expect(await screen.findByText('Selecciona una categoría')).toBeInTheDocument()
@@ -138,16 +162,14 @@ describe('QuickTransactionForm', () => {
     renderForm()
 
     await user.selectOptions(screen.getByLabelText('Cuenta del movimiento'), 'acc-usd')
-    await user.type(screen.getByLabelText('Monto'), '40')
+    await user.type(amountField(), '40')
     await user.click(chips().getByRole('radio', { name: 'Ocio' }))
     await user.type(screen.getByLabelText('Nota (opcional)'), 'Cine')
     await user.click(screen.getByRole('button', { name: 'Agregar' }))
 
-    // El importe vuelve a 0, que es como el campo muestra «vacío». Se espera:
-    // el formulario solo se limpia cuando el guardado termina bien.
-    await waitFor(() =>
-      expect((screen.getByLabelText('Monto') as HTMLInputElement).value).toBe('0'),
-    )
+    // El importe vuelve a vacío. Se espera: el formulario solo se limpia cuando
+    // el guardado termina bien.
+    await waitFor(() => expect(amountField().value).toBe(''))
     expect((screen.getByLabelText('Nota (opcional)') as HTMLInputElement).value).toBe('')
     expect(chips().getByRole('radio', { name: 'Ocio' })).toHaveAttribute('aria-checked', 'false')
     // La cuenta se conserva: lo normal es anotar varios seguidos de la misma.
@@ -168,11 +190,11 @@ describe('QuickTransactionForm', () => {
       />,
     )
 
-    await user.type(screen.getByLabelText('Monto'), '15000')
+    await user.type(amountField(), '15000')
     await user.click(chips().getByRole('radio', { name: 'Alimentación' }))
     await user.click(screen.getByRole('button', { name: 'Agregar' }))
 
     expect(onSubmit).toHaveBeenCalledOnce()
-    expect((screen.getByLabelText('Monto') as HTMLInputElement).value).toBe('15.000')
+    expect(amountField().value).toBe('15.000')
   })
 })

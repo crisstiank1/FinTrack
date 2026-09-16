@@ -116,3 +116,35 @@ describe('BudgetForm — monto', () => {
     expect(screen.queryByText(ZERO_BUDGET_WARNING)).not.toBeInTheDocument()
   })
 })
+
+describe('BudgetForm — variante con símbolo (M14)', () => {
+  it('por defecto no antepone ningún símbolo, como en /budgets', () => {
+    render(<BudgetForm monthKey={MES_ACTUAL} allowTemplate onSubmit={vi.fn()} />)
+
+    expect(screen.queryByText('$')).not.toBeInTheDocument()
+  })
+
+  it('con amountInputVariant="symbol" muestra un «$» fuera del valor', async () => {
+    const onSubmit = vi.fn()
+    const user = userEvent.setup()
+    render(
+      <BudgetForm
+        monthKey={MES_ACTUAL}
+        allowTemplate
+        amountInputVariant="symbol"
+        onSubmit={onSubmit}
+      />,
+    )
+
+    expect(screen.getByText('$')).toHaveAttribute('aria-hidden', 'true')
+
+    const campo = screen.getByLabelText('Monto mensual') as HTMLInputElement
+    await user.type(campo, '700000')
+    expect(campo.value).toBe('700000')
+
+    await user.click(screen.getByRole('button', { name: 'Guardar' }))
+
+    // El símbolo nunca llega al valor enviado: se guarda un entero.
+    expect(onSubmit).toHaveBeenCalledWith({ amountMinor: 700_000, scope: 'template' })
+  })
+})
