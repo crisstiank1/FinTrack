@@ -4,7 +4,8 @@ Referencia canónica de cómo FinTrack trata las monedas. Lo que aquí se afirma
 lo que el sistema hace hoy, con la función que lo implementa entre paréntesis
 para que cada regla se pueda comprobar.
 
-Las fases de moneda se numeran **M1 a M5** y ya están publicadas. En
+Las fases de moneda se numeran **M1 a M6** y ya están publicadas. **M7** define
+el modelo de moneda de las Hojas (`/sheets`), que todavía no tienen interfaz. En
 `docs/09-plan-mensual.md` y `docs/10-pruebas-plan.md` los nombres «Migración 1,
 2 y 3» se refieren a las migraciones del Plan mensual, que son otra cosa.
 
@@ -117,6 +118,33 @@ luego COP, USD, ARS, EUR, MXN (`sortCurrencyCodes`).
 Hoy Ajustes solo gestiona categorías y su clasificación: la moneda principal no
 se puede cambiar desde ahí.
 
+### Hojas (M7)
+
+`/sheets` no tiene interfaz todavía; estas son las reglas con las que se
+construirá. Modelo completo en `docs/07-hojas.md`.
+
+- **Una hoja no tiene moneda propia.** Cada fila lleva la de la cuenta escrita
+  en su celda `account_id`, igual que en Movimientos y en el Libro.
+- **Una misma hoja puede mezclar monedas.** Una hoja es captura, no agregado: no
+  suma nada, así que mezclarlas no descuadra ninguna cifra.
+  `register_sheet_draft` no valida la moneda y no tiene ningún código de error
+  para ella.
+- **Una fila sin cuenta muestra su importe sin código de moneda.** Es el único
+  lugar de la app donde un importe aparece sin código, y es deliberado: todavía
+  no hay moneda que mostrar. Enseñar la principal o la de presentación afirmaría
+  algo que puede resultar falso en cuanto el usuario elija cuenta.
+- **Cambiar la cuenta de un borrador no convierte el importe.** `15000` sigue
+  siendo `15000` y solo cambia el código que lo precede. No se bloquea ni se
+  pide confirmación.
+- **La hoja no muestra totales.** Si se añadieran, sería una línea por moneda,
+  nunca un total consolidado.
+- **Registrar no plantea ninguna pregunta de moneda:** la fila pasa a
+  `transactions` y desde ahí rigen las reglas de cada pantalla, incluida la
+  exclusión del Plan y de los presupuestos si la cuenta está en otra moneda.
+- **No hay puente entre las Hojas y el Plan**, ni de importación ni de
+  exportación. Lo único que las conecta es `transactions`, y solo después de
+  registrar.
+
 ---
 
 ## 5. Transferencias
@@ -221,5 +249,5 @@ Cada una con su estado. Ninguna tiene fecha comprometida.
 | Con todas las cuentas de ahorro o inversión en otra moneda, el formulario de aportes dice «Necesitas una cuenta de ahorro para planificar un aporte», sin mencionar la moneda | `/plan` | Abierta. El bloque de saldo sí dice cuántas cuentas quedan fuera |
 | El menú «Columnas» del Libro, en pantalla estrecha, se recorta por el borde izquierdo y no se cierra con Escape | `/ledger` | Abierta. No es un problema de moneda; se registra aquí por trazabilidad |
 | `fetchTransactions` no pagina: un mes con más de 1000 movimientos puede truncar las cifras del Plan y de Presupuestos sin avisar | `/plan`, `/budgets` | Abierta. Afecta por igual a una o varias monedas |
-| Hojas (`docs/07-hojas.md`) no tiene todavía modelo de moneda | `/sheets`, sin implementar | Pendiente de decidir cuando se implemente |
+| Una fila de hoja sin cuenta muestra su importe sin código de moneda | `/sheets`, sin implementar | Por diseño (M7): hasta que la fila tenga cuenta no hay moneda que mostrar. Reglas en `docs/07-hojas.md` |
 | El Plan y los presupuestos guardan importes sin moneda persistida | `budgets`, tablas del Plan | Consecuencia aceptada del modelo: si la moneda de presentación cambiara, esos importes se leerían en la nueva |

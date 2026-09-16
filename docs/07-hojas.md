@@ -86,6 +86,91 @@ una clave que nadie declaró no se cuela como campo fantasma.
 
 ---
 
+## Moneda (M7)
+
+Una hoja **no tiene moneda propia**. La de cada fila es la de la cuenta escrita
+en `account_id`, igual que en Movimientos y en el Libro: `transactions` tampoco
+guarda moneda, la define `accounts.currency_code`.
+
+Por eso ni `sheets` ni `sheet_drafts` llevan una columna de moneda, y el modelo
+de moneda de las Hojas **no necesita ninguna migración**. Guardarla en el
+borrador crearía una segunda verdad que podría contradecir a la cuenta el día
+que el usuario cambie de cuenta en esa fila.
+
+Las reglas generales están en `docs/11-reglas-de-moneda.md` —la referencia
+canónica, donde esta sección es la fase **M7**— y se aplican aquí sin
+excepciones:
+
+| Regla | Cómo se aplica en la hoja |
+| --- | --- |
+| No hay conversión de divisas | Ningún importe escrito en una celda se convierte, nunca |
+| Un total solo suma cuentas de una misma moneda | La hoja no muestra totales en esta fase; ver abajo |
+| La moneda la da la cuenta | La celda `account_id` decide el código que acompaña al importe |
+| Todo importe lleva su código de moneda | Con una única excepción: la fila que todavía no tiene cuenta |
+| Formato `es-CO`, sin decimales, exponente 0 | `formatAmount` se usa igual que en el resto de la app |
+
+### Una hoja puede mezclar monedas
+
+Nada impide escribir en la misma hoja una fila con una cuenta en COP y otra con
+una cuenta en USD. **Una hoja es una superficie de captura, no un agregado**: no
+suma nada, así que mezclar monedas no produce ninguna cifra incorrecta.
+
+`register_sheet_draft` no comprueba la moneda y **no debe hacerlo**. No hay
+ningún código de error de moneda en la tabla de códigos por campo, y añadirlo
+significaría rechazar un movimiento que, registrado desde el formulario de
+Movimientos, sería perfectamente válido.
+
+### Una fila sin cuenta todavía no tiene moneda
+
+Es el caso que no existe en ninguna otra pantalla: en Movimientos y en el Libro
+toda fila tiene cuenta, porque ya es un movimiento. Un borrador, en cambio,
+puede tener importe y no tener cuenta —se escribe la cifra primero y se elige la
+cuenta después—, y en ese momento **no hay ninguna moneda que mostrar**.
+
+**El importe se muestra sin código de moneda hasta que la fila tenga cuenta.**
+
+Las dos alternativas serían enseñar la moneda principal del perfil o la moneda
+de presentación, y las dos afirman algo que puede resultar falso: quien escribe
+`15000` y ve `COP 15.000` da por hecho que ya eligió la moneda, y si después
+selecciona una cuenta en USD, la cifra que creía guardada en pesos pasa a ser
+dólares sin que nada se lo anuncie. Es el mismo género de error silencioso que
+la fecha ambigua de `07/09/2026`, y en una app de finanzas sale igual de caro.
+
+### Cambiar la cuenta no convierte nada
+
+Si una fila con `15000` pasa de una cuenta en COP a una cuenta en USD, el
+importe **no se convierte, no se recalcula y no se avisa**: sigue siendo `15000`
+y ahora se lee `USD 15.000`. Los importes se guardan en unidades mínimas enteras
+y FinTrack los trata con exponente 0, así que la cifra escrita es la misma y lo
+único que cambia es el código que la precede.
+
+No se bloquea el cambio ni se pide confirmación. Un borrador existe justamente
+para corregirse, y una hoja donde cambiar de cuenta abre un diálogo deja de
+poder escribirse sin miedo.
+
+### Sin totales en esta fase
+
+La hoja no muestra ninguna fila de totales. **Si se añaden más adelante, será
+una línea por moneda y nunca un total consolidado**, con el mismo criterio que
+el resumen del Libro financiero.
+
+Un total consolidado exigiría sumar importes de monedas distintas o convertir
+entre ellas, y las dos cosas están descartadas para toda la aplicación.
+
+### Qué pasa al registrar
+
+Registrar no plantea ninguna pregunta de moneda: la fila se convierte en un
+movimiento normal y **desde ahí rigen las reglas de cada pantalla**. El Libro y
+Movimientos la muestran en la moneda de su cuenta; el Plan y los Presupuestos la
+cuentan solo si esa cuenta está en su moneda, y si no, la suman a su aviso de
+movimientos excluidos.
+
+Esa es toda la relación entre las Hojas y el Plan: **no hay ningún puente entre
+ambos**. No se importan datos del Plan a una hoja ni se exportan de una hoja al
+Plan; lo único que las conecta es `transactions`, y solo después de registrar.
+
+---
+
 ## Registrar una fila
 
 `register_sheet_draft(p_draft_id uuid) returns jsonb`
@@ -331,8 +416,10 @@ borrador, en cambio, no tiene ningún efecto financiero hasta ese momento.
 ## Fuera de alcance
 
 Fórmulas, columnas calculadas, tipos de columna más allá de texto, importación
-CSV, acciones masivas sobre movimientos ya registrados, reordenamiento, RPC por
-lotes y edición de movimientos reales dentro de la hoja.
+CSV, exportación CSV desde la hoja, totales de cualquier tipo dentro de la
+rejilla, conversión de divisas, acciones masivas sobre movimientos ya
+registrados, reordenamiento, RPC por lotes y edición de movimientos reales
+dentro de la hoja.
 
 El registro de varias filas se resolverá desde el cliente con concurrencia
 limitada en un paso posterior; no se crea una RPC por lotes todavía.
@@ -341,3 +428,12 @@ La importación CSV **no forma parte de las Hojas ni depende de ellas**: es la
 Fase 10 del roadmap y opera sobre `transactions`, no sobre `sheet_drafts`. El
 reordenamiento de filas sigue documentado como trabajo futuro en «Orden de las
 filas», con la RPC transaccional `reorder_sheet_drafts`.
+
+**La conversión de divisas no está pendiente: no existe.** Ninguna pantalla de
+FinTrack convierte importes, y las Hojas no son la excepción; es una decisión de
+producto, no una limitación técnica por resolver.
+
+**Un total consolidado tampoco llegará más adelante.** Si algún día la hoja
+muestra totales, serán una línea por moneda, con el criterio del resumen del
+Libro financiero. Lo mismo vale para una eventual exportación CSV desde la hoja:
+llevaría una columna «Moneda» por fila, como la del Libro.

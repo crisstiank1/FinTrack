@@ -90,9 +90,10 @@ Presupuestos, ejemplos y limitaciones conocidas— están en
   durante el onboarding (D3) y hoy no se puede cambiar desde Ajustes (D7).
 - **Cambiar la moneda de una cuenta:** bloqueado si la cuenta ya tiene
   movimientos (D6); permitido sin movimientos.
-- **Filtro por moneda (M3)**, **transferencias entre monedas (M4)** y **Plan y
-  Presupuestos en una sola moneda (M5)**: cada pantalla resume su parte más
-  abajo; el detalle y los textos exactos, en el documento de reglas.
+- **Filtro por moneda (M3)**, **transferencias entre monedas (M4)**, **Plan y
+  Presupuestos en una sola moneda (M5)** y **Hojas sin moneda propia (M7)**:
+  cada pantalla resume su parte más abajo; el detalle y los textos exactos, en
+  el documento de reglas.
 - **Limitaciones conocidas** (transferencias antiguas con el mismo importe en
   las dos patas, cambio de moneda de una cuenta con líneas de aporte, y las
   demás): listadas con su estado en el documento de reglas.
@@ -320,12 +321,18 @@ columnas propias de texto por hoja y registro explícito de ingresos y gastos.
 **No reemplaza `/transactions` ni `/ledger`.** Un borrador no registrado no
 aparece en ninguna de las dos, ni afecta saldos, dashboard o presupuestos.
 
+**Moneda (M7, ver «Monedas»):** cada fila lleva la moneda de la cuenta que tenga
+escrita y una misma hoja puede mezclar monedas; una fila todavía sin cuenta
+muestra su importe **sin código de moneda**, y cambiar de cuenta no convierte el
+importe, solo cambia el código que lo precede.
+
 **No incluir:**
 - Fórmulas y columnas calculadas.
 - Importación CSV: es la Fase 10 y opera sobre `transactions`.
 - Edición de movimientos ya registrados dentro de la hoja.
 - Acciones masivas.
 - Reordenamiento de filas.
+- Totales dentro de la rejilla y conversión de divisas.
 
 Modelo y reglas: `docs/07-hojas.md`.
 
