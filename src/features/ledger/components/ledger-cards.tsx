@@ -51,6 +51,8 @@ export function LedgerCards({
           : undefined
         const balance = balanceByDate?.get(transaction.transaction_date)
         const counterpart = counterparts?.get(transaction.id)
+        // Una transferencia solo se edita si se conoce su otra pata (M8).
+        const canEdit = transaction.type !== 'transfer' || !!counterpart
 
         return (
           <li key={transaction.id} className="rounded-xl border border-border bg-card p-3 text-sm">
@@ -85,7 +87,7 @@ export function LedgerCards({
               </span>
 
               <div className="flex gap-1">
-                {transaction.type !== 'transfer' && (
+                {canEdit && (
                   <Button
                     type="button"
                     variant="ghost"

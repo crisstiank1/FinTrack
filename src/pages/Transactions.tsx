@@ -8,7 +8,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { useAccounts } from '@/features/accounts/hooks'
 import { useCategories } from '@/features/categories/hooks'
 import { usePrimaryCurrency } from '@/features/profile/hooks'
-import { formatTransferCounterpart, type TransactionFilters } from '@/features/transactions/api'
+import {
+  formatTransferCounterpart,
+  transferEditDefaults,
+  type TransactionFilters,
+  type TransferEditDefaults,
+} from '@/features/transactions/api'
 import { TransactionFiltersBar } from '@/features/transactions/components/transaction-filters'
 import { TransactionForm } from '@/features/transactions/components/transaction-form'
 import { TransactionRow } from '@/features/transactions/components/transaction-row'
@@ -21,6 +26,7 @@ import {
   useTransactions,
   useTransferCounterparts,
   useUpdateTransaction,
+  useUpdateTransfer,
 } from '@/features/transactions/hooks'
 import type { TransactionFormValues, TransferFormValues } from '@/features/transactions/schemas'
 import { useOptionalMonthParam } from '@/hooks/use-month-param'
@@ -66,6 +72,7 @@ export default function Transactions() {
   const createTransaction = useCreateTransaction()
   const updateTransaction = useUpdateTransaction()
   const createTransfer = useCreateTransfer()
+  const updateTransfer = useUpdateTransfer()
   const deleteTransaction = useDeleteTransaction()
   const duplicateTransaction = useDuplicateTransaction()
 
@@ -73,6 +80,10 @@ export default function Transactions() {
     'closed',
   )
   const [editingTransaction, setEditingTransaction] = useState<Tables<'transactions'> | null>(null)
+  // La transferencia se guarda ya resuelta, no como fila: sus dos patas deben
+  // seguir siendo las mismas mientras el diálogo está abierto, aunque la lista
+  // se refresque debajo.
+  const [editingTransfer, setEditingTransfer] = useState<TransferEditDefaults | null>(null)
   const [deletingTransaction, setDeletingTransaction] = useState<Tables<'transactions'> | null>(
     null,
   )
@@ -84,6 +95,10 @@ export default function Transactions() {
   const categoryById = useMemo(
     () => new Map(categories.map((category) => [category.id, category])),
     [categories],
+  )
+  const currencyByAccountId = useMemo(
+    () => new Map(accounts.map((account) => [account.id, account.currency_code])),
+    [accounts],
   )
 
   // Esta página no suma importes: cada fila va en la moneda de su cuenta. Esta
@@ -102,9 +117,28 @@ export default function Transactions() {
     setMovementDialog('transaction')
   }
 
-  function openEditTransaction(transaction: Tables<'transactions'>) {
+  function openCreateTransfer() {
+    setEditingTransfer(null)
+    setMovementDialog('transfer')
+  }
+
+  /** Editar: un movimiento abre su formulario; una transferencia, el suyo (M8). */
+  function openEdit(transaction: Tables<'transactions'>) {
+    const transfer = transferEditDefaults(transaction, counterparts?.get(transaction.id))
+
+    if (transfer) {
+      setEditingTransfer(transfer)
+      setMovementDialog('transfer')
+      return
+    }
+
     setEditingTransaction(transaction)
     setMovementDialog('transaction')
+  }
+
+  function closeMovementDialog() {
+    setMovementDialog('closed')
+    setEditingTransfer(null)
   }
 
   async function handleTransactionSubmit(values: TransactionFormValues) {
@@ -144,21 +178,35 @@ export default function Transactions() {
   }
 
   async function handleTransferSubmit(values: TransferFormValues) {
+    const legs = {
+      fromAccountId: values.fromAccountId,
+      toAccountId: values.toAccountId,
+      fromAmountMinor: values.amount,
+      toAmountMinor: values.receivedAmount,
+      transactionDate: values.transactionDate,
+      description: values.description,
+    }
+
     try {
-      await createTransfer.mutateAsync({
-        fromAccountId: values.fromAccountId,
-        toAccountId: values.toAccountId,
-        fromAmountMinor: values.amount,
-        toAmountMinor: values.receivedAmount,
-        transactionDate: values.transactionDate,
-        description: values.description,
-      })
-      toast.success('Transferencia registrada')
-      setMovementDialog('closed')
+      if (editingTransfer) {
+        await updateTransfer.mutateAsync({
+          ...legs,
+          transferGroupId: editingTransfer.transferGroupId,
+          currencyByAccountId,
+        })
+        toast.success('Transferencia actualizada')
+      } else {
+        await createTransfer.mutateAsync(legs)
+        toast.success('Transferencia registrada')
+      }
+      closeMovementDialog()
     } catch (error) {
-      toast.error('No se pudo registrar la transferencia', {
-        description: error instanceof Error ? error.message : undefined,
-      })
+      toast.error(
+        editingTransfer
+          ? 'No se pudo guardar la transferencia'
+          : 'No se pudo registrar la transferencia',
+        { description: error instanceof Error ? error.message : undefined },
+      )
     }
   }
 
@@ -196,7 +244,7 @@ export default function Transactions() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold text-foreground">Movimientos</h1>
         <div className="flex gap-2">
-          <Button type="button" variant="outline" onClick={() => setMovementDialog('transfer')}>
+          <Button type="button" variant="outline" onClick={openCreateTransfer}>
             <ArrowLeftRight className="size-4" aria-hidden="true" />
             Transferir
           </Button>
@@ -244,7 +292,8 @@ export default function Transactions() {
             }
             currencyCode={accountById.get(transaction.account_id)?.currency_code ?? currencyCode}
             counterpartLabel={counterpartLabelFor(transaction)}
-            onEdit={() => openEditTransaction(transaction)}
+            canEdit={transaction.type !== 'transfer' || !!counterparts?.get(transaction.id)}
+            onEdit={() => openEdit(transaction)}
             onDuplicate={() => handleDuplicate(transaction)}
             onDelete={() => setDeletingTransaction(transaction)}
           />
@@ -288,17 +337,41 @@ export default function Transactions() {
 
       <Dialog
         open={movementDialog === 'transfer'}
-        onOpenChange={(open) => !open && setMovementDialog('closed')}
+        onOpenChange={(open) => !open && closeMovementDialog()}
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Transferir entre cuentas</DialogTitle>
+            <DialogTitle>
+              {editingTransfer ? 'Editar transferencia' : 'Transferir entre cuentas'}
+            </DialogTitle>
           </DialogHeader>
           <TransferForm
+            key={editingTransfer?.transferGroupId ?? 'new'}
             accounts={accounts}
             currencyCode={currencyCode}
+            defaultValues={
+              editingTransfer
+                ? {
+                    fromAccountId: editingTransfer.fromAccountId,
+                    toAccountId: editingTransfer.toAccountId,
+                    amount: editingTransfer.fromAmountMinor,
+                    receivedAmount: editingTransfer.toAmountMinor,
+                    transactionDate: editingTransfer.transactionDate,
+                    description: editingTransfer.description,
+                  }
+                : undefined
+            }
+            lockedCurrencies={
+              editingTransfer
+                ? {
+                    from: currencyByAccountId.get(editingTransfer.fromAccountId) ?? currencyCode,
+                    to: currencyByAccountId.get(editingTransfer.toAccountId) ?? currencyCode,
+                  }
+                : undefined
+            }
+            submitLabel={editingTransfer ? 'Guardar cambios' : 'Transferir'}
             onSubmit={handleTransferSubmit}
-            isSubmitting={createTransfer.isPending}
+            isSubmitting={createTransfer.isPending || updateTransfer.isPending}
           />
         </DialogContent>
       </Dialog>

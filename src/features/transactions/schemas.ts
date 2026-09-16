@@ -42,6 +42,18 @@ const transferFieldsSchema = z.object({
 })
 
 /**
+ * Monedas de una transferencia que ya existe. Al editarla no se pueden cambiar:
+ * hacerlo convertiría el importe de una pata a otra moneda sin tocarlo, que es
+ * exactamente lo que FinTrack no hace (M8).
+ */
+export interface TransferCurrencyLock {
+  /** Moneda de la cuenta de origen del original. */
+  from: string
+  /** Moneda de la cuenta de destino del original. */
+  to: string
+}
+
+/**
  * Esquema de una transferencia. Depende de la moneda de cada cuenta, así que se
  * construye con ellas:
  *
@@ -50,9 +62,14 @@ const transferFieldsSchema = z.object({
  * - **Monedas distintas:** el monto recibido es obligatorio y cada pata guarda
  *   el suyo, sin convertir.
  *
- * La salida siempre trae `receivedAmount`: el importe de la pata entrante.
+ * Al editar (`lockedCurrencies`) cada cuenta solo puede cambiarse por otra de su
+ * misma moneda. La salida siempre trae `receivedAmount`: el importe de la pata
+ * entrante.
  */
-export function createTransferSchema(currencyByAccountId: ReadonlyMap<string, string>) {
+export function createTransferSchema(
+  currencyByAccountId: ReadonlyMap<string, string>,
+  lockedCurrencies?: TransferCurrencyLock,
+) {
   return transferFieldsSchema
     .superRefine((data, ctx) => {
       if (data.fromAccountId === data.toAccountId) {
@@ -62,6 +79,24 @@ export function createTransferSchema(currencyByAccountId: ReadonlyMap<string, st
           path: ['toAccountId'],
         })
         return
+      }
+
+      if (lockedCurrencies) {
+        const locked: [keyof TransferCurrencyLock, 'fromAccountId' | 'toAccountId'][] = [
+          ['from', 'fromAccountId'],
+          ['to', 'toAccountId'],
+        ]
+
+        for (const [side, field] of locked) {
+          const currency = currencyByAccountId.get(data[field])
+          if (currency && currency !== lockedCurrencies[side]) {
+            ctx.addIssue({
+              code: 'custom',
+              message: `Elige una cuenta en ${lockedCurrencies[side]}: editar no cambia la moneda de la transferencia`,
+              path: [field],
+            })
+          }
+        }
       }
 
       if (isCrossCurrencyTransfer(currencyByAccountId, data.fromAccountId, data.toAccountId)) {

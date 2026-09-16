@@ -33,13 +33,16 @@ import { buildLedgerCsv, ledgerCsvFilename } from '@/features/ledger/export'
 import { useLedgerPage, useLedgerTotals } from '@/features/ledger/hooks'
 import { buildDailyBalances, runningBalanceCurrency } from '@/features/ledger/running-balance'
 import { usePrimaryCurrency } from '@/features/profile/hooks'
+import { transferEditDefaults, type TransferEditDefaults } from '@/features/transactions/api'
 import { TransactionForm } from '@/features/transactions/components/transaction-form'
+import { TransferForm } from '@/features/transactions/components/transfer-form'
 import {
   useDeleteTransaction,
   useDuplicateTransaction,
   useUpdateTransaction,
+  useUpdateTransfer,
 } from '@/features/transactions/hooks'
-import type { TransactionFormValues } from '@/features/transactions/schemas'
+import type { TransactionFormValues, TransferFormValues } from '@/features/transactions/schemas'
 import { useDebouncedValue } from '@/hooks/use-debounced-value'
 import { downloadCsv } from '@/lib/csv'
 import { resolveCurrencyFilter, resolvePresentationCurrency } from '@/lib/currency'
@@ -63,6 +66,10 @@ export default function Ledger() {
   const [isExporting, setExporting] = useState(false)
 
   const [editing, setEditing] = useState<Tables<'transactions'> | null>(null)
+  // La transferencia se guarda ya resuelta, no como fila: sus dos patas deben
+  // seguir siendo las mismas mientras el diálogo está abierto, aunque la página
+  // se refresque debajo.
+  const [editingTransfer, setEditingTransfer] = useState<TransferEditDefaults | null>(null)
   const [deleting, setDeleting] = useState<Tables<'transactions'> | null>(null)
 
   const debouncedSearch = useDebouncedValue(searchInput)
@@ -115,10 +122,15 @@ export default function Ledger() {
   const { data: allTransactions = [] } = useAllTransactions({ enabled: showRunningBalance })
 
   const updateTransaction = useUpdateTransaction()
+  const updateTransfer = useUpdateTransfer()
   const deleteTransaction = useDeleteTransaction()
   const duplicateTransaction = useDuplicateTransaction()
 
   const accountsById = useMemo(() => new Map(accounts.map((a) => [a.id, a])), [accounts])
+  const currencyByAccountId = useMemo(
+    () => new Map(accounts.map((a) => [a.id, a.currency_code])),
+    [accounts],
+  )
   const categoriesById = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories])
 
   // Moneda para los ceros del resumen y para filas sin cuenta conocida. Cada
@@ -168,7 +180,7 @@ export default function Ledger() {
         balanceByDate,
         balanceCurrency: balanceCurrency ?? currencyCode,
         counterparts,
-        onEdit: setEditing,
+        onEdit: openEdit,
         onDuplicate: handleDuplicate,
         onDelete: setDeleting,
       }),
@@ -188,6 +200,18 @@ export default function Ledger() {
     onSortingChange: setSorting,
     onColumnVisibilityChange: setColumnVisibility,
   })
+
+  /** Editar: un movimiento abre su formulario; una transferencia, el suyo (M8). */
+  function openEdit(transaction: Tables<'transactions'>) {
+    const transfer = transferEditDefaults(transaction, counterparts?.get(transaction.id))
+
+    if (transfer) {
+      setEditingTransfer(transfer)
+      return
+    }
+
+    setEditing(transaction)
+  }
 
   async function handleDuplicate(transaction: Tables<'transactions'>) {
     try {
@@ -220,6 +244,29 @@ export default function Ledger() {
       setEditing(null)
     } catch (error) {
       toast.error('No se pudo guardar el movimiento', {
+        description: error instanceof Error ? error.message : undefined,
+      })
+    }
+  }
+
+  async function handleTransferEditSubmit(values: TransferFormValues) {
+    if (!editingTransfer) return
+
+    try {
+      await updateTransfer.mutateAsync({
+        transferGroupId: editingTransfer.transferGroupId,
+        fromAccountId: values.fromAccountId,
+        toAccountId: values.toAccountId,
+        fromAmountMinor: values.amount,
+        toAmountMinor: values.receivedAmount,
+        transactionDate: values.transactionDate,
+        description: values.description,
+        currencyByAccountId,
+      })
+      toast.success('Transferencia actualizada')
+      setEditingTransfer(null)
+    } catch (error) {
+      toast.error('No se pudo guardar la transferencia', {
         description: error instanceof Error ? error.message : undefined,
       })
     }
@@ -357,7 +404,7 @@ export default function Ledger() {
               balanceByDate={balanceByDate}
               balanceCurrency={balanceCurrency ?? currencyCode}
               counterparts={counterparts}
-              onEdit={setEditing}
+              onEdit={openEdit}
               onDuplicate={handleDuplicate}
               onDelete={setDeleting}
             />
@@ -396,6 +443,36 @@ export default function Ledger() {
               onSubmit={handleEditSubmit}
               submitLabel="Guardar cambios"
               isSubmitting={updateTransaction.isPending}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!editingTransfer} onOpenChange={(open) => !open && setEditingTransfer(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar transferencia</DialogTitle>
+          </DialogHeader>
+          {editingTransfer && (
+            <TransferForm
+              key={editingTransfer.transferGroupId}
+              accounts={accounts}
+              currencyCode={currencyCode}
+              defaultValues={{
+                fromAccountId: editingTransfer.fromAccountId,
+                toAccountId: editingTransfer.toAccountId,
+                amount: editingTransfer.fromAmountMinor,
+                receivedAmount: editingTransfer.toAmountMinor,
+                transactionDate: editingTransfer.transactionDate,
+                description: editingTransfer.description,
+              }}
+              lockedCurrencies={{
+                from: currencyByAccountId.get(editingTransfer.fromAccountId) ?? currencyCode,
+                to: currencyByAccountId.get(editingTransfer.toAccountId) ?? currencyCode,
+              }}
+              submitLabel="Guardar cambios"
+              onSubmit={handleTransferEditSubmit}
+              isSubmitting={updateTransfer.isPending}
             />
           )}
         </DialogContent>

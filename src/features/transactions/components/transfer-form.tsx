@@ -12,26 +12,51 @@ import {
   createTransferSchema,
   isCrossCurrencyTransfer,
   transferDefaultValues,
+  type TransferCurrencyLock,
   type TransferFormInput,
   type TransferFormValues,
 } from '@/features/transactions/schemas'
 import { formatAmount } from '@/lib/currency'
 import type { Tables } from '@/types/database.types'
 
+/** Aviso al cambiar importes o cuentas de una transferencia ya registrada (M8). */
+export const TRANSFER_EDIT_WARNING =
+  'Al guardar se actualizan las dos patas y cambian los saldos de las cuentas implicadas.'
+
 interface TransferFormProps {
   accounts: Tables<'accounts'>[]
   /** Moneda de los montos mientras no se ha elegido la cuenta correspondiente. */
   currencyCode: string
+  /** Transferencia que se edita. Sin ella, el formulario crea una nueva. */
+  defaultValues?: Partial<TransferFormInput>
+  /**
+   * Monedas del original. Al editar, cada cuenta solo puede cambiarse por otra
+   * de su misma moneda: FinTrack no convierte divisas, así que mover una pata a
+   * otra moneda cambiaría lo que significa su importe sin tocar la cifra.
+   */
+  lockedCurrencies?: TransferCurrencyLock
+  submitLabel?: string
   onSubmit: (values: TransferFormValues) => void | Promise<void>
   isSubmitting?: boolean
 }
 
-export function TransferForm({ accounts, currencyCode, onSubmit, isSubmitting }: TransferFormProps) {
+export function TransferForm({
+  accounts,
+  currencyCode,
+  defaultValues,
+  lockedCurrencies,
+  submitLabel = 'Transferir',
+  onSubmit,
+  isSubmitting,
+}: TransferFormProps) {
   const currencyByAccountId = useMemo(
     () => new Map(accounts.map((account) => [account.id, account.currency_code])),
     [accounts],
   )
-  const schema = useMemo(() => createTransferSchema(currencyByAccountId), [currencyByAccountId])
+  const schema = useMemo(
+    () => createTransferSchema(currencyByAccountId, lockedCurrencies),
+    [currencyByAccountId, lockedCurrencies],
+  )
 
   const {
     register,
@@ -42,18 +67,28 @@ export function TransferForm({ accounts, currencyCode, onSubmit, isSubmitting }:
   } = useForm<TransferFormInput, unknown, TransferFormValues>({
     resolver: zodResolver(schema),
     mode: 'onBlur',
-    defaultValues: transferDefaultValues,
+    defaultValues: { ...transferDefaultValues, ...defaultValues },
   })
 
   const amount = Number(watch('amount')) || 0
   const receivedAmount = watch('receivedAmount')
   const fromAccountId = watch('fromAccountId')
   const toAccountId = watch('toAccountId')
-  const activeAccounts = accounts.filter((account) => !account.is_archived)
 
   const fromCurrency = currencyByAccountId.get(fromAccountId ?? '') ?? currencyCode
   const toCurrency = currencyByAccountId.get(toAccountId ?? '') ?? currencyCode
   const isCrossCurrency = isCrossCurrencyTransfer(currencyByAccountId, fromAccountId, toAccountId)
+
+  // Al editar, cada selector ofrece solo cuentas de la moneda de esa pata. La
+  // cuenta que la transferencia ya tiene se mantiene aunque esté archivada:
+  // esconderla dejaría sin opción válida a una transferencia correcta.
+  function accountOptions(lockedCurrency: string | undefined, selectedId: string | undefined) {
+    return accounts.filter(
+      (account) =>
+        (!account.is_archived || account.id === selectedId) &&
+        (!lockedCurrency || account.currency_code === lockedCurrency),
+    )
+  }
 
   // Con la misma moneda el monto recibido no se muestra: un valor que quedó de
   // una elección anterior no debe viajar oculto y hacer fallar el envío.
@@ -63,14 +98,28 @@ export function TransferForm({ accounts, currencyCode, onSubmit, isSubmitting }:
     }
   }, [isCrossCurrency, receivedAmount, setValue])
 
+  // Cambiar la fecha o la descripción no mueve dinero; cambiar importes o
+  // cuentas, sí, y el usuario tiene que saberlo antes de guardar.
+  const movesMoney =
+    !!defaultValues &&
+    (fromAccountId !== defaultValues.fromAccountId ||
+      toAccountId !== defaultValues.toAccountId ||
+      amount !== Number(defaultValues.amount ?? 0) ||
+      (receivedAmount ?? amount) !==
+        Number(defaultValues.receivedAmount ?? defaultValues.amount ?? 0))
+
   return (
     <form className="flex flex-col gap-4" onSubmit={handleSubmit(onSubmit)} noValidate>
       <div className="grid grid-cols-2 gap-3">
         <div className="flex flex-col gap-2">
           <Label htmlFor="transfer-from">Desde</Label>
-          <Select id="transfer-from" aria-invalid={!!errors.fromAccountId} {...register('fromAccountId')}>
+          <Select
+            id="transfer-from"
+            aria-invalid={!!errors.fromAccountId}
+            {...register('fromAccountId')}
+          >
             <option value="">Selecciona...</option>
-            {activeAccounts.map((account) => (
+            {accountOptions(lockedCurrencies?.from, fromAccountId).map((account) => (
               <option key={account.id} value={account.id}>
                 {account.name}
               </option>
@@ -85,13 +134,15 @@ export function TransferForm({ accounts, currencyCode, onSubmit, isSubmitting }:
           <Label htmlFor="transfer-to">Hacia</Label>
           <Select id="transfer-to" aria-invalid={!!errors.toAccountId} {...register('toAccountId')}>
             <option value="">Selecciona...</option>
-            {activeAccounts.map((account) => (
+            {accountOptions(lockedCurrencies?.to, toAccountId).map((account) => (
               <option key={account.id} value={account.id}>
                 {account.name}
               </option>
             ))}
           </Select>
-          {errors.toAccountId && <p className="text-sm text-destructive">{errors.toAccountId.message}</p>}
+          {errors.toAccountId && (
+            <p className="text-sm text-destructive">{errors.toAccountId.message}</p>
+          )}
         </div>
       </div>
 
@@ -149,17 +200,34 @@ export function TransferForm({ accounts, currencyCode, onSubmit, isSubmitting }:
         {errors.transactionDate && (
           <p className="text-sm text-destructive">{errors.transactionDate.message}</p>
         )}
+        {defaultValues && (
+          <p className="text-xs text-muted-foreground">
+            Las dos patas comparten fecha y descripción: se guardan juntas.
+          </p>
+        )}
       </div>
 
       <div className="flex flex-col gap-2">
         <Label htmlFor="transfer-description">Descripción</Label>
-        <Input id="transfer-description" aria-invalid={!!errors.description} {...register('description')} />
-        {errors.description && <p className="text-sm text-destructive">{errors.description.message}</p>}
+        <Input
+          id="transfer-description"
+          aria-invalid={!!errors.description}
+          {...register('description')}
+        />
+        {errors.description && (
+          <p className="text-sm text-destructive">{errors.description.message}</p>
+        )}
       </div>
+
+      {movesMoney && (
+        <p role="status" className="text-sm text-warning">
+          {TRANSFER_EDIT_WARNING}
+        </p>
+      )}
 
       <Button type="submit" disabled={isSubmitting}>
         {isSubmitting && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
-        Transferir
+        {submitLabel}
       </Button>
     </form>
   )

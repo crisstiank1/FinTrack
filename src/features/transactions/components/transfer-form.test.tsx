@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
-import { TransferForm } from './transfer-form'
+import { TRANSFER_EDIT_WARNING, TransferForm } from './transfer-form'
 import { createTransferSchema } from '@/features/transactions/schemas'
 import type { Tables } from '@/types/database.types'
 
@@ -253,5 +253,158 @@ describe('createTransferSchema', () => {
 
     expect(result.success).toBe(false)
     expect(result.error?.issues[0].message).toBe('Elige dos cuentas distintas')
+  })
+})
+
+describe('TransferForm — edición (M8)', () => {
+  const editing = {
+    fromAccountId: 'acc-1',
+    toAccountId: 'acc-usd',
+    amount: 100000,
+    receivedAmount: 25,
+    transactionDate: '2026-09-10',
+    description: 'Paso a dólares',
+  }
+
+  function renderEditing(onSubmit = vi.fn()) {
+    render(
+      <TransferForm
+        accounts={accounts}
+        currencyCode="COP"
+        defaultValues={editing}
+        lockedCurrencies={{ from: 'COP', to: 'USD' }}
+        submitLabel="Guardar cambios"
+        onSubmit={onSubmit}
+      />,
+    )
+    return onSubmit
+  }
+
+  it('abre la transferencia con el importe de cada pata', () => {
+    renderEditing()
+
+    expect((screen.getByLabelText('Desde') as HTMLSelectElement).value).toBe('acc-1')
+    expect((screen.getByLabelText('Hacia') as HTMLSelectElement).value).toBe('acc-usd')
+    expect((screen.getByLabelText('Monto enviado (COP)') as HTMLInputElement).value).toBe('100.000')
+    expect((screen.getByLabelText('Monto recibido (USD)') as HTMLInputElement).value).toBe('25')
+    expect((screen.getByLabelText('Fecha') as HTMLInputElement).value).toBe('2026-09-10')
+  })
+
+  it('guarda las dos patas sin tocar los importes si nada cambió', async () => {
+    const user = userEvent.setup()
+    const onSubmit = renderEditing()
+
+    await user.click(screen.getByRole('button', { name: 'Guardar cambios' }))
+
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fromAccountId: 'acc-1',
+        toAccountId: 'acc-usd',
+        amount: 100000,
+        receivedAmount: 25,
+      }),
+      expect.anything(),
+    )
+  })
+
+  it('una transferencia de la misma moneda se edita con un solo monto', async () => {
+    const user = userEvent.setup()
+    const onSubmit = vi.fn()
+    render(
+      <TransferForm
+        accounts={accounts}
+        currencyCode="COP"
+        defaultValues={{
+          fromAccountId: 'acc-1',
+          toAccountId: 'acc-2',
+          amount: 30000,
+          receivedAmount: 30000,
+          transactionDate: '2026-09-10',
+          description: 'Traspaso',
+        }}
+        lockedCurrencies={{ from: 'COP', to: 'COP' }}
+        submitLabel="Guardar cambios"
+        onSubmit={onSubmit}
+      />,
+    )
+
+    expect(screen.queryByLabelText(/Monto recibido/)).not.toBeInTheDocument()
+    expect(screen.queryByText(TRANSFER_EDIT_WARNING)).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Guardar cambios' }))
+
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ amount: 30000, receivedAmount: 30000 }),
+      expect.anything(),
+    )
+  })
+
+  it('cada pata solo ofrece cuentas de su misma moneda', () => {
+    renderEditing()
+
+    const from = within(screen.getByLabelText('Desde')).getAllByRole('option')
+    const to = within(screen.getByLabelText('Hacia')).getAllByRole('option')
+
+    expect(from.map((option) => option.textContent)).toEqual([
+      'Selecciona...',
+      'Efectivo',
+      'Ahorros',
+    ])
+    expect(to.map((option) => option.textContent)).toEqual(['Selecciona...', 'Cuenta USD'])
+  })
+
+  it('avisa al cambiar una cuenta, no al corregir la descripción', async () => {
+    const user = userEvent.setup()
+    renderEditing()
+
+    await user.type(screen.getByLabelText('Descripción'), ' corregida')
+    expect(screen.queryByText(TRANSFER_EDIT_WARNING)).not.toBeInTheDocument()
+
+    await user.selectOptions(screen.getByLabelText('Desde'), 'acc-2')
+    expect(screen.getByText(TRANSFER_EDIT_WARNING)).toBeInTheDocument()
+  })
+})
+
+describe('createTransferSchema — monedas bloqueadas (M8)', () => {
+  const currencies = new Map([
+    ['cop-1', 'COP'],
+    ['cop-2', 'COP'],
+    ['usd-1', 'USD'],
+  ])
+  const schema = createTransferSchema(currencies, { from: 'COP', to: 'USD' })
+  const base = { transactionDate: '2026-09-14', description: 'Transferencia' }
+
+  it('acepta cambiar de cuenta dentro de la misma moneda', () => {
+    const result = schema.safeParse({
+      ...base,
+      fromAccountId: 'cop-2',
+      toAccountId: 'usd-1',
+      amount: 100000,
+      receivedAmount: 25,
+    })
+
+    expect(result.success).toBe(true)
+  })
+
+  it('rechaza mover una pata a otra moneda y lo dice en cada selector', () => {
+    const result = schema.safeParse({
+      ...base,
+      fromAccountId: 'usd-1',
+      toAccountId: 'cop-2',
+      amount: 100000,
+      receivedAmount: 25,
+    })
+
+    expect(result.success).toBe(false)
+    expect(result.error?.issues).toEqual([
+      expect.objectContaining({
+        path: ['fromAccountId'],
+        message: 'Elige una cuenta en COP: editar no cambia la moneda de la transferencia',
+      }),
+      expect.objectContaining({
+        path: ['toAccountId'],
+        message: 'Elige una cuenta en USD: editar no cambia la moneda de la transferencia',
+      }),
+    ])
   })
 })

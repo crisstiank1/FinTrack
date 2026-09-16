@@ -12,6 +12,7 @@ import {
   fetchTransferCounterparts,
   transferGroupIds,
   updateTransaction,
+  updateTransferPair,
   type TransactionFilters,
 } from './api'
 
@@ -71,6 +72,21 @@ export function useCreateTransfer() {
   return useMutation({
     mutationFn: (input: Omit<Parameters<typeof createTransferPair>[0], 'userId'>) =>
       createTransferPair({ ...input, userId: user!.id }),
+    onSuccess: invalidate,
+  })
+}
+
+/**
+ * Edita una transferencia entera (M8). Invalida lo mismo que crearla: las dos
+ * patas cambian de importe o de cuenta, así que los saldos también.
+ */
+export function useUpdateTransfer() {
+  const { user } = useAuth()
+  const invalidate = useInvalidateTransactions()
+
+  return useMutation({
+    mutationFn: (input: Omit<Parameters<typeof updateTransferPair>[0], 'userId'>) =>
+      updateTransferPair({ ...input, userId: user!.id }),
     onSuccess: invalidate,
   })
 }

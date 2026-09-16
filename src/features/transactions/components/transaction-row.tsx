@@ -13,6 +13,11 @@ interface TransactionRowProps {
   currencyCode: string
   /** Texto de la otra pata si es una transferencia (ver `formatTransferCounterpart`). */
   counterpartLabel?: string
+  /**
+   * Si se ofrece editar. Una transferencia solo se puede editar cuando se
+   * conoce su otra pata (M8, ver `transferEditDefaults`).
+   */
+  canEdit: boolean
   onEdit: () => void
   onDuplicate: () => void
   onDelete: () => void
@@ -25,6 +30,7 @@ export function TransactionRow({
   categoryIcon,
   currencyCode,
   counterpartLabel,
+  canEdit,
   onEdit,
   onDuplicate,
   onDelete,
@@ -64,8 +70,14 @@ export function TransactionRow({
           {sign} {formatAmount(transaction.amount_minor, currencyCode)}
         </span>
         <div className="flex gap-1">
-          {!isTransfer && (
-            <Button type="button" variant="ghost" size="icon" onClick={onEdit} aria-label="Editar movimiento">
+          {canEdit && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={onEdit}
+              aria-label={isTransfer ? 'Editar transferencia' : 'Editar movimiento'}
+            >
               <Pencil className="size-4" aria-hidden="true" />
             </Button>
           )}

@@ -46,8 +46,11 @@ vi.mock('@/features/accounts/hooks', () => ({ useAccounts: () => useAccounts() }
 vi.mock('@/features/profile/hooks', () => ({ usePrimaryCurrency: () => usePrimaryCurrency() }))
 vi.mock('@/features/categories/hooks', () => ({ useCategories: () => ({ data: categories }) }))
 vi.mock('@/features/dashboard/hooks', () => ({ useAllTransactions: () => ({ data: [] }) }))
+const updateTransfer = vi.fn()
+
 vi.mock('@/features/transactions/hooks', () => ({
   useUpdateTransaction: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useUpdateTransfer: () => ({ mutateAsync: updateTransfer, isPending: false }),
   useDeleteTransaction: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useDuplicateTransaction: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }))
@@ -574,5 +577,97 @@ describe('Ledger', () => {
         screen.queryByText(/El saldo acumulado solo se calcula con cuentas de una misma moneda/),
       ).not.toBeInTheDocument()
     })
+  })
+})
+
+describe('Ledger — editar transferencias (M8)', () => {
+  const transferRows = [
+    tx({
+      id: 't-out',
+      account_id: 'acc-1',
+      category_id: null,
+      type: 'transfer',
+      transfer_direction: 'outgoing',
+      transfer_group_id: 'g-1',
+      amount_minor: 100_000,
+      description: 'Paso a dólares',
+    }),
+    tx({
+      id: 't-in',
+      account_id: 'acc-usd',
+      category_id: null,
+      type: 'transfer',
+      transfer_direction: 'incoming',
+      transfer_group_id: 'g-1',
+      amount_minor: 25,
+      description: 'Paso a dólares',
+    }),
+  ]
+
+  const counterparts = new Map([
+    ['t-out', { accountId: 'acc-usd', amountMinor: 25, direction: 'incoming' }],
+    ['t-in', { accountId: 'acc-1', amountMinor: 100_000, direction: 'outgoing' }],
+  ])
+
+  function mockTransferPage(withCounterparts = true) {
+    useAccounts.mockReturnValue({ data: [...accounts, usdAccount] })
+    useLedgerPage.mockReturnValue({
+      data: {
+        rows: transferRows,
+        totalCount: 2,
+        counterparts: withCounterparts ? counterparts : new Map(),
+      },
+      isPending: false,
+      isError: false,
+      refetch: vi.fn(),
+    })
+  }
+
+  /** Botón de una fila de la tabla, no el de su tarjeta de móvil. */
+  function tableButton(name: string) {
+    return within(screen.getByRole('table')).getAllByRole('button', { name })[0]
+  }
+
+  it('sin la otra pata cargada no ofrece editar', () => {
+    mockTransferPage(false)
+    renderLedger()
+
+    const table = within(screen.getByRole('table'))
+    expect(table.queryByRole('button', { name: 'Editar Paso a dólares' })).not.toBeInTheDocument()
+    expect(table.getAllByRole('button', { name: 'Duplicar Paso a dólares' })).toHaveLength(2)
+  })
+
+  it('abre la transferencia completa con el importe de cada pata', async () => {
+    mockTransferPage()
+    renderLedger()
+
+    await userEvent.click(tableButton('Editar Paso a dólares'))
+
+    const dialog = within(screen.getByRole('dialog'))
+    expect(dialog.getByText('Editar transferencia')).toBeInTheDocument()
+    expect((dialog.getByLabelText('Monto enviado (COP)') as HTMLInputElement).value).toBe('100.000')
+    expect((dialog.getByLabelText('Monto recibido (USD)') as HTMLInputElement).value).toBe('25')
+    expect(optionLabels(dialog.getByLabelText('Hacia'))).toEqual(['Selecciona...', 'Cuenta USD'])
+  })
+
+  it('guarda las dos patas con su grupo', async () => {
+    mockTransferPage()
+    renderLedger()
+
+    await userEvent.click(tableButton('Editar Paso a dólares'))
+    const dialog = within(screen.getByRole('dialog'))
+    await userEvent.click(dialog.getByRole('button', { name: 'Guardar cambios' }))
+
+    await waitFor(() => expect(updateTransfer).toHaveBeenCalledOnce())
+    expect(updateTransfer).toHaveBeenCalledWith(
+      expect.objectContaining({
+        transferGroupId: 'g-1',
+        fromAccountId: 'acc-1',
+        toAccountId: 'acc-usd',
+        fromAmountMinor: 100_000,
+        toAmountMinor: 25,
+        transactionDate: '2026-09-10',
+      }),
+    )
   })
 })

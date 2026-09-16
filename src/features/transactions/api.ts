@@ -50,7 +50,7 @@ export async function createTransaction(input: TablesInsert<'transactions'>) {
   return data
 }
 
-interface TransferInput {
+export interface TransferInput {
   userId: string
   fromAccountId: string
   toAccountId: string
@@ -207,6 +207,184 @@ export function formatTransferCounterpart(
   const sign = counterpart.direction === 'incoming' ? '+' : '−'
   const amount = formatAmount(counterpart.amountMinor, account?.currency_code ?? fallbackCurrency)
   return `${arrow} ${account?.name ?? 'Cuenta eliminada'} · ${sign} ${amount}`
+}
+
+/** Las dos patas de una transferencia, ya emparejadas por dirección. */
+export interface TransferPair {
+  outgoing: Tables<'transactions'>
+  incoming: Tables<'transactions'>
+}
+
+/**
+ * Empareja las filas de un grupo de transferencia.
+ *
+ * Un grupo que no tenga exactamente dos patas, o cuyas dos patas vayan en la
+ * misma dirección, no se edita: escribir sobre él dejaría la transferencia peor
+ * de como está. Es el mismo criterio de `pairTransferCounterparts`.
+ */
+export function pairTransferLegs(legs: readonly Tables<'transactions'>[]): TransferPair {
+  const outgoing = legs.filter((leg) => leg.transfer_direction === 'outgoing')
+  const incoming = legs.filter((leg) => leg.transfer_direction === 'incoming')
+
+  if (legs.length !== 2 || outgoing.length !== 1 || incoming.length !== 1) {
+    throw new Error('Esta transferencia no tiene una pata de salida y otra de entrada.')
+  }
+
+  return { outgoing: outgoing[0], incoming: incoming[0] }
+}
+
+/** Las dos patas de una transferencia, leídas por su grupo. */
+export async function fetchTransferPair(
+  userId: string,
+  transferGroupId: string,
+): Promise<TransferPair> {
+  const { data, error } = await supabase
+    .from('transactions')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('transfer_group_id', transferGroupId)
+
+  if (error) throw error
+  return pairTransferLegs(data ?? [])
+}
+
+/** Transferencia completa tal como la abre el formulario de edición. */
+export interface TransferEditDefaults {
+  transferGroupId: string
+  fromAccountId: string
+  toAccountId: string
+  /** Importe de la pata saliente, en la moneda de su cuenta. */
+  fromAmountMinor: number
+  /** Importe de la pata entrante, en la moneda de su cuenta. */
+  toAmountMinor: number
+  transactionDate: string
+  description: string
+}
+
+/**
+ * Reconstruye la transferencia desde la fila que el usuario pulsó y su
+ * contraparte: la fila aporta una pata y la contraparte, la otra. Así se abre
+ * el formulario sin una consulta más, con lo que la pantalla ya cargó.
+ *
+ * Sin contraparte devuelve `null` —el grupo no tiene dos patas opuestas o
+ * todavía no se ha cargado— y la interfaz esconde el botón de editar. Mostrarlo
+ * sobre media transferencia llevaría a guardar una edición a ciegas.
+ */
+export function transferEditDefaults(
+  row: Tables<'transactions'>,
+  counterpart: TransferCounterpart | undefined,
+): TransferEditDefaults | null {
+  if (row.type !== 'transfer' || !row.transfer_group_id || !counterpart) return null
+  if (row.transfer_direction !== 'outgoing' && row.transfer_direction !== 'incoming') return null
+
+  const isOutgoing = row.transfer_direction === 'outgoing'
+
+  return {
+    transferGroupId: row.transfer_group_id,
+    fromAccountId: isOutgoing ? row.account_id : counterpart.accountId,
+    toAccountId: isOutgoing ? counterpart.accountId : row.account_id,
+    fromAmountMinor: isOutgoing ? row.amount_minor : counterpart.amountMinor,
+    toAmountMinor: isOutgoing ? counterpart.amountMinor : row.amount_minor,
+    transactionDate: row.transaction_date,
+    description: row.description,
+  }
+}
+
+export interface UpdateTransferInput extends TransferInput {
+  /** Grupo que se edita: sus dos patas se reescriben juntas. */
+  transferGroupId: string
+  /**
+   * Moneda de cada cuenta del usuario. La edición no puede cambiar la moneda de
+   * ninguna pata: sería convertir un importe sin tocarlo.
+   */
+  currencyByAccountId: ReadonlyMap<string, string>
+}
+
+function isPositiveInteger(value: number): boolean {
+  return Number.isInteger(value) && value > 0
+}
+
+/**
+ * Por qué una edición no se puede guardar, o `null` si la transferencia queda
+ * coherente. Comprueba lo que el formulario ya valida, pero contra las patas
+ * recién leídas de la base de datos: entre abrir el diálogo y guardar, la
+ * transferencia pudo cambiar desde otra pestaña.
+ *
+ * Las otras dos reglas no necesitan comprobación porque las garantiza la forma
+ * de la escritura: las direcciones opuestas las fija `pairTransferLegs`, y la
+ * fecha es una sola, la misma para las dos patas.
+ */
+export function transferUpdateError(pair: TransferPair, input: UpdateTransferInput): string | null {
+  if (
+    pair.outgoing.transfer_group_id !== input.transferGroupId ||
+    pair.incoming.transfer_group_id !== input.transferGroupId
+  ) {
+    return 'Esta transferencia ya no es la que se abrió. Ciérrala y vuelve a abrirla.'
+  }
+
+  if (input.fromAccountId === input.toAccountId) {
+    return 'Una transferencia necesita dos cuentas distintas.'
+  }
+
+  if (!isPositiveInteger(input.fromAmountMinor) || !isPositiveInteger(input.toAmountMinor)) {
+    return 'Los dos importes deben ser enteros mayores que 0.'
+  }
+
+  const fromCurrency = input.currencyByAccountId.get(input.fromAccountId)
+  const toCurrency = input.currencyByAccountId.get(input.toAccountId)
+  const originalFrom = input.currencyByAccountId.get(pair.outgoing.account_id)
+  const originalTo = input.currencyByAccountId.get(pair.incoming.account_id)
+
+  if (!fromCurrency || !toCurrency || !originalFrom || !originalTo) {
+    return 'No se pudo comprobar la moneda de las cuentas de esta transferencia.'
+  }
+
+  if (fromCurrency !== originalFrom || toCurrency !== originalTo) {
+    return `Editar una transferencia no cambia su moneda: sigue siendo de ${originalFrom} a ${originalTo}.`
+  }
+
+  if (fromCurrency === toCurrency && input.fromAmountMinor !== input.toAmountMinor) {
+    return 'Con la misma moneda, los dos importes deben ser iguales.'
+  }
+
+  return null
+}
+
+/**
+ * Reescribe las dos patas de una transferencia en una sola petición.
+ *
+ * Es un `upsert` con las dos filas completas, y no dos `update` seguidos,
+ * porque dos peticiones pueden quedarse a medias y dejar las patas con fechas o
+ * importes distintos: justo la incoherencia que esta edición existe para
+ * evitar. PostgREST resuelve cada petición dentro de una transacción, así que o
+ * se guardan las dos patas o no se guarda ninguna.
+ */
+export async function updateTransferPair(input: UpdateTransferInput) {
+  const pair = await fetchTransferPair(input.userId, input.transferGroupId)
+
+  const problem = transferUpdateError(pair, input)
+  if (problem) throw new Error(problem)
+
+  const rows: TablesInsert<'transactions'>[] = [
+    {
+      ...pair.outgoing,
+      account_id: input.fromAccountId,
+      amount_minor: input.fromAmountMinor,
+      transaction_date: input.transactionDate,
+      description: input.description,
+    },
+    {
+      ...pair.incoming,
+      account_id: input.toAccountId,
+      amount_minor: input.toAmountMinor,
+      transaction_date: input.transactionDate,
+      description: input.description,
+    },
+  ]
+
+  const { data, error } = await supabase.from('transactions').upsert(rows).select()
+  if (error) throw error
+  return data
 }
 
 export async function updateTransaction(id: string, input: TablesUpdate<'transactions'>) {

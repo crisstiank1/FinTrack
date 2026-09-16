@@ -5,7 +5,8 @@ lo que el sistema hace hoy, con la función que lo implementa entre paréntesis
 para que cada regla se pueda comprobar.
 
 Las fases de moneda se numeran **M1 a M6** y ya están publicadas. **M7** define
-el modelo de moneda de las Hojas (`/sheets`), que todavía no tienen interfaz. En
+el modelo de moneda de las Hojas (`/sheets`), que todavía no tienen interfaz, y
+**M8** hace editables las transferencias sin que ninguna pata cambie de moneda. En
 `docs/09-plan-mensual.md` y `docs/10-pruebas-plan.md` los nombres «Migración 1,
 2 y 3» se refieren a las migraciones del Plan mensual, que son otra cosa.
 
@@ -162,7 +163,20 @@ construirá. Modelo completo en `docs/07-hojas.md`.
   y `← Ahorros · − COP 100.000` en la que entra. Es información de la fila, no
   una fila más: el conteo, la paginación y el orden no cambian.
 - **Duplicar** una transferencia conserva el importe de cada pata y la fecha de
-  hoy. **Eliminar** borra las dos. **Editar** no está disponible.
+  hoy. **Eliminar** borra las dos.
+- **Editar (M8):** el botón abre la transferencia entera —las dos cuentas, los
+  dos importes, la fecha y la descripción— y guarda las dos patas juntas, en una
+  sola escritura. Con la misma moneda se sigue pidiendo un solo monto; con
+  monedas distintas, uno por pata.
+- **Editar no cambia la moneda de ninguna pata.** Cada selector ofrece solo
+  cuentas de la moneda que esa pata ya tiene: mover una pata a otra moneda
+  convertiría su importe sin tocar la cifra, que es justo lo que FinTrack no
+  hace. Para cambiar de moneda se elimina la transferencia y se vuelve a crear.
+- Al cambiar importes o cuentas, el formulario avisa: «Al guardar se actualizan
+  las dos patas y cambian los saldos de las cuentas implicadas.» Cambiar solo la
+  fecha o la descripción no mueve dinero y no lo muestra.
+- El botón de editar **solo aparece cuando se conoce la otra pata**. Un grupo que
+  no tenga dos patas opuestas no se edita: escribir sobre él lo dejaría peor.
 - Una transferencia entre monedas distintas **no conserva el saldo consolidado**
   de cada moneda por separado: sale de una y entra en la otra, sin convertir.
 
@@ -245,7 +259,7 @@ Cada una con su estado. Ninguna tiene fecha comprometida.
 | --- | --- | --- |
 | Cambiar la moneda de una cuenta no comprueba si tiene líneas de aporte en el Plan | `/accounts` | Abierta. Desde M5 el Plan marca esas líneas y no deja crear aportes sobre cuentas en otra moneda |
 | Las transferencias entre monedas creadas antes de M4 pueden tener el mismo importe en las dos patas | Datos existentes | Abierta. Se corrige a mano: eliminar la transferencia y volver a crearla |
-| Las transferencias no se pueden editar | `/transactions`, `/ledger` | Por diseño en el alcance actual: se eliminan y se recrean |
+| Editar una transferencia no puede cambiar la moneda de ninguna pata | `/transactions`, `/ledger` | Por diseño (M8): para cambiar de moneda se elimina y se vuelve a crear |
 | Con todas las cuentas de ahorro o inversión en otra moneda, el formulario de aportes dice «Necesitas una cuenta de ahorro para planificar un aporte», sin mencionar la moneda | `/plan` | Abierta. El bloque de saldo sí dice cuántas cuentas quedan fuera |
 | El menú «Columnas» del Libro, en pantalla estrecha, se recorta por el borde izquierdo y no se cierra con Escape | `/ledger` | Abierta. No es un problema de moneda; se registra aquí por trazabilidad |
 | `fetchTransactions` no pagina: un mes con más de 1000 movimientos puede truncar las cifras del Plan y de Presupuestos sin avisar | `/plan`, `/budgets` | Abierta. Afecta por igual a una o varias monedas |

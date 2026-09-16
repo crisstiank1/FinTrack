@@ -171,10 +171,12 @@ export function createLedgerColumns(context: LedgerColumnContext) {
       meta: { align: 'right', label: 'Acciones' },
       cell: ({ row }) => {
         const transaction = row.original
+        // Una transferencia solo se edita si se conoce su otra pata (M8).
+        const canEdit = transaction.type !== 'transfer' || !!counterparts?.has(transaction.id)
 
         return (
           <div className="flex justify-end gap-1">
-            {transaction.type !== 'transfer' && (
+            {canEdit && (
               <Button
                 type="button"
                 variant="ghost"

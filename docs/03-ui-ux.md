@@ -91,9 +91,10 @@ Presupuestos, ejemplos y limitaciones conocidas— están en
 - **Cambiar la moneda de una cuenta:** bloqueado si la cuenta ya tiene
   movimientos (D6); permitido sin movimientos.
 - **Filtro por moneda (M3)**, **transferencias entre monedas (M4)**, **Plan y
-  Presupuestos en una sola moneda (M5)** y **Hojas sin moneda propia (M7)**:
-  cada pantalla resume su parte más abajo; el detalle y los textos exactos, en
-  el documento de reglas.
+  Presupuestos en una sola moneda (M5)**, **Hojas sin moneda propia (M7)** y
+  **transferencias editables sin cambiar de moneda (M8)**: cada pantalla resume
+  su parte más abajo; el detalle y los textos exactos, en el documento de
+  reglas.
 - **Limitaciones conocidas** (transferencias antiguas con el mismo importe en
   las dos patas, cambio de moneda de una cuenta con líneas de aporte, y las
   demás): listadas con su estado en el documento de reglas.
@@ -245,6 +246,11 @@ ahorro neto negativo va en la moneda de la vista (M5).
 - Transferencias entre cuentas, también entre monedas distintas (M4, ver
   «Monedas»): dos líneas, una por cuenta, cada una con su importe, su moneda y
   su contraparte.
+- Editar una transferencia (M8, ver «Monedas»): el botón abre las dos patas en
+  un mismo formulario —cuentas, importes, fecha y descripción— y las guarda
+  juntas. Cada cuenta solo puede cambiarse por otra de su misma moneda, y al
+  cambiar importes o cuentas se avisa de que los saldos se ajustan. El botón
+  solo aparece cuando se conoce la otra pata.
 - Confirmación de eliminación.
 - Estados de carga y vacío.
 
@@ -285,11 +291,14 @@ borradores**: esa es `/sheets`.
   moneda o una cuenta para verlo».
 - Transferencias (M4, ver «Monedas»): cada pata es una fila con su importe y su
   moneda; la descripción, en la tabla y en las tarjetas, añade la contraparte.
+  Editar una de sus filas abre la transferencia entera (M8), en la tabla y en
+  las tarjetas por igual.
 - Exportar CSV respetando filtros. Las transferencias no llevan columnas de
   contraparte: cada fila trae su «Moneda» y el «Grupo de transferencia» basta
   para emparejarlas. En una transferencia entre monedas, sumar «Monto» sobre la
   pareja ya no da cero: cada fila va en su moneda.
-- Modal de edición.
+- Modal de edición: el de movimientos, o el de la transferencia completa si la
+  fila es una de sus patas (M8).
 - En móvil: tarjetas o scroll horizontal controlado y usable.
 
 **No incluir todavía:**
