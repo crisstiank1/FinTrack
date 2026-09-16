@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 import type { Tables } from '@/types/database.types'
 
 import {
+  fetchTransactions,
   pairTransferLegs,
   transferEditDefaults,
   transferUpdateError,
@@ -31,7 +32,7 @@ interface QueryResult {
   error: unknown
 }
 
-const CHAINABLE = ['select', 'eq', 'upsert'] as const
+const CHAINABLE = ['select', 'eq', 'in', 'gte', 'lte', 'order', 'range', 'upsert'] as const
 
 const fromMock = supabase.from as unknown as Mock
 
@@ -83,6 +84,17 @@ function leg(overrides: Partial<Tables<'transactions'>>): Tables<'transactions'>
     updated_at: '',
     ...overrides,
   }
+}
+
+function rowsOf(size: number, offset = 0) {
+  return Array.from({ length: size }, (_, i) => ({ id: `t-${offset + i}` }))
+}
+
+/** Argumentos de un método en todas las páginas, en orden de llamada. */
+function callsFor(calls: QueryCall[][], method: string) {
+  return calls.flatMap((page) =>
+    page.filter((call) => call.method === method).map((call) => call.args),
+  )
 }
 
 const outgoing = leg({})
@@ -290,5 +302,93 @@ describe('updateTransferPair', () => {
 
     await expect(updateTransferPair(input())).rejects.toThrow(/salida y otra de entrada/)
     expect(calls).toHaveLength(1)
+  })
+})
+
+describe('fetchTransactions', () => {
+  it('aplica los mismos filtros en cada página', async () => {
+    const calls = mockQueries({ data: rowsOf(1000), error: null }, { data: rowsOf(1), error: null })
+
+    await fetchTransactions('user-1', {
+      month: '2026-09',
+      accountIds: ['acc-cop'],
+      type: 'expense',
+    })
+
+    expect(calls).toHaveLength(2)
+    expect(callsFor(calls, 'eq')).toEqual([
+      ['user_id', 'user-1'],
+      ['type', 'expense'],
+      ['user_id', 'user-1'],
+      ['type', 'expense'],
+    ])
+    expect(callsFor(calls, 'gte')).toEqual([
+      ['transaction_date', expect.any(String)],
+      ['transaction_date', expect.any(String)],
+    ])
+    expect(callsFor(calls, 'lte')).toEqual([
+      ['transaction_date', expect.any(String)],
+      ['transaction_date', expect.any(String)],
+    ])
+    expect(callsFor(calls, 'in')).toEqual([
+      ['account_id', ['acc-cop']],
+      ['account_id', ['acc-cop']],
+    ])
+  })
+
+  it('acumula las páginas hasta devolver el conjunto completo', async () => {
+    const calls = mockQueries({ data: rowsOf(1000), error: null }, { data: rowsOf(3), error: null })
+
+    const result = await fetchTransactions('user-1', {})
+
+    expect(result).toHaveLength(1003)
+    expect(callsFor(calls, 'range')).toEqual([
+      [0, 999],
+      [1000, 1999],
+    ])
+  })
+
+  it('se detiene en la primera página que llega incompleta', async () => {
+    const calls = mockQueries({ data: rowsOf(1000), error: null }, { data: [], error: null })
+
+    const result = await fetchTransactions('user-1', {})
+
+    expect(result).toHaveLength(1000)
+    expect(calls).toHaveLength(2)
+  })
+
+  it('una página corta en la primera vuelta no pide más', async () => {
+    const calls = mockQueries({ data: rowsOf(1), error: null })
+
+    const result = await fetchTransactions('user-1', {})
+
+    expect(result).toHaveLength(1)
+    expect(calls).toHaveLength(1)
+  })
+
+  it('respeta el tope de páginas en vez de leer sin fin', async () => {
+    const fullPages = Array.from({ length: 60 }, () => ({ data: rowsOf(1000), error: null }))
+    const calls = mockQueries(...fullPages)
+
+    const result = await fetchTransactions('user-1', {})
+
+    expect(result).toHaveLength(50 * 1000)
+    expect(calls).toHaveLength(50)
+  })
+
+  it('aborta y propaga el error crudo si una página falla, sin devolver parcial', async () => {
+    const error = new Error('boom')
+    mockQueries({ data: rowsOf(1000), error: null }, { data: null, error })
+
+    await expect(fetchTransactions('user-1', {})).rejects.toBe(error)
+  })
+
+  it('ordena con un desempate estable por id tras fecha y creación', async () => {
+    const calls = mockQueries({ data: rowsOf(1), error: null })
+
+    await fetchTransactions('user-1', {})
+
+    const ordered = callsFor(calls, 'order').map(([column]) => column)
+    expect(ordered).toEqual(['transaction_date', 'created_at', 'id'])
   })
 })

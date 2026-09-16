@@ -16,13 +16,21 @@ export interface TransactionFilters {
   type?: 'income' | 'expense' | 'transfer'
 }
 
-export async function fetchTransactions(userId: string, filters: TransactionFilters) {
+/**
+ * Consulta base con los filtros comunes, sin `range`: cada página la construye
+ * de nuevo para que postgrest-js infiera el tipo de la respuesta. Su `ReturnType`
+ * es toda la cadena, que luego se acota con `.range(...)`.
+ */
+function transactionQuery(userId: string, filters: TransactionFilters) {
   let query = supabase
     .from('transactions')
     .select('*')
     .eq('user_id', userId)
     .order('transaction_date', { ascending: false })
     .order('created_at', { ascending: false })
+    // `id` desempata: sin un orden total y estable, dos filas con la misma
+    // fecha y el mismo `created_at` podrían repetirse o perderse entre páginas.
+    .order('id', { ascending: false })
 
   if (filters.month) {
     const { start, end } = monthRange(filters.month)
@@ -39,9 +47,49 @@ export async function fetchTransactions(userId: string, filters: TransactionFilt
     query = query.eq('type', filters.type)
   }
 
-  const { data, error } = await query
-  if (error) throw error
-  return data
+  return query
+}
+
+/**
+ * PostgREST corta las respuestas en 1000 filas por defecto. Pedir el mes sin
+ * paginar devolvería cifras truncadas en silencio en cuanto superara ese número;
+ * se pagina con ventanas acotadas de 1000, igual que el Libro, el historial de
+ * saldos del Plan y la descarga del Dashboard (M11).
+ */
+const TRANSACTIONS_PAGE_SIZE = 1000
+
+/** Tope de seguridad: 50 páginas = 50.000 movimientos. Evita un bucle infinito. */
+const TRANSACTIONS_MAX_PAGES = 50
+
+/**
+ * Movimientos que cumplen los filtros, con paginación interna.
+ *
+ * La función devuelve el conjunto completo, no una página: quien llama —el
+ * Plan, los Presupuestos, Movimientos— siempre quiere todos los que cumplen,
+ * y un corte silencioso a 1000 arruinaría las cifras agregadas. `range` es la
+ * paginación por offset de PostgREST, la misma estrategia que el resto de la
+ * app; cada página reproduce los filtros completos.
+ *
+ * Si una página falla, la lectura aborta y propaga el error crudo: un total
+ * parcial sería otra vez «truncado sin avisar».
+ */
+export async function fetchTransactions(userId: string, filters: TransactionFilters) {
+  const all: Tables<'transactions'>[] = []
+
+  for (let page = 0; page < TRANSACTIONS_MAX_PAGES; page += 1) {
+    const from = page * TRANSACTIONS_PAGE_SIZE
+
+    const { data, error } = await transactionQuery(userId, filters).range(
+      from,
+      from + TRANSACTIONS_PAGE_SIZE - 1,
+    )
+    if (error) throw error
+
+    all.push(...data)
+    if (data.length < TRANSACTIONS_PAGE_SIZE) break
+  }
+
+  return all
 }
 
 export async function createTransaction(input: TablesInsert<'transactions'>) {
@@ -398,7 +446,9 @@ export async function updateTransaction(id: string, input: TablesUpdate<'transac
   return data
 }
 
-export async function deleteTransaction(transaction: Pick<Tables<'transactions'>, 'id' | 'transfer_group_id'>) {
+export async function deleteTransaction(
+  transaction: Pick<Tables<'transactions'>, 'id' | 'transfer_group_id'>,
+) {
   if (transaction.transfer_group_id) {
     const { error } = await supabase
       .from('transactions')

@@ -458,6 +458,11 @@ y Restante no puedan descuadrarse entre sí:
 
 Con una sola moneda, nada cambia respecto a antes de M5.
 
+**Lectura de movimientos (M11).** `fetchTransactions` pagina la lectura de
+movimientos del mes (ventana de 1000 y límite de 50 páginas) en vez de traerlos
+de una sola vez; un mes con más de 1000 movimientos llega entero a las cifras de
+este documento. Detalle en `docs/11-reglas-de-moneda.md`.
+
 ### Ingreso
 
 ```

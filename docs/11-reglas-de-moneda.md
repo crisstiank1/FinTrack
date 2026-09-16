@@ -45,8 +45,8 @@ del Plan en `docs/09-plan-mensual.md` y el gasto presupuestable en
   editar una cuenta que ya las tiene, para poder guardarla sin perder su moneda;
   no se ofrecen para cuentas nuevas (`currencyOptions`).
 - **Moneda principal del perfil** (`profiles.currency_code`): COP, USD o ARS,
-  con COP por defecto. Se elige en el onboarding y hoy **no se puede cambiar
-  desde Ajustes**.
+  con COP por defecto. Se elige en el onboarding y, desde M12, también se puede
+  cambiar desde Ajustes (ver «Ajustes»).
 - **Moneda de cada cuenta** (`accounts.currency_code`): se elige al crearla, con
   la principal preseleccionada. Cambiarla después está bloqueado si la cuenta ya
   tiene movimientos; sin movimientos, se permite.
@@ -116,8 +116,18 @@ luego COP, USD, ARS, EUR, MXN (`sortCurrencyCodes`).
 
 ### Ajustes
 
-Hoy Ajustes solo gestiona categorías y su clasificación: la moneda principal no
-se puede cambiar desde ahí.
+Ajustes permite cambiar la moneda principal (M12), además de gestionar
+categorías y su clasificación:
+
+- **Solo COP, USD y ARS.** Las mismas opciones que en el onboarding
+  (`SELECTABLE_CURRENCY_CODES`). EUR y MXN son solo lectura y no se ofrecen.
+- **No migra cuentas.** Se escribe únicamente `profiles.currency_code`; cada
+  cuenta conserva su moneda y sus totales aparecen en ella, como en el resto de
+  la app (`resolvePresentationCurrency`).
+- **Advertencia antes de confirmar.** Si hay cuentas en la moneda actual, el
+  diálogo de confirmación lo dice con el número de cuentas que conservarán su
+  moneda. Sin cuentas en ella, la advertencia desaparece y solo confirma el
+  cambio de la moneda de los totales.
 
 ### Hojas (M7)
 
@@ -263,6 +273,12 @@ Cada una con su estado. Ninguna tiene fecha comprometida.
 | Cambiar la moneda de una cuenta no comprueba si tiene líneas de aporte en el Plan | `/accounts` | Abierta. Desde M5 el Plan marca esas líneas y no deja crear aportes sobre cuentas en otra moneda |
 | Las transferencias entre monedas creadas antes de M4 pueden tener el mismo importe en las dos patas | Datos existentes | Abierta. Se corrige a mano: eliminar la transferencia y volver a crearla |
 | Editar una transferencia no puede cambiar la moneda de ninguna pata | `/transactions`, `/ledger` | Por diseño (M8): para cambiar de moneda se elimina y se vuelve a crear |
-| `fetchTransactions` no pagina: un mes con más de 1000 movimientos puede truncar las cifras del Plan y de Presupuestos sin avisar | `/plan`, `/budgets` | Abierta. Afecta por igual a una o varias monedas |
 | Una fila de hoja sin cuenta muestra su importe sin código de moneda | `/sheets`, sin implementar | Por diseño (M7): hasta que la fila tenga cuenta no hay moneda que mostrar. Reglas en `docs/07-hojas.md` |
 | El Plan y los presupuestos guardan importes sin moneda persistida | `budgets`, tablas del Plan | Consecuencia aceptada del modelo: si la moneda de presentación cambiara, esos importes se leerían en la nueva |
+
+### Resueltas
+
+| Limitación | Alcance | Estado |
+| --- | --- | --- |
+| `fetchTransactions` no pagina: un mes con más de 1000 movimientos truncaba las cifras del Plan y de Presupuestos sin avisar | `/plan`, `/budgets`, `/transactions` | **Resuelta en M11**. La lectura pagina por dentro en ventanas de 1000 (`range` de PostgREST) hasta agotar el conjunto y aborta si una página falla; un mes con más de 1000 movimientos llega entero a las cifras |
+| La moneda principal se elegía solo en el onboarding y no se podía cambiar desde Ajustes | `/settings` | **Resuelta en M12**. Se cambia desde Ajustes, solo entre COP, USD y ARS, con confirmación explícita y aviso de las cuentas que conservan su moneda; no migra cuentas |
