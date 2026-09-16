@@ -190,7 +190,7 @@ describe('SavingsInvestmentPanel', () => {
     renderPanel({ balances: undefined, isBalanceError: true })
 
     expect(figure(card('Ahorro'), 'Saldo en cuentas de ahorro')).toEqual([
-      'No pudimos calcular el saldo.',
+      'No pudimos calcular el saldo. Las demás cifras del mes son correctas; recarga la página para volver a intentarlo.',
     ])
     expect(figure(card('Ahorro'), 'Aportes a ahorro del mes')[0]).toBe('COP 500.000')
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
@@ -330,6 +330,31 @@ describe('SavingsInvestmentPanel — aportes planeados', () => {
     for (const enlace of enlaces) expect(enlace).toHaveAttribute('href', '/accounts')
   })
 
+  it('con cuentas del tipo solo en otra moneda, pide una en la moneda del Plan (M10)', () => {
+    renderPanel({
+      balances: {
+        ...balances,
+        investment: { balanceMinor: 0, accountCount: 0, archivedCount: 0, otherCurrencyCount: 2 },
+      },
+      planning: {
+        savings: planningFor(),
+        investment: planningFor({ hasActiveAccounts: false, availableAccountCount: 0 }),
+      },
+    })
+
+    const inversion = card('Inversión')
+    expect(
+      within(inversion).getByText(
+        /Necesitas una cuenta de inversión en COP para planificar un aporte\./,
+      ),
+    ).toBeInTheDocument()
+    expect(
+      within(inversion).queryByText(
+        /Necesitas una cuenta de inversión para planificar un aporte\./,
+      ),
+    ).not.toBeInTheDocument()
+  })
+
   it('con todas las cuentas del tipo ocupadas este mes no hay botón (U11)', () => {
     renderPanel({
       planning: {
@@ -406,7 +431,7 @@ describe('SavingsInvestmentPanel — cuentas en otra moneda', () => {
     })
 
     expect(figure(card('Inversión'), 'Saldo en cuentas de inversión')).toEqual([
-      '2 cuentas en otra moneda no se suman',
+      '2 cuentas en otras monedas no se suman',
     ])
     expect(
       within(card('Inversión')).queryByText('Sin cuentas de inversión'),

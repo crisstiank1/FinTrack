@@ -621,11 +621,15 @@ export const BALANCE_LOADING_LABEL = 'Calculando saldo…'
 export function otherCurrencyAccountsNote(count: number): string {
   return count === 1
     ? '1 cuenta en otra moneda no se suma'
-    : `${count} cuentas en otra moneda no se suman`
+    : `${count} cuentas en otras monedas no se suman`
 }
 
-/** Falló solo el saldo: el resto del bloque y de la pantalla sigue siendo válido. */
-export const BALANCE_ERROR_LABEL = 'No pudimos calcular el saldo.'
+/**
+ * Falló solo el saldo: el resto del bloque y de la pantalla sigue siendo válido.
+ * Lo dice, para que nadie dude de las demás cifras, y ofrece la salida (M10).
+ */
+export const BALANCE_ERROR_LABEL =
+  'No pudimos calcular el saldo. Las demás cifras del mes son correctas; recarga la página para volver a intentarlo.'
 
 /**
  * Pie del saldo: «Al 30 de septiembre de 2026 · 2 cuentas · 1 archivada».
@@ -673,6 +677,12 @@ export interface ContributionLineLabels {
   accountField: string
   /** No existe ninguna cuenta activa del tipo: no se puede planificar. */
   noAccounts: string
+  /**
+   * Hay cuentas del tipo, pero ninguna en la moneda del Plan (M10). Decir solo
+   * «Necesitas una cuenta de ahorro» a quien ya tiene una suena a error de la
+   * aplicación: lo que falta es una cuenta en la moneda en la que se planifica.
+   */
+  noAccountsInCurrency: (currencyCode: string) => string
   /** Todas las cuentas activas del tipo ya tienen un aporte este mes (U11). */
   accountsExhausted: string
 }
@@ -684,6 +694,8 @@ export const contributionLineLabel: Record<ContributionAccountType, Contribution
     dialogTitleNew: 'Nuevo aporte a ahorro',
     accountField: 'Cuenta de ahorro',
     noAccounts: 'Necesitas una cuenta de ahorro para planificar un aporte.',
+    noAccountsInCurrency: (currencyCode) =>
+      `Necesitas una cuenta de ahorro en ${currencyCode} para planificar un aporte.`,
     accountsExhausted: 'Todas tus cuentas de ahorro ya tienen un aporte planeado este mes.',
   },
   investment: {
@@ -692,6 +704,8 @@ export const contributionLineLabel: Record<ContributionAccountType, Contribution
     dialogTitleNew: 'Nuevo aporte a inversión',
     accountField: 'Cuenta de inversión',
     noAccounts: 'Necesitas una cuenta de inversión para planificar un aporte.',
+    noAccountsInCurrency: (currencyCode) =>
+      `Necesitas una cuenta de inversión en ${currencyCode} para planificar un aporte.`,
     accountsExhausted: 'Todas tus cuentas de inversión ya tienen un aporte planeado este mes.',
   },
 }

@@ -207,6 +207,9 @@ construirá. Modelo completo en `docs/07-hojas.md`.
   moneda y dicen cuántas quedan fuera («1 cuenta en otra moneda no se suma»). Si
   todas están en otra moneda, se muestra esa nota en vez de «Sin cuentas».
 - **Líneas de aporte:** el formulario ofrece solo cuentas en la moneda del Plan.
+  Si no queda ninguna cuenta del tipo en esa moneda pero sí en otra, el bloque lo
+  dice nombrándola: «Necesitas una cuenta de ahorro en COP para planificar un
+  aporte.» (M10).
   Una línea que ya exista sobre una cuenta en otra moneda **se marca** («Cuenta
   en USD: su aporte real no se cuenta») y **su importe planeado sigue contando**,
   porque es una cifra escrita en la moneda del Plan.
@@ -260,8 +263,6 @@ Cada una con su estado. Ninguna tiene fecha comprometida.
 | Cambiar la moneda de una cuenta no comprueba si tiene líneas de aporte en el Plan | `/accounts` | Abierta. Desde M5 el Plan marca esas líneas y no deja crear aportes sobre cuentas en otra moneda |
 | Las transferencias entre monedas creadas antes de M4 pueden tener el mismo importe en las dos patas | Datos existentes | Abierta. Se corrige a mano: eliminar la transferencia y volver a crearla |
 | Editar una transferencia no puede cambiar la moneda de ninguna pata | `/transactions`, `/ledger` | Por diseño (M8): para cambiar de moneda se elimina y se vuelve a crear |
-| Con todas las cuentas de ahorro o inversión en otra moneda, el formulario de aportes dice «Necesitas una cuenta de ahorro para planificar un aporte», sin mencionar la moneda | `/plan` | Abierta. El bloque de saldo sí dice cuántas cuentas quedan fuera |
-| El menú «Columnas» del Libro, en pantalla estrecha, se recorta por el borde izquierdo y no se cierra con Escape | `/ledger` | Abierta. No es un problema de moneda; se registra aquí por trazabilidad |
 | `fetchTransactions` no pagina: un mes con más de 1000 movimientos puede truncar las cifras del Plan y de Presupuestos sin avisar | `/plan`, `/budgets` | Abierta. Afecta por igual a una o varias monedas |
 | Una fila de hoja sin cuenta muestra su importe sin código de moneda | `/sheets`, sin implementar | Por diseño (M7): hasta que la fila tenga cuenta no hay moneda que mostrar. Reglas en `docs/07-hojas.md` |
 | El Plan y los presupuestos guardan importes sin moneda persistida | `budgets`, tablas del Plan | Consecuencia aceptada del modelo: si la moneda de presentación cambiara, esos importes se leerían en la nueva |

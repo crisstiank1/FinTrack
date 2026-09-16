@@ -404,9 +404,11 @@ USD: su aporte real no se cuenta».
   fila dice «{nombre} · {cuenta} · COP X», con «Archivada» si su cuenta se
   archivó después. Sin plan del mes no hay lista ni botones.
 - Sin cuentas activas del tipo, en lugar del botón se dice «Necesitas una cuenta
-  de ahorro para planificar un aporte.» con enlace a Cuentas; con todas ya
-  ocupadas este mes, «Todas tus cuentas de ahorro ya tienen un aporte planeado
-  este mes.».
+  de ahorro para planificar un aporte.» con enlace a Cuentas; si las que hay
+  están todas en otra moneda, la frase nombra la del Plan —«Necesitas una cuenta
+  de ahorro en COP para planificar un aporte.» (M10)—, porque a quien ya tiene
+  una cuenta de ahorro la frase general le suena a error; con todas ya ocupadas
+  este mes, «Todas tus cuentas de ahorro ya tienen un aporte planeado este mes.».
 - La reconciliación del presupuesto es plegable y nace plegada, con su titular
   visible; los demás bloques se muestran abiertos.
 - Compatible con ambos temas.

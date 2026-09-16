@@ -200,7 +200,12 @@ function ContributionCard({
           </dd>
           {planning && (
             <dd className="mt-3">
-              <ContributionLines type={type} planning={planning} currencyCode={currencyCode} />
+              <ContributionLines
+                type={type}
+                planning={planning}
+                currencyCode={currencyCode}
+                otherCurrencyAccountCount={balance?.otherCurrencyCount ?? 0}
+              />
             </dd>
           )}
         </div>
@@ -294,6 +299,12 @@ interface ContributionLinesProps {
   type: ContributionAccountType
   planning: ContributionPlanning
   currencyCode: string
+  /**
+   * Cuentas del tipo en otra moneda. Cambia el texto de «no tienes cuenta» por
+   * «no tienes cuenta en esta moneda» (M10). Llega del saldo, así que mientras
+   * se calcula se dice la frase general, que nunca es falsa.
+   */
+  otherCurrencyAccountCount: number
 }
 
 /**
@@ -303,7 +314,12 @@ interface ContributionLinesProps {
  * está arriba, en «Aportes del mes». La acción solo aparece cuando el servidor
  * aceptaría una línea nueva; si no, se dice por qué con palabras.
  */
-function ContributionLines({ type, planning, currencyCode }: ContributionLinesProps) {
+function ContributionLines({
+  type,
+  planning,
+  currencyCode,
+  otherCurrencyAccountCount,
+}: ContributionLinesProps) {
   const labels = contributionLineLabel[type]
 
   return (
@@ -364,7 +380,9 @@ function ContributionLines({ type, planning, currencyCode }: ContributionLinesPr
 
       {!planning.hasActiveAccounts ? (
         <p className="text-xs text-muted-foreground">
-          {labels.noAccounts}{' '}
+          {otherCurrencyAccountCount > 0
+            ? labels.noAccountsInCurrency(currencyCode)
+            : labels.noAccounts}{' '}
           <Link
             to="/accounts"
             className="font-medium text-primary underline-offset-4 hover:underline"

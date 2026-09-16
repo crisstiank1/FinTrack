@@ -556,7 +556,9 @@ describe('ahorro e inversión', () => {
 
   it('mientras carga o si falla no afirma un saldo', () => {
     expect(BALANCE_LOADING_LABEL).toBe('Calculando saldo…')
-    expect(BALANCE_ERROR_LABEL).toBe('No pudimos calcular el saldo.')
+    expect(BALANCE_ERROR_LABEL).toBe(
+      'No pudimos calcular el saldo. Las demás cifras del mes son correctas; recarga la página para volver a intentarlo.',
+    )
     expect(BALANCE_LOADING_LABEL).not.toContain('0')
     expect(BALANCE_ERROR_LABEL).not.toContain('0')
   })
@@ -605,6 +607,7 @@ describe('líneas de aporte', () => {
         dialogTitleNew: 'Nuevo aporte a ahorro',
         accountField: 'Cuenta de ahorro',
         noAccounts: 'Necesitas una cuenta de ahorro para planificar un aporte.',
+        noAccountsInCurrency: expect.any(Function),
         accountsExhausted: 'Todas tus cuentas de ahorro ya tienen un aporte planeado este mes.',
       },
       investment: {
@@ -613,9 +616,19 @@ describe('líneas de aporte', () => {
         dialogTitleNew: 'Nuevo aporte a inversión',
         accountField: 'Cuenta de inversión',
         noAccounts: 'Necesitas una cuenta de inversión para planificar un aporte.',
+        noAccountsInCurrency: expect.any(Function),
         accountsExhausted: 'Todas tus cuentas de inversión ya tienen un aporte planeado este mes.',
       },
     })
+  })
+
+  it('con cuentas solo en otra moneda, pide una cuenta en la moneda del Plan (M10)', () => {
+    expect(contributionLineLabel.savings.noAccountsInCurrency('COP')).toBe(
+      'Necesitas una cuenta de ahorro en COP para planificar un aporte.',
+    )
+    expect(contributionLineLabel.investment.noAccountsInCurrency('USD')).toBe(
+      'Necesitas una cuenta de inversión en USD para planificar un aporte.',
+    )
   })
 
   it('campos, marca de archivada y borrado', () => {
@@ -637,7 +650,9 @@ describe('líneas de aporte', () => {
 
   it('siempre hablan de aportes, nunca de gasto ni de «Total ahorrado»', () => {
     const texts = [
-      ...Object.values(contributionLineLabel).flatMap((labels) => Object.values(labels)),
+      ...Object.values(contributionLineLabel).flatMap((labels) =>
+        Object.values(labels).map((text) => (typeof text === 'function' ? text('COP') : text)),
+      ),
       DELETE_CONTRIBUTION_TITLE,
       DELETE_CONTRIBUTION_DESCRIPTION,
     ]
@@ -664,7 +679,7 @@ describe('moneda del Plan', () => {
 
   it('nombra las cuentas en otra moneda que no se suman al saldo', () => {
     expect(otherCurrencyAccountsNote(1)).toBe('1 cuenta en otra moneda no se suma')
-    expect(otherCurrencyAccountsNote(2)).toBe('2 cuentas en otra moneda no se suman')
+    expect(otherCurrencyAccountsNote(2)).toBe('2 cuentas en otras monedas no se suman')
   })
 
   it('marca la línea de aporte cuya cuenta está en otra moneda', () => {

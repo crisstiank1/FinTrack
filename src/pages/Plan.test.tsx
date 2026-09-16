@@ -1355,7 +1355,7 @@ describe('Plan', () => {
       renderPlan()
 
       expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-      expect(within(block()).getAllByText('No pudimos calcular el saldo.')).toHaveLength(2)
+      expect(within(block()).getAllByText(/No pudimos calcular el saldo\./)).toHaveLength(2)
       expect(comparisonTable()).toBeInTheDocument()
     })
 
