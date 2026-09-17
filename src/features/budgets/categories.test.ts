@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
-import { selectBudgetCategories, type BudgetCategory } from './categories'
+import {
+  budgetAssignmentRank,
+  selectBudgetCategories,
+  sortByBudgetAssignment,
+  type BudgetCategory,
+} from './categories'
 import type { BudgetRow } from './resolution'
 
 const MES = '2026-09'
@@ -85,5 +90,43 @@ describe('selectBudgetCategories', () => {
     const dos = category({ id: 'b', name: 'Bebidas' })
 
     expect(selectBudgetCategories([dos, uno], [], MES)).toEqual([dos, uno])
+  })
+})
+
+describe('orden por presupuesto asignado', () => {
+  const conDinero = { budgetMinor: 500_000, source: 'template' as const }
+  const enCero = { budgetMinor: null, source: 'exception' as const }
+  const sinPresupuesto = { budgetMinor: null, source: null }
+
+  it('pone primero el dinero asignado, luego el 0 explícito y al final lo que no tiene', () => {
+    expect(budgetAssignmentRank(conDinero)).toBe(0)
+    expect(budgetAssignmentRank(enCero)).toBe(1)
+    expect(budgetAssignmentRank(sinPresupuesto)).toBe(2)
+  })
+
+  it('ordena la lista por esa prioridad', () => {
+    const items = [
+      { name: 'Arriendo', progress: sinPresupuesto },
+      { name: 'Entretenimiento', progress: enCero },
+      { name: 'Transporte', progress: conDinero },
+      { name: 'Alimentación', progress: conDinero },
+    ]
+
+    expect(sortByBudgetAssignment(items).map((item) => item.name)).toEqual([
+      'Transporte',
+      'Alimentación',
+      'Entretenimiento',
+      'Arriendo',
+    ])
+  })
+
+  it('dentro de cada grupo conserva el orden de entrada y no muta la lista', () => {
+    const items = [
+      { name: 'B', progress: sinPresupuesto },
+      { name: 'A', progress: sinPresupuesto },
+    ]
+
+    expect(sortByBudgetAssignment(items).map((item) => item.name)).toEqual(['B', 'A'])
+    expect(items.map((item) => item.name)).toEqual(['B', 'A'])
   })
 })

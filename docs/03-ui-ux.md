@@ -405,6 +405,10 @@ Importes y gastado en la moneda de presentación (M5, ver «Monedas»). Si hay
 gastos del mes en otras monedas, un aviso encima de la lista dice cuántos y en
 qué monedas no cuentan.
 
+La lista pone primero las categorías con dinero asignado en el mes, después las
+de presupuesto en 0 y al final las que no tienen presupuesto; dentro de cada
+grupo, el orden de siempre (ver `docs/06-presupuestos.md`).
+
 ### `/sheets`
 
 **Hojas de cálculo.** Captura estructurada de borradores persistidos: rejilla de

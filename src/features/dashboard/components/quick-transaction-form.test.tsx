@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
+import { todayIsoDate } from '@/lib/dates'
 import type { Tables } from '@/types/database.types'
 
 import { QuickTransactionForm } from './quick-transaction-form'
@@ -40,8 +41,11 @@ function chips() {
   return within(screen.getByRole('radiogroup', { name: 'Categoría' }))
 }
 
-/** El formulario arranca con la fecha de hoy. */
-const today = new Date().toISOString().slice(0, 10)
+/**
+ * El formulario arranca con la fecha de hoy, en hora local. `toISOString` daría
+ * la de UTC, que por la noche en Colombia ya es el día siguiente.
+ */
+const today = todayIsoDate()
 
 beforeEach(() => {
   vi.clearAllMocks()

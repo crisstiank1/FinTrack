@@ -9,7 +9,7 @@ import { useAccounts } from '@/features/accounts/hooks'
 import { BudgetAlerts, type BudgetAlertItem } from '@/features/budgets/components/budget-alerts'
 import { BudgetForm } from '@/features/budgets/components/budget-form'
 import { BudgetList, type BudgetListItem } from '@/features/budgets/components/budget-list'
-import { selectBudgetCategories } from '@/features/budgets/categories'
+import { selectBudgetCategories, sortByBudgetAssignment } from '@/features/budgets/categories'
 import { BudgetError } from '@/features/budgets/errors'
 import {
   useBudgetProgress,
@@ -73,7 +73,7 @@ export default function Budgets() {
       (progressQuery.data ?? []).map((entry) => [entry.categoryId, entry]),
     )
 
-    return visibleCategories.flatMap((category) => {
+    const listed = visibleCategories.flatMap((category) => {
       const progress = progressById.get(category.id)
       if (!progress) return []
 
@@ -85,6 +85,10 @@ export default function Budgets() {
         },
       ]
     })
+
+    // Primero lo que tiene dinero asignado en el mes, después los 0 explícitos y
+    // al final lo que no tiene presupuesto: es lo que se viene a revisar.
+    return sortByBudgetAssignment(listed)
   }, [visibleCategories, progressQuery.data, budgets])
 
   const alertItems = useMemo<BudgetAlertItem[]>(

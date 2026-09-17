@@ -1,3 +1,4 @@
+import type { BudgetProgress } from './progress'
 import { resolveBudget, type BudgetRow } from './resolution'
 
 /**
@@ -40,4 +41,36 @@ export function selectBudgetCategories<T extends BudgetCategory>(
 
     return resolveBudget(budgets, category.id, monthKey) !== null
   })
+}
+
+/**
+ * Prioridad de una categoría en la lista de `/budgets`:
+ *
+ * 0. **Con dinero asignado** en el mes: un presupuesto mayor que 0.
+ * 1. **Con presupuesto explícito de 0**: es una decisión tomada, así que va antes
+ *    que lo que nunca se presupuestó, pero no tiene dinero que vigilar.
+ * 2. **Sin presupuesto** que resuelva el mes.
+ *
+ * `budgetMinor` es nulo tanto en 1 como en 2; los distingue `source`, presente
+ * cuando algo resolvió el mes.
+ */
+export function budgetAssignmentRank(
+  progress: Pick<BudgetProgress, 'budgetMinor' | 'source'>,
+): number {
+  if (progress.budgetMinor !== null && progress.budgetMinor > 0) return 0
+  if (progress.source !== null) return 1
+  return 2
+}
+
+/**
+ * Ordena la lista por `budgetAssignmentRank`: lo que tiene dinero asignado arriba.
+ * Dentro de cada grupo se conserva el orden de entrada —el de `fetchCategories`,
+ * por archivadas, tipo y nombre—, porque la ordenación de JavaScript es estable.
+ */
+export function sortByBudgetAssignment<
+  T extends { progress: Pick<BudgetProgress, 'budgetMinor' | 'source'> },
+>(items: readonly T[]): T[] {
+  return [...items].sort(
+    (a, b) => budgetAssignmentRank(a.progress) - budgetAssignmentRank(b.progress),
+  )
 }
