@@ -1,8 +1,9 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ClassificationError } from '@/features/categories/classifications/errors'
+import { PAGE_HELP } from '@/components/shared/page-help'
 import type { Tables } from '@/types/database.types'
 
 import Settings from './Settings'
@@ -451,5 +452,15 @@ describe('Settings — perfil (M16)', () => {
 
     expect(screen.getByText('Cargando perfil...')).toBeInTheDocument()
     expect(screen.queryByLabelText('Nombre')).not.toBeInTheDocument()
+  })
+})
+
+describe('Settings — ayuda de la pantalla (M18)', () => {
+  it('el «?» junto al título explica la pantalla', async () => {
+    renderSettings()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Ayuda: Ajustes' }))
+
+    expect(screen.getByRole('region', { name: 'Ajustes' })).toHaveTextContent(PAGE_HELP.settings)
   })
 })

@@ -3,6 +3,8 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
 
+import { PAGE_HELP } from '@/components/shared/page-help'
+import { PageTitle } from '@/components/shared/page-title'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useAccounts } from '@/features/accounts/hooks'
@@ -159,7 +161,9 @@ export default function Budgets() {
     <div className="mx-auto max-w-4xl p-4 sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-foreground">Presupuestos</h1>
+          <PageTitle helpTitle="Presupuestos" help={PAGE_HELP.budgets}>
+            Presupuestos
+          </PageTitle>
           <p className="mt-0.5 text-sm text-muted-foreground first-letter:uppercase">
             {monthLabel}
           </p>

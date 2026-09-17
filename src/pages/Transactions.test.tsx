@@ -2,6 +2,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { PAGE_HELP } from '@/components/shared/page-help'
 import type { Tables } from '@/types/database.types'
 
 import { TRANSFER_EDIT_WARNING } from '@/features/transactions/components/transfer-form'
@@ -520,5 +521,17 @@ describe('Transactions — editar transferencias (M8)', () => {
     expect(dialog.getByText('Transferir entre cuentas')).toBeInTheDocument()
     expect((dialog.getByLabelText('Desde') as HTMLSelectElement).value).toBe('')
     expect(dialog.getByRole('button', { name: 'Transferir' })).toBeInTheDocument()
+  })
+})
+
+describe('Transactions — ayuda de la pantalla (M18)', () => {
+  it('el «?» junto al título explica la pantalla', async () => {
+    renderTransactions('/transactions')
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Ayuda: Movimientos' }))
+
+    expect(screen.getByRole('region', { name: 'Movimientos' })).toHaveTextContent(
+      PAGE_HELP.transactions,
+    )
   })
 })

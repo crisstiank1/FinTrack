@@ -4,6 +4,8 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { Loader2, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 
+import { PAGE_HELP } from '@/components/shared/page-help'
+import { PageTitle } from '@/components/shared/page-title'
 import { useAccounts } from '@/features/accounts/hooks'
 import { ConfirmDialog } from '@/components/shared/confirm-dialog'
 import { Button } from '@/components/ui/button'
@@ -206,7 +208,9 @@ export default function Settings() {
     <div className="mx-auto max-w-3xl p-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-foreground">Ajustes</h1>
+          <PageTitle helpTitle="Ajustes" help={PAGE_HELP.settings}>
+            Ajustes
+          </PageTitle>
           <p className="text-sm text-muted-foreground">Perfil, preferencias y categorías</p>
         </div>
         <Button type="button" onClick={openCreateForm}>

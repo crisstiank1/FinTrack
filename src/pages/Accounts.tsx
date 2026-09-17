@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react'
 import { Plus } from 'lucide-react'
 import { toast } from 'sonner'
 
+import { PAGE_HELP } from '@/components/shared/page-help'
+import { PageTitle } from '@/components/shared/page-title'
 import { ConfirmDialog } from '@/components/shared/confirm-dialog'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -115,7 +117,9 @@ export default function Accounts() {
   return (
     <div className="mx-auto max-w-5xl p-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-foreground">Cuentas</h1>
+        <PageTitle helpTitle="Cuentas" help={PAGE_HELP.accounts}>
+          Cuentas
+        </PageTitle>
         <Button type="button" onClick={openCreateForm}>
           <Plus className="size-4" aria-hidden="true" />
           Nueva cuenta

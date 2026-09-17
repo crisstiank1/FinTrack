@@ -8,6 +8,11 @@ interface HelpHintProps {
   children: ReactNode
   /** Nombre accesible del botón. */
   label?: string
+  /**
+   * Borde del panel que se alinea con su contenedor posicionado: `start` para
+   * un «?» junto a un título, `end` para uno al final de una fila.
+   */
+  align?: 'start' | 'end'
   className?: string
 }
 
@@ -22,7 +27,7 @@ interface HelpHintProps {
  * El proyecto no tiene librería de tooltips ni de popovers, y para un texto de
  * dos líneas no merece la pena añadirla.
  */
-export function HelpHint({ title, children, label, className }: HelpHintProps) {
+export function HelpHint({ title, children, label, align = 'start', className }: HelpHintProps) {
   const [isOpen, setOpen] = useState(false)
   const [isPinned, setPinned] = useState(false)
   const wrapperRef = useRef<HTMLDivElement>(null)
@@ -99,7 +104,10 @@ export function HelpHint({ title, children, label, className }: HelpHintProps) {
         role="region"
         aria-labelledby={titleId}
         hidden={!isOpen}
-        className="absolute right-0 top-full z-30 mt-2 w-72 max-w-[calc(100vw-2rem)] rounded-lg border border-border bg-popover p-3 text-left shadow-lg"
+        className={cn(
+          'absolute top-full z-30 mt-2 w-72 max-w-[calc(100vw-2rem)] rounded-lg border border-border bg-popover p-3 text-left shadow-lg',
+          align === 'start' ? 'left-0' : 'right-0',
+        )}
       >
         <p id={titleId} className="text-sm font-semibold text-foreground">
           {title}

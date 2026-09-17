@@ -3,7 +3,8 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 
-import Dashboard, { DASHBOARD_DESCRIPTION, FILTERS_HELP_TEXT } from './Dashboard'
+import Dashboard, { DASHBOARD_DESCRIPTION } from './Dashboard'
+import { PAGE_HELP } from '@/components/shared/page-help'
 import type { Tables } from '@/types/database.types'
 
 // Recharts mide su contenedor con getBoundingClientRect, que en jsdom siempre
@@ -582,31 +583,35 @@ describe('Dashboard — cabecera y ayuda (M14)', () => {
     expect(screen.queryByRole('button', { name: /Movimiento completo/ })).not.toBeInTheDocument()
   })
 
-  it('el «?» muestra la ayuda de los filtros con el ratón y se cierra con Escape', async () => {
+  it('hay un solo «?», junto al saludo, con la ayuda de la pantalla', async () => {
     const user = userEvent.setup()
     renderDashboard()
 
-    const ayuda = viewControls().getByRole('button', { name: 'Ayuda: Mes y cuenta' })
+    expect(screen.getAllByRole('button', { name: /^Ayuda:/ })).toHaveLength(1)
+    expect(viewControls().queryByRole('button', { name: /^Ayuda:/ })).not.toBeInTheDocument()
+
+    const titleRow = screen.getByRole('heading', { level: 1 }).parentElement as HTMLElement
+    const ayuda = within(titleRow).getByRole('button', { name: 'Ayuda: Dashboard' })
     await user.hover(ayuda)
 
-    const panel = screen.getByRole('region', { name: 'Mes y cuenta' })
-    expect(panel).toHaveTextContent(FILTERS_HELP_TEXT)
+    expect(screen.getByRole('region', { name: 'Dashboard' })).toHaveTextContent(PAGE_HELP.dashboard)
 
     await user.keyboard('{Escape}')
-    expect(screen.queryByRole('region', { name: 'Mes y cuenta' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Dashboard' })).not.toBeInTheDocument()
   })
 
   it('el «?» se abre con el teclado y con un toque', async () => {
     const user = userEvent.setup()
     renderDashboard()
 
-    const ayuda = viewControls().getByRole('button', { name: 'Ayuda: Mes y cuenta' })
+    const ayuda = screen.getByRole('button', { name: 'Ayuda: Dashboard' })
 
     act(() => ayuda.focus())
     expect(ayuda).toHaveAttribute('aria-expanded', 'true')
 
     await user.keyboard('{Escape}')
     expect(ayuda).toHaveAttribute('aria-expanded', 'false')
+    expect(ayuda).toHaveFocus()
 
     await user.click(ayuda)
     await user.unhover(ayuda)

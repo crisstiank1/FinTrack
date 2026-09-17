@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 
 import { BudgetError } from '@/features/budgets/errors'
 import type { BudgetProgress } from '@/features/budgets/progress'
+import { PAGE_HELP } from '@/components/shared/page-help'
 import type { Tables } from '@/types/database.types'
 
 import Budgets from './Budgets'
@@ -415,5 +416,17 @@ describe('Budgets — alerta solo al superar (M15)', () => {
 
     expect(screen.getByText('Gimnasio superó su presupuesto por COP 50.000.')).toBeInTheDocument()
     expect(row('Gimnasio').getByRole('progressbar').firstElementChild).toHaveClass('bg-danger')
+  })
+})
+
+describe('Budgets — ayuda de la pantalla (M18)', () => {
+  it('el «?» junto al título explica la pantalla', async () => {
+    renderBudgets()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Ayuda: Presupuestos' }))
+
+    expect(screen.getByRole('region', { name: 'Presupuestos' })).toHaveTextContent(
+      PAGE_HELP.budgets,
+    )
   })
 })
