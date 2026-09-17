@@ -27,7 +27,7 @@ export function CategoryDonut({ slices, currencyCode }: CategoryDonutProps) {
   return (
     <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
       <div className="relative mx-auto h-44 w-44 shrink-0">
-        <div className="absolute inset-0" aria-hidden="true">
+        <div className="absolute inset-0 z-10" aria-hidden="true">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie
@@ -61,21 +61,25 @@ export function CategoryDonut({ slices, currencyCode }: CategoryDonutProps) {
         </div>
       </div>
 
-      <ul className="flex min-w-0 flex-1 flex-col gap-2">
+      <ul className="flex min-w-0 flex-1 flex-col gap-2.5">
         {slices.map((slice) => (
-          <li key={slice.id} className="flex items-center gap-2 text-sm">
+          <li key={slice.id} className="flex items-start gap-2 text-sm">
             <span
-              className="size-2.5 shrink-0 rounded-full"
+              className="mt-1 size-2.5 shrink-0 rounded-full"
               style={{ backgroundColor: slice.color }}
               aria-hidden="true"
             />
-            <span className="min-w-0 flex-1 truncate text-foreground">{slice.name}</span>
-            <span className="shrink-0 tabular-nums text-muted-foreground">
-              {percentFormatter.format(slice.share * 100)} %
-            </span>
-            <span className="shrink-0 pl-2 font-medium tabular-nums text-foreground">
-              {formatAmount(slice.amountMinor, currencyCode)}
-            </span>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="min-w-0 truncate text-foreground">{slice.name}</span>
+                <span className="shrink-0 font-medium tabular-nums text-foreground">
+                  {formatAmount(slice.amountMinor, currencyCode)}
+                </span>
+              </div>
+              <span className="text-xs tabular-nums text-muted-foreground">
+                {percentFormatter.format(slice.share * 100)} %
+              </span>
+            </div>
           </li>
         ))}
       </ul>

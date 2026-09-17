@@ -11,7 +11,7 @@ export type DefaultCategory = {
 export const DEFAULT_CATEGORIES: DefaultCategory[] = [
   // Ingresos
   { name: 'Salario', type: 'income', icon: 'wallet', group: 'income' },
-  { name: 'Freelance', type: 'income', icon: 'briefcase', group: 'income' },
+  { name: 'Bono', type: 'income', icon: 'briefcase', group: 'income' },
   { name: 'Ventas', type: 'income', icon: 'shopping-bag', group: 'income' },
   { name: 'Inversiones', type: 'income', icon: 'trending-up', group: 'income' },
   { name: 'Reembolsos', type: 'income', icon: 'rotate-ccw', group: 'income' },
@@ -22,7 +22,7 @@ export const DEFAULT_CATEGORIES: DefaultCategory[] = [
   { name: 'Vivienda', type: 'expense', icon: 'home', group: 'essential' },
   { name: 'Servicios públicos', type: 'expense', icon: 'zap', group: 'essential' },
   { name: 'Internet y telefonía', type: 'expense', icon: 'wifi', group: 'essential' },
-  { name: 'Alimentación', type: 'expense', icon: 'utensils-crossed', group: 'essential' },
+  { name: 'Mercado', type: 'expense', icon: 'utensils-crossed', group: 'essential' },
   { name: 'Transporte', type: 'expense', icon: 'car', group: 'essential' },
   { name: 'Salud', type: 'expense', icon: 'heart-pulse', group: 'essential' },
   { name: 'Educación', type: 'expense', icon: 'graduation-cap', group: 'essential' },
@@ -31,10 +31,10 @@ export const DEFAULT_CATEGORIES: DefaultCategory[] = [
 
   // Gastos flexibles
   { name: 'Restaurantes', type: 'expense', icon: 'coffee', group: 'flexible' },
-  { name: 'Entretenimiento', type: 'expense', icon: 'clapperboard', group: 'flexible' },
+  { name: 'Ocio', type: 'expense', icon: 'clapperboard', group: 'flexible' },
   { name: 'Suscripciones', type: 'expense', icon: 'smartphone', group: 'flexible' },
   { name: 'Ropa', type: 'expense', icon: 'shirt', group: 'flexible' },
-  { name: 'Compras personales', type: 'expense', icon: 'shopping-cart', group: 'flexible' },
+  { name: 'Gastos hormiga', type: 'expense', icon: 'shopping-cart', group: 'flexible' },
   { name: 'Viajes', type: 'expense', icon: 'plane', group: 'flexible' },
   { name: 'Mascotas', type: 'expense', icon: 'paw-print', group: 'flexible' },
   { name: 'Regalos', type: 'expense', icon: 'gift', group: 'flexible' },
