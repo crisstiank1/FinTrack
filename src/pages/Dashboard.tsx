@@ -44,7 +44,7 @@ import {
   buildMonthlyTrend,
   hasBudgetThisMonth,
 } from '@/features/dashboard/summary'
-import { usePrimaryCurrency } from '@/features/profile/hooks'
+import { useDisplayName, usePrimaryCurrency } from '@/features/profile/hooks'
 import { TransactionForm } from '@/features/transactions/components/transaction-form'
 import { useCreateTransaction } from '@/features/transactions/hooks'
 import type { TransactionFormValues } from '@/features/transactions/schemas'
@@ -52,6 +52,10 @@ import { formatAmount, resolvePresentationCurrency, sortCurrencyCodes } from '@/
 import { currentMonthKey, formatLongDate, formatMonthLabel, monthRange } from '@/lib/dates'
 
 const TREND_MONTHS = 6
+
+/** Descripción bajo el saludo. */
+export const DASHBOARD_DESCRIPTION =
+  'Este es el resumen de tu mes: registra movimientos y revisa cómo van tus cuentas y presupuestos.'
 
 /** Texto del «?» junto a los filtros. */
 export const FILTERS_HELP_TEXT =
@@ -86,6 +90,9 @@ export default function Dashboard() {
     refetch,
   } = useAllTransactions()
   const primaryCurrency = usePrimaryCurrency()
+  // Un nombre en blanco cuenta como ausente. Mientras carga, o si la consulta
+  // falla, el saludo es «Hola» y se completa cuando llega.
+  const displayName = useDisplayName().data?.trim()
 
   const createTransaction = useCreateTransaction()
   const createCategory = useCreateCategory()
@@ -330,10 +337,11 @@ export default function Dashboard() {
           al título y no dentro de una columna. En móvil bajan bajo el título. */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-foreground">Dashboard</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground first-letter:uppercase">
-            {monthLabel}
-          </p>
+          <h1 className="text-2xl font-semibold text-foreground">
+            {displayName ? `Hola, ${displayName}` : 'Hola'}
+          </h1>
+          <p className="mt-0.5 text-sm text-muted-foreground">{DASHBOARD_DESCRIPTION}</p>
+          <p className="mt-1 text-sm text-muted-foreground first-letter:uppercase">{monthLabel}</p>
           {showsCurrencySplit && (
             <p className="mt-1 text-sm text-muted-foreground">
               Cifras en {currencyCode}. Tus cuentas en {joinCurrencyCodes(otherCurrencies)} no se

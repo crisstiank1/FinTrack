@@ -3,7 +3,7 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 
-import Dashboard, { FILTERS_HELP_TEXT } from './Dashboard'
+import Dashboard, { DASHBOARD_DESCRIPTION, FILTERS_HELP_TEXT } from './Dashboard'
 import type { Tables } from '@/types/database.types'
 
 // Recharts mide su contenedor con getBoundingClientRect, que en jsdom siempre
@@ -25,6 +25,7 @@ const useCategories = vi.fn()
 const useBudgets = vi.fn()
 const useBudgetProgress = vi.fn()
 const usePrimaryCurrency = vi.fn()
+const useDisplayName = vi.fn()
 const createTransactionMutate = vi.fn()
 const createCategoryMutate = vi.fn()
 const saveBudgetMutate = vi.fn()
@@ -46,6 +47,7 @@ vi.mock('@/features/categories/hooks', () => ({
 }))
 vi.mock('@/features/profile/hooks', () => ({
   usePrimaryCurrency: () => usePrimaryCurrency(),
+  useDisplayName: () => useDisplayName(),
 }))
 vi.mock('@/features/transactions/hooks', () => ({
   useCreateTransaction: () => ({ mutateAsync: createTransactionMutate, isPending: false }),
@@ -158,6 +160,7 @@ beforeEach(() => {
   saveBudgetMutate.mockResolvedValue({})
   useAccounts.mockReturnValue({ data: accounts })
   usePrimaryCurrency.mockReturnValue({ data: 'COP', isPending: false })
+  useDisplayName.mockReturnValue({ data: 'Cristian', isPending: false })
   useCategories.mockReturnValue({ data: categories })
   useBudgets.mockReturnValue({ data: [], isPending: false, isError: false })
   useBudgetProgress.mockReturnValue({ data: [], isPending: false, isError: false })
@@ -903,5 +906,50 @@ describe('Dashboard — sin últimos movimientos (M14)', () => {
     const fila = screen.getByRole('region', { name: 'Gasto por categoría' }).parentElement
     expect(fila?.className).toContain('xl:grid-cols-2')
     expect(fila?.className).not.toContain('lg:grid-cols-2')
+  })
+})
+
+describe('Dashboard — saludo (M16)', () => {
+  it('saluda por el nombre del perfil y describe la pantalla', () => {
+    renderDashboard()
+
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Hola, Cristian')
+    expect(screen.getByText(DASHBOARD_DESCRIPTION)).toBeInTheDocument()
+    expect(DASHBOARD_DESCRIPTION).toBe(
+      'Este es el resumen de tu mes: registra movimientos y revisa cómo van tus cuentas y presupuestos.',
+    )
+    expect(screen.queryByRole('heading', { name: 'Dashboard' })).not.toBeInTheDocument()
+  })
+
+  it('sin nombre, o con uno en blanco, dice solo «Hola»', () => {
+    useDisplayName.mockReturnValue({ data: null, isPending: false })
+    const { unmount } = renderDashboard()
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(/^Hola$/)
+    unmount()
+
+    useDisplayName.mockReturnValue({ data: '   ', isPending: false })
+    renderDashboard()
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(/^Hola$/)
+  })
+
+  it('mientras carga el nombre saluda con «Hola» y lo completa al llegar', () => {
+    useDisplayName.mockReturnValue({ data: undefined, isPending: true })
+    const { rerender } = renderDashboard()
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(/^Hola$/)
+
+    useDisplayName.mockReturnValue({ data: 'Cristian', isPending: false })
+    rerender(
+      <MemoryRouter>
+        <Dashboard />
+      </MemoryRouter>,
+    )
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Hola, Cristian')
+  })
+
+  it('conserva el mes debajo de la descripción', () => {
+    renderDashboard()
+
+    const descripcion = screen.getByText(DASHBOARD_DESCRIPTION)
+    expect(descripcion.nextElementSibling?.textContent?.length).toBeGreaterThan(0)
   })
 })

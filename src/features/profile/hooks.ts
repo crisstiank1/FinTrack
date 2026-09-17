@@ -2,7 +2,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { useAuth } from '@/features/auth/auth-provider'
 
-import { fetchPrimaryCurrency, updatePrimaryCurrency } from './api'
+import {
+  fetchDisplayName,
+  fetchPrimaryCurrency,
+  updateDisplayName,
+  updatePrimaryCurrency,
+} from './api'
 
 /** Moneda principal del perfil. Si la consulta falla, `data` queda indefinido. */
 export function usePrimaryCurrency() {
@@ -32,6 +37,33 @@ export function useUpdatePrimaryCurrency() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['profile', user?.id] })
       queryClient.invalidateQueries({ queryKey: ['accounts', user?.id] })
+    },
+  })
+}
+
+/** Nombre del perfil. `null` si nunca se guardó uno. */
+export function useDisplayName() {
+  const { user } = useAuth()
+
+  return useQuery({
+    queryKey: ['profile', user?.id, 'display-name'],
+    queryFn: () => fetchDisplayName(user!.id),
+    enabled: !!user,
+  })
+}
+
+/**
+ * Cambia el nombre desde Ajustes. Solo invalida su propia consulta: el nombre no
+ * afecta a monedas, cuentas ni cifras.
+ */
+export function useUpdateDisplayName() {
+  const { user } = useAuth()
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (displayName: string) => updateDisplayName(user!.id, displayName),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['profile', user?.id, 'display-name'] })
     },
   })
 }

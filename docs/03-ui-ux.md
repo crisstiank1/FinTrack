@@ -209,8 +209,15 @@ aparte» (D5, sin banner). La confirmación muestra cada saldo en su moneda.
 
 ### `/dashboard`
 
-**Cabecera (M14).** A la izquierda, el título, el mes y la nota de moneda; a la
-derecha, en fila, el selector de mes, el de cuenta y un botón «?». En móvil los
+**Saludo (M16).** El título es **«Hola, {nombre}»** con el nombre del perfil
+(`profiles.display_name`), o **«Hola»** si no hay nombre o está en blanco;
+mientras el nombre carga se muestra «Hola» y se completa al llegar. Debajo, la
+descripción «Este es el resumen de tu mes: registra movimientos y revisa cómo van
+tus cuentas y presupuestos.», y después el mes y la nota de moneda. El menú sigue
+diciendo «Dashboard». El nombre se cambia en Ajustes.
+
+**Cabecera (M14).** A la izquierda, el saludo, la descripción, el mes y la nota de
+moneda; a la derecha, en fila, el selector de mes, el de cuenta y un botón «?». En móvil los
 filtros bajan bajo el título. Los filtros van en la cabecera porque afectan a
 toda la vista, y siguen en pantalla mientras cargan los movimientos, si la
 consulta falla y si todavía no hay ninguno.
@@ -558,11 +565,18 @@ el Plan las marca, ver «Monedas»).
 
 ### `/settings`
 
-**Implementado hoy:** categorías y clasificación de gastos, y el cambio de la
-moneda principal del perfil (M12). El tema y el cierre de sesión viven en la
-cabecera, no en esta pantalla.
+**Implementado hoy:** el nombre del perfil (M16), categorías y clasificación de
+gastos, y el cambio de la moneda principal del perfil (M12). El tema y el cierre
+de sesión viven en la cabecera, no en esta pantalla.
 
-**Previsto, sin implementar:** perfil y zona horaria.
+**Previsto, sin implementar:** zona horaria.
+
+**Perfil (M16):** primera sección de la pantalla. Campo «Nombre» con el nombre
+actual y botón «Guardar»; solo escribe `profiles.display_name`. Usa la misma regla
+que el onboarding —entre 1 y 60 caracteres, «Ingresa tu nombre» / «Máximo 60
+caracteres»— y avisa con «Nombre actualizado» o «No se pudo guardar el nombre».
+Mientras el perfil carga no se muestra el campo, para no invitar a guardar un
+nombre vacío encima del real.
 
 - Dejar documentadas, pero **no implementar sin aprobación**:
   - Exportación completa de datos.

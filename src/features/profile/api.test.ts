@@ -2,7 +2,12 @@ import { describe, expect, it, vi, type Mock } from 'vitest'
 
 import { supabase } from '@/lib/supabase'
 
-import { fetchPrimaryCurrency, updatePrimaryCurrency } from './api'
+import {
+  fetchDisplayName,
+  fetchPrimaryCurrency,
+  updateDisplayName,
+  updatePrimaryCurrency,
+} from './api'
 
 vi.mock('@/lib/supabase', () => ({
   supabase: { from: vi.fn() },
@@ -84,5 +89,54 @@ describe('updatePrimaryCurrency', () => {
     fromMock.mockReturnValue(makeChain([], { error }))
 
     await expect(updatePrimaryCurrency('user-1', 'USD')).rejects.toBe(error)
+  })
+})
+
+describe('fetchDisplayName', () => {
+  it('lee solo el nombre del perfil', async () => {
+    const calls: QueryCall[] = []
+    fromMock.mockReturnValue(makeChain(calls, { data: { display_name: 'Cristian' }, error: null }))
+
+    expect(await fetchDisplayName('user-1')).toBe('Cristian')
+    expect(fromMock).toHaveBeenCalledWith('profiles')
+    expect(calls).toEqual([
+      { method: 'select', args: ['display_name'] },
+      { method: 'eq', args: ['id', 'user-1'] },
+      { method: 'single', args: [] },
+    ])
+  })
+
+  it('devuelve null si el perfil no tiene nombre', async () => {
+    fromMock.mockReturnValue(makeChain([], { data: { display_name: null }, error: null }))
+
+    expect(await fetchDisplayName('user-1')).toBeNull()
+  })
+
+  it('propaga el error crudo de la lectura', async () => {
+    const error = new Error('boom')
+    fromMock.mockReturnValue(makeChain([], { data: null, error }))
+
+    await expect(fetchDisplayName('user-1')).rejects.toBe(error)
+  })
+})
+
+describe('updateDisplayName', () => {
+  it('escribe solo el nombre del perfil', async () => {
+    const calls: QueryCall[] = []
+    fromMock.mockReturnValue(makeChain(calls, { error: null }))
+
+    await updateDisplayName('user-1', 'Cris')
+
+    expect(calls).toEqual([
+      { method: 'update', args: [{ display_name: 'Cris' }] },
+      { method: 'eq', args: ['id', 'user-1'] },
+    ])
+  })
+
+  it('propaga el error crudo de la escritura', async () => {
+    const error = new Error('boom')
+    fromMock.mockReturnValue(makeChain([], { error }))
+
+    await expect(updateDisplayName('user-1', 'Cris')).rejects.toBe(error)
   })
 })
