@@ -6,10 +6,15 @@
       (function () {
         try {
           var stored = localStorage.getItem('fintrack-theme')
-          var isDark =
-            stored === 'dark' ||
-            (stored === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
-          if (isDark) document.documentElement.classList.add('dark')
+          // Desde M17 solo hay tema claro y oscuro. Quien tenía guardado
+          // «sistema» se queda, una sola vez y antes del primer pintado, con el
+          // tema que su dispositivo muestra ahora: así nada cambia de golpe y la
+          // preferencia pasa a ser explícita.
+          if (stored === 'system') {
+            stored = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+            localStorage.setItem('fintrack-theme', stored)
+          }
+          if (stored === 'dark') document.documentElement.classList.add('dark')
 
           function updateFavicon() {
             var isDarkNow = document.documentElement.classList.contains('dark')

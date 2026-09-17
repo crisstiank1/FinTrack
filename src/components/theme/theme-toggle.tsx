@@ -1,22 +1,21 @@
 import { useEffect, useState } from 'react'
 import { useTheme } from 'next-themes'
-import { Monitor, Moon, Sun } from 'lucide-react'
+import { Moon, Sun } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 
-const THEMES = ['light', 'dark', 'system'] as const
+/** Solo claro y oscuro: el modo «sistema» se retiró en M17. */
+const THEMES = ['light', 'dark'] as const
 type ThemeOption = (typeof THEMES)[number]
 
 const ICONS: Record<ThemeOption, typeof Sun> = {
   light: Sun,
   dark: Moon,
-  system: Monitor,
 }
 
 const LABELS: Record<ThemeOption, string> = {
   light: 'Tema claro',
   dark: 'Tema oscuro',
-  system: 'Tema del sistema',
 }
 
 function isThemeOption(value: string | undefined): value is ThemeOption {
@@ -34,9 +33,10 @@ export function ThemeToggle() {
   const current: ThemeOption = mounted && isThemeOption(theme) ? theme : 'light'
   const Icon = ICONS[current]
 
+  // Cualquier valor que no sea claro u oscuro se trata como claro, así que el
+  // botón siempre lleva a uno de los dos.
   function handleClick() {
-    const nextIndex = (THEMES.indexOf(current) + 1) % THEMES.length
-    setTheme(THEMES[nextIndex])
+    setTheme(current === 'dark' ? 'light' : 'dark')
   }
 
   return (

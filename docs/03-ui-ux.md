@@ -6,11 +6,15 @@
 
 ## Temas
 
-Tres preferencias de tema:
+Dos preferencias de tema (M17):
 
 - **Claro.**
 - **Oscuro.**
-- **Sistema.**
+
+El botón de tema alterna entre las dos. No hay opción «Sistema»: quien la tenía
+guardada de antes pasa, una sola vez al cargar la app, al tema que su dispositivo
+mostraba en ese momento, y esa elección queda guardada como claro u oscuro. Desde
+ahí el tema ya no sigue al dispositivo.
 
 La preferencia inicial es **claro** y se persiste inicialmente en `localStorage`. Después se sincronizará con el perfil en Supabase (`profiles.theme_preference`).
 
