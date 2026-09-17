@@ -10,9 +10,55 @@ export function todayIsoDate(): string {
   return format(new Date(), 'yyyy-MM-dd')
 }
 
-/** Mes actual en formato YYYY-MM (hora local), usado como filtro por defecto. */
+/**
+ * Mes actual en formato YYYY-MM (hora local del proceso), usado como filtro por
+ * defecto de las pantallas.
+ *
+ * **Solo para la interfaz.** En el navegador la hora local es la del usuario,
+ * que es justo lo que quiere decir "este mes". Fuera del navegador no lo es: un
+ * proceso de servidor corre casi siempre en UTC, y un usuario en Bogotá que
+ * pregunte por "este mes" el día 30 a las 20:00 obtendría octubre en vez de
+ * septiembre. Para esos contextos existe `monthKeyInTimeZone`, que recibe la
+ * zona horaria explícitamente.
+ */
 export function currentMonthKey(): string {
   return format(new Date(), 'yyyy-MM')
+}
+
+/**
+ * Mes YYYY-MM al que pertenece un instante **en una zona horaria concreta**.
+ *
+ * Es la alternativa a `currentMonthKey()` para todo código que no se ejecuta en
+ * el navegador del usuario: recibe la zona (`profiles.timezone`) en vez de
+ * heredar la del proceso.
+ *
+ * Se resuelve con `Intl.DateTimeFormat` y `formatToParts` en vez de con
+ * `date-fns`, por dos razones: no añade dependencias —date-fns v4 necesitaría
+ * `@date-fns/tz`— y `formatToParts` devuelve año y mes como campos, sin
+ * depender de cómo cada configuración regional ordene la fecha.
+ *
+ * Una zona horaria que el entorno no reconozca hace que `Intl` lance
+ * `RangeError`, y esta función lo deja pasar a propósito: `profiles.timezone`
+ * es texto sin restricción en la base de datos, y responder con el mes de UTC
+ * sería exactamente el error silencioso que esta función existe para evitar.
+ * Quien la llame decide qué hacer —registrar el perfil corrupto y usar el valor
+ * por defecto, por ejemplo—, pero lo decide a la vista.
+ */
+export function monthKeyInTimeZone(timeZone: string, date: Date = new Date()): string {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+  }).formatToParts(date)
+
+  const year = parts.find((part) => part.type === 'year')?.value
+  const month = parts.find((part) => part.type === 'month')?.value
+
+  if (!year || !month) {
+    throw new RangeError(`No se pudo resolver el mes en la zona horaria "${timeZone}".`)
+  }
+
+  return `${year}-${month}`
 }
 
 /**
