@@ -268,7 +268,7 @@ describe('Dashboard', () => {
           spentMinor: 120_000,
           remainingMinor: 10_000,
           ratio: 120_000 / 130_000,
-          status: 'warning_90',
+          status: 'ok',
           source: 'template',
         },
       ],
@@ -281,7 +281,9 @@ describe('Dashboard', () => {
     const panel = within(screen.getByRole('region', { name: 'Presupuestos' }))
     expect(panel.getByText('Alimentación')).toBeInTheDocument()
     expect(panel.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '92')
-    expect(panel.getByText(/va por el 92 % de su presupuesto/)).toBeInTheDocument()
+    // Dentro del presupuesto no hay aviso (M15): solo la barra.
+    expect(panel.queryByText(/va por el/)).not.toBeInTheDocument()
+    expect(panel.queryByRole('link', { name: 'Ajustar presupuesto' })).not.toBeInTheDocument()
   })
 
   it('las alertas enlazan al mes que se está viendo', () => {
@@ -744,7 +746,7 @@ describe('Dashboard — presupuestos (M14)', () => {
     spentMinor: 120_000,
     remainingMinor: 10_000,
     ratio: 120_000 / 130_000,
-    status: 'warning_90',
+    status: 'ok',
     source: 'template',
   }
 

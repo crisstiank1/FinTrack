@@ -378,3 +378,42 @@ describe('Budgets — orden de la lista', () => {
     expect(nombres).toEqual(['Alimentación', 'Gimnasio', 'Entretenimiento', 'Arriendo'])
   })
 })
+
+describe('Budgets — alerta solo al superar (M15)', () => {
+  it('al 100 % exacto la barra va en verde y no hay alerta; al pasarse, sí', () => {
+    useBudgetProgress.mockReturnValue({
+      data: [
+        {
+          categoryId: 'cat-food',
+          budgetMinor: 500_000,
+          spentMinor: 500_000,
+          remainingMinor: 0,
+          ratio: 1,
+          status: 'ok',
+          source: 'template',
+        },
+        {
+          categoryId: 'cat-gym',
+          budgetMinor: 200_000,
+          spentMinor: 250_000,
+          remainingMinor: -50_000,
+          ratio: 1.25,
+          status: 'over',
+          source: 'template',
+        },
+      ],
+      isPending: false,
+      isError: false,
+    })
+
+    renderBudgets()
+
+    const alimentacion = row('Alimentación')
+    expect(alimentacion.getByRole('progressbar').firstElementChild).toHaveClass('bg-success')
+    expect(screen.queryByText(/Alimentación va por el/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Alimentación superó su presupuesto/)).not.toBeInTheDocument()
+
+    expect(screen.getByText('Gimnasio superó su presupuesto por COP 50.000.')).toBeInTheDocument()
+    expect(row('Gimnasio').getByRole('progressbar').firstElementChild).toHaveClass('bg-danger')
+  })
+})

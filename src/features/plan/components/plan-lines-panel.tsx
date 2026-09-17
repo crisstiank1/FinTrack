@@ -57,7 +57,6 @@ interface PlanLinesPanelProps {
 const TONE_STYLES: Record<BudgetTone, string> = {
   neutral: 'text-muted-foreground',
   ok: 'text-success',
-  warning: 'text-warning',
   danger: 'text-danger',
 }
 

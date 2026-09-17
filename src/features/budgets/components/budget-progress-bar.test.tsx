@@ -92,26 +92,28 @@ describe('BudgetProgressBar — presupuesto de COP 0 explícito', () => {
 })
 
 describe('BudgetProgressBar — con presupuesto', () => {
-  it('al 70% informa el porcentaje y lo que queda', () => {
-    renderBar(withBudget(100_000, 70_000, 'warning_70'))
+  it('al 70% informa el porcentaje y lo que queda, sin aviso', () => {
+    renderBar(withBudget(100_000, 70_000, 'ok'))
 
     expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '70')
     expect(screen.getByText('70 %')).toBeInTheDocument()
     expect(screen.getByText('Quedan COP 30.000')).toBeInTheDocument()
   })
 
-  it('al 90% mantiene la barra dentro del carril', () => {
-    renderBar(withBudget(100_000, 90_000, 'warning_90'))
+  it('al 90% sigue en verde: no hay avisos intermedios (M15)', () => {
+    renderBar(withBudget(100_000, 90_000, 'ok'))
 
     expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '90')
-    expect(screen.getByText('90 %')).toBeInTheDocument()
+    expect(screen.getByText('90 %').className).not.toMatch(/text-(danger|warning)/)
+    expect(screen.getByRole('progressbar').firstElementChild?.className).toContain('bg-success')
   })
 
-  it('al 100% exacto todavía no está excedido', () => {
-    renderBar(withBudget(100_000, 100_000, 'warning_90'))
+  it('al 100% exacto cumple: barra verde y sin exceso (M15)', () => {
+    renderBar(withBudget(100_000, 100_000, 'ok'))
 
     const bar = screen.getByRole('progressbar')
     expect(bar).toHaveAttribute('aria-valuenow', '100')
+    expect(bar.firstElementChild?.className).toContain('bg-success')
     expect(screen.getByText('Quedan COP 0')).toBeInTheDocument()
     expect(screen.queryByText(/Excedido/)).not.toBeInTheDocument()
   })

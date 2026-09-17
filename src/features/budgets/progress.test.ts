@@ -89,28 +89,25 @@ describe('classifyBudgetStatus', () => {
     [0, 100_000, 'ok'],
     [50_000, 100_000, 'ok'],
     [69_999, 100_000, 'ok'],
-    [70_000, 100_000, 'warning_70'],
-    [89_999, 100_000, 'warning_70'],
-    [90_000, 100_000, 'warning_90'],
-    [100_000, 100_000, 'warning_90'],
+    [70_000, 100_000, 'ok'],
+    [90_000, 100_000, 'ok'],
+    [99_999, 100_000, 'ok'],
+    [100_000, 100_000, 'ok'],
     [100_001, 100_000, 'over'],
     [250_000, 100_000, 'over'],
   ])('gasto %i sobre presupuesto %i => %s', (spent, budget, expected) => {
     expect(classifyBudgetStatus(spent, budget)).toBe(expected)
   })
 
-  it('el 100% exacto no cuenta como superado', () => {
+  it('el 100% exacto cumple: está en verde y no cuenta como superado (M15)', () => {
     // "superado" es estrictamente gasto > presupuesto.
-    expect(classifyBudgetStatus(100_000, 100_000)).toBe('warning_90')
+    expect(classifyBudgetStatus(100_000, 100_000)).toBe('ok')
   })
 
-  it('clasifica bien los umbrales aunque el porcentaje no sea exacto en binario', () => {
-    // 0,7 y 0,9 no son representables exactamente en coma flotante; por eso la
-    // comparación se hace con enteros.
-    expect(classifyBudgetStatus(7_000, 10_000)).toBe('warning_70')
-    expect(classifyBudgetStatus(6_999, 10_000)).toBe('ok')
-    expect(classifyBudgetStatus(9_000, 10_000)).toBe('warning_90')
-    expect(classifyBudgetStatus(8_999, 10_000)).toBe('warning_70')
+  it('no hay avisos intermedios al 70 % ni al 90 % (M15)', () => {
+    expect(classifyBudgetStatus(7_000, 10_000)).toBe('ok')
+    expect(classifyBudgetStatus(9_000, 10_000)).toBe('ok')
+    expect(classifyBudgetStatus(10_001, 10_000)).toBe('over')
   })
 
   it('un presupuesto de 0 no tiene umbral', () => {
@@ -162,7 +159,7 @@ describe('buildBudgetProgress', () => {
 
     const progress = buildBudgetProgress(budgets, [tx({ amount_minor: 150_000 })], CAT, MES)
 
-    expect(progress).toMatchObject({ budgetMinor: 200_000, source: 'exception', status: 'warning_70' })
+    expect(progress).toMatchObject({ budgetMinor: 200_000, source: 'exception', status: 'ok' })
   })
 
   it('trata una excepción de 0 como "sin presupuesto este mes"', () => {
@@ -235,7 +232,7 @@ describe('buildBudgetProgress', () => {
 
     const progress = buildBudgetProgress(budgets, [tx({ amount_minor: 60_000 })], CAT, MES)
 
-    expect(progress).toMatchObject({ budgetMinor: 80_000, spentMinor: 60_000, status: 'warning_70' })
+    expect(progress).toMatchObject({ budgetMinor: 80_000, spentMinor: 60_000, status: 'ok' })
   })
 
   it('un mes pasado no cambia al versionar la plantilla para un mes posterior', () => {
@@ -247,7 +244,7 @@ describe('buildBudgetProgress', () => {
 
     const agosto = buildBudgetProgress(budgets, transactions, CAT, '2026-08')
 
-    expect(agosto).toMatchObject({ budgetMinor: 100_000, status: 'warning_90' })
+    expect(agosto).toMatchObject({ budgetMinor: 100_000, status: 'ok' })
   })
 })
 

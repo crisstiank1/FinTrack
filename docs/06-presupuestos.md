@@ -80,7 +80,7 @@ y, para la moneda, `useBudgetProgress`.
 
 ---
 
-## Progreso y umbrales
+## Progreso y estado
 
 | Campo | Valor |
 | --- | --- |
@@ -88,32 +88,32 @@ y, para la moneda, `useBudgetProgress`.
 | `spentMinor` | Gasto presupuestable del mes |
 | `remainingMinor` | `budgetMinor − spentMinor`; negativo si se superó, `null` sin presupuesto |
 | `ratio` | Proporción gastada (1 = 100%), `null` sin presupuesto |
-| `status` | Umbral alcanzado |
+| `status` | Estado: dentro del presupuesto, superado o sin presupuesto |
 | `source` | `exception`, `template` o `null` |
 
 Sin presupuesto, `ratio` y `remainingMinor` son `null` en vez de `NaN` o
 `Infinity`: nunca se divide entre cero.
 
-### Un solo umbral por presupuesto
+### Estado del presupuesto (M15)
 
-Al superar el 90% también se cruzan el 70% y el 100%, así que emitir todos
-produciría tres avisos por la misma categoría. Se devuelve **solo el más
-alto**:
+Solo hay dos estados con presupuesto, y **una sola alerta**: superarlo.
 
-| `status` | Condición |
-| --- | --- |
-| `over` | gasto > presupuesto |
-| `warning_90` | gasto ≥ 90% y gasto ≤ presupuesto |
-| `warning_70` | gasto ≥ 70% y gasto < 90% |
-| `ok` | gasto < 70% |
-| `unbudgeted` | sin presupuesto, o presupuesto 0 |
+| `status`     | Condición                                      | Se ve                                            |
+| ------------ | ---------------------------------------------- | ------------------------------------------------ |
+| `ok`         | gasto ≤ presupuesto, **100 % exacto incluido** | barra verde, sin alerta                          |
+| `over`       | gasto > presupuesto                            | barra roja y alerta «superó su presupuesto por…» |
+| `unbudgeted` | sin presupuesto, o presupuesto 0               | sin barra ni alerta                              |
 
-El 100% exacto es `warning_90`, no `over`: superado significa estrictamente
-gastar **más** que el presupuesto.
+Gastar exactamente lo presupuestado es cumplirlo, no un riesgo: por eso el 100 %
+es verde. Superado significa estrictamente gastar **más** que el presupuesto.
 
-Las comparaciones se hacen con enteros (`10·gasto ≥ 9·presupuesto`) en vez de
-dividir, porque ni 0,7 ni 0,9 son exactos en coma flotante y un gasto justo en
-el umbral podría clasificarse mal.
+Hasta M15 había además avisos en amarillo al 70 % (`warning_70`) y al 90 %
+(`warning_90`), este último con el 100 % exacto dentro. Se retiraron porque
+avisaban de presupuestos que se estaban cumpliendo, y los dos estados ya no
+existen en el código.
+
+La comparación es entera (`gasto > presupuesto`), sin porcentajes en coma
+flotante.
 
 ---
 
@@ -315,17 +315,16 @@ archivadas, y por nombre.
 Derivadas, no persistentes: se calculan desde el progreso en cada render. No
 hay nada que marcar como leído ni tabla que mantener.
 
-- **Una sola alerta por presupuesto.** `classifyBudgetStatus` ya devuelve un
-  único estado, así que el caso de tres avisos por la misma categoría no puede
-  darse. Entre categorías se ordenan por gravedad: superado, luego 90%, luego
-  70%.
+- **Una sola alerta por presupuesto, y solo al superarlo** (M15). Como todas
+  son del mismo nivel, salen en el orden de la lista de presupuestos, no por
+  gravedad.
 - **Una sola alerta global**, la de ahorro neto negativo.
 - En el dashboard cada alerta enlaza a `/budgets?month=YYYY-MM`, con el mes que
   se está viendo. Por eso el mes de esa pantalla vive en la URL: si viviera en
   el estado del componente, el enlace llevaría siempre al mes actual y perdería
   la razón por la que se pulsó.
 - **A una categoría archivada no se le propone ajustar nada.** Se informa del
-  umbral y se marca como archivada, porque la acción que sugeriría el enlace no
+  exceso y se marca como archivada, porque la acción que sugeriría el enlace no
   está disponible para ella.
 
 ### Gastos en otras monedas

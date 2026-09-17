@@ -175,7 +175,7 @@ const lineProgress = [
     spentMinor: 400_000,
     remainingMinor: 0,
     ratio: 1,
-    status: 'warning_90',
+    status: 'ok',
     source: 'template',
   },
   {
@@ -184,7 +184,7 @@ const lineProgress = [
     spentMinor: 300_000,
     remainingMinor: 50_000,
     ratio: 300_000 / 350_000,
-    status: 'warning_70',
+    status: 'ok',
     source: 'template',
   },
 ]

@@ -16,10 +16,9 @@ export interface BudgetTransaction {
 export type BudgetStatus =
   /** No hay presupuesto aplicable, o el vigente es 0. */
   | 'unbudgeted'
-  /** Gasto por debajo del 70%. */
+  /** Gasto dentro del presupuesto, 100 % exacto incluido. */
   | 'ok'
-  | 'warning_70'
-  | 'warning_90'
+  /** Gasto por encima del presupuesto. */
   | 'over'
 
 export interface BudgetProgress {
@@ -58,19 +57,20 @@ export function calculateBudgetableSpending(
 }
 
 /**
- * Umbral alcanzado por un presupuesto. Devuelve uno solo, el más alto, para no
- * emitir tres alertas por la misma categoría al superar el 90%.
+ * Estado de un presupuesto (M15). Dos posibilidades, sin avisos intermedios:
  *
- * Las comparaciones se hacen con enteros (10·gasto contra 9·presupuesto) en
- * vez de con `gasto / presupuesto >= 0.9`, porque ni 0,9 ni 0,7 son exactos en
- * coma flotante y un gasto justo en el umbral podría clasificarse mal.
+ * - **`ok`** mientras el gasto no supere el presupuesto, **100 % exacto
+ *   incluido**: gastar justo lo previsto es cumplirlo, no un riesgo.
+ * - **`over`** solo cuando el gasto es estrictamente mayor. Es el único estado
+ *   que genera alerta.
+ *
+ * Hasta M15 había avisos al 70 % y al 90 %; se retiraron porque avisaban de
+ * presupuestos que se estaban cumpliendo. La comparación es entera, sin
+ * porcentajes en coma flotante.
  */
 export function classifyBudgetStatus(spentMinor: number, budgetMinor: number): BudgetStatus {
   if (budgetMinor <= 0) return 'unbudgeted'
-  if (spentMinor > budgetMinor) return 'over'
-  if (spentMinor * 10 >= budgetMinor * 9) return 'warning_90'
-  if (spentMinor * 10 >= budgetMinor * 7) return 'warning_70'
-  return 'ok'
+  return spentMinor > budgetMinor ? 'over' : 'ok'
 }
 
 /** Progreso de una categoría en un mes. */
