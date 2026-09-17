@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 import Ledger from './Ledger'
+import { PAGE_HELP } from '@/components/shared/page-help'
 import type { Tables } from '@/types/database.types'
 
 const useLedgerPage = vi.fn()
@@ -668,6 +669,18 @@ describe('Ledger — editar transferencias (M8)', () => {
         toAmountMinor: 25,
         transactionDate: '2026-09-10',
       }),
+    )
+  })
+})
+
+describe('Ledger — ayuda de la pantalla (M18)', () => {
+  it('el «?» junto al título explica la pantalla', async () => {
+    renderLedger()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Ayuda: Libro financiero' }))
+
+    expect(screen.getByRole('region', { name: 'Libro financiero' })).toHaveTextContent(
+      PAGE_HELP.ledger,
     )
   })
 })

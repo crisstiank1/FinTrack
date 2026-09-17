@@ -1,11 +1,12 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { PlanError } from '@/features/plan/errors'
 import { currentMonthKey, shiftMonthKey } from '@/lib/dates'
+import { PAGE_HELP } from '@/components/shared/page-help'
 import type { Tables } from '@/types/database.types'
 
 import Plan from './Plan'
@@ -175,7 +176,7 @@ const lineProgress = [
     spentMinor: 400_000,
     remainingMinor: 0,
     ratio: 1,
-    status: 'warning_90',
+    status: 'ok',
     source: 'template',
   },
   {
@@ -184,7 +185,7 @@ const lineProgress = [
     spentMinor: 300_000,
     remainingMinor: 50_000,
     ratio: 300_000 / 350_000,
-    status: 'warning_70',
+    status: 'ok',
     source: 'template',
   },
 ]
@@ -2339,5 +2340,15 @@ describe('Plan — moneda del Plan', () => {
         .getAllByRole('option')
         .map((option) => option.textContent),
     ).toEqual(['Selecciona una cuenta', 'Reserva'])
+  })
+})
+
+describe('Plan — ayuda de la pantalla (M18)', () => {
+  it('el «?» junto al título explica la pantalla', async () => {
+    renderPlan()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Ayuda: Plan mensual' }))
+
+    expect(screen.getByRole('region', { name: 'Plan mensual' })).toHaveTextContent(PAGE_HELP.plan)
   })
 })

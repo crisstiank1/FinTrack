@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 
+import { PAGE_HELP } from '@/components/shared/page-help'
 import type { Tables } from '@/types/database.types'
 
 import Accounts from './Accounts'
@@ -135,5 +136,15 @@ describe('Accounts — bloqueo de moneda', () => {
       id: 'acc-sin-movimientos',
       input: expect.objectContaining({ currency_code: 'ARS' }),
     })
+  })
+})
+
+describe('Accounts — ayuda de la pantalla (M18)', () => {
+  it('el «?» junto al título explica la pantalla', async () => {
+    renderAccounts()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Ayuda: Cuentas' }))
+
+    expect(screen.getByRole('region', { name: 'Cuentas' })).toHaveTextContent(PAGE_HELP.accounts)
   })
 })

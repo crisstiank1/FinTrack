@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react'
 import { ArrowLeftRight, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 
+import { PAGE_HELP } from '@/components/shared/page-help'
+import { PageTitle } from '@/components/shared/page-title'
 import { ConfirmDialog } from '@/components/shared/confirm-dialog'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -242,7 +244,9 @@ export default function Transactions() {
   return (
     <div className="mx-auto max-w-4xl p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-semibold text-foreground">Movimientos</h1>
+        <PageTitle helpTitle="Movimientos" help={PAGE_HELP.transactions}>
+          Movimientos
+        </PageTitle>
         <div className="flex gap-2">
           <Button type="button" variant="outline" onClick={openCreateTransfer}>
             <ArrowLeftRight className="size-4" aria-hidden="true" />

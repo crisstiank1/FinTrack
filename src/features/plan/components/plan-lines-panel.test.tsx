@@ -42,7 +42,7 @@ const progressByCategory: Record<string, BudgetProgress> = {
     spentMinor: 900_000,
     remainingMinor: 0,
     ratio: 1,
-    status: 'warning_90',
+    status: 'ok',
     source: 'template',
   },
   'cat-mercado': {
@@ -114,7 +114,8 @@ describe('PlanLinesPanel', () => {
 
     expect(within(arriendo).getByText(/Presupuesto COP 900.000/)).toBeInTheDocument()
     expect(within(arriendo).getByText(/Gastado COP 900.000/)).toBeInTheDocument()
-    expect(within(arriendo).getByText('90% usado')).toBeInTheDocument()
+    // Gastar el 100 % exacto cumple el presupuesto: «En rango», en verde (M15).
+    expect(within(arriendo).getByText('En rango')).toHaveClass('text-success')
     expect(within(arriendo).queryByRole('textbox')).not.toBeInTheDocument()
     expect(within(arriendo).queryByRole('spinbutton')).not.toBeInTheDocument()
   })
@@ -212,7 +213,7 @@ describe('PlanLinesPanel', () => {
       const arriendo = row('Arriendo')
 
       expect(within(arriendo).getByText(/Presupuesto COP 900.000/)).toBeInTheDocument()
-      expect(within(arriendo).getByText('90% usado')).toBeInTheDocument()
+      expect(within(arriendo).getByText('En rango')).toBeInTheDocument()
       expect(within(arriendo).getByRole('link', { name: 'Editar presupuesto' })).toBeInTheDocument()
     })
   })

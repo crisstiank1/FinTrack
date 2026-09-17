@@ -1,8 +1,9 @@
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { ClassificationError } from '@/features/categories/classifications/errors'
+import { PAGE_HELP } from '@/components/shared/page-help'
 import type { Tables } from '@/types/database.types'
 
 import Settings from './Settings'
@@ -14,6 +15,8 @@ const updateClassification = vi.fn()
 const deleteClassification = vi.fn()
 const usePrimaryCurrency = vi.fn()
 const updatePrimaryCurrency = vi.fn()
+const useDisplayName = vi.fn()
+const updateDisplayName = vi.fn()
 const useAccounts = vi.fn()
 const toastError = vi.fn()
 const toastSuccess = vi.fn()
@@ -35,6 +38,8 @@ vi.mock('@/features/categories/classifications/hooks', () => ({
 vi.mock('@/features/profile/hooks', () => ({
   usePrimaryCurrency: () => usePrimaryCurrency(),
   useUpdatePrimaryCurrency: () => ({ mutateAsync: updatePrimaryCurrency, isPending: false }),
+  useDisplayName: () => useDisplayName(),
+  useUpdateDisplayName: () => ({ mutateAsync: updateDisplayName, isPending: false }),
 }))
 
 vi.mock('@/features/accounts/hooks', () => ({
@@ -104,6 +109,10 @@ beforeEach(() => {
   usePrimaryCurrency.mockReturnValue({ data: 'COP', isPending: false })
   updatePrimaryCurrency.mockReset()
   updatePrimaryCurrency.mockResolvedValue(undefined)
+  useDisplayName.mockReset()
+  useDisplayName.mockReturnValue({ data: 'Cristian', isPending: false })
+  updateDisplayName.mockReset()
+  updateDisplayName.mockResolvedValue(undefined)
   useAccounts.mockReset()
   useAccounts.mockReturnValue({ data: [] })
   toastError.mockClear()
@@ -367,5 +376,91 @@ describe('Settings — moneda principal (M12)', () => {
 
     await waitFor(() => expect(toastError).toHaveBeenCalled())
     expect(toastSuccess).not.toHaveBeenCalled()
+  })
+})
+
+describe('Settings — perfil (M16)', () => {
+  it('muestra la sección Perfil antes de Moneda principal, con el nombre actual', () => {
+    renderSettings()
+
+    const perfil = screen.getByRole('heading', { name: 'Perfil', level: 2 })
+    const moneda = screen.getByRole('heading', { name: 'Moneda principal', level: 2 })
+    expect(perfil.compareDocumentPosition(moneda) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(screen.getByLabelText('Nombre')).toHaveValue('Cristian')
+  })
+
+  it('sin nombre guardado el campo empieza vacío', () => {
+    useDisplayName.mockReturnValue({ data: null, isPending: false })
+    renderSettings()
+
+    expect(screen.getByLabelText('Nombre')).toHaveValue('')
+  })
+
+  it('guardar envía el nombre nuevo y avisa', async () => {
+    const user = userEvent.setup()
+    renderSettings()
+
+    await user.clear(screen.getByLabelText('Nombre'))
+    await user.type(screen.getByLabelText('Nombre'), 'Cris')
+    await user.click(screen.getByRole('button', { name: 'Guardar' }))
+
+    await waitFor(() => expect(updateDisplayName).toHaveBeenCalledWith('Cris'))
+    expect(toastSuccess).toHaveBeenCalledWith('Nombre actualizado')
+  })
+
+  it('un nombre vacío no se guarda y dice por qué', async () => {
+    const user = userEvent.setup()
+    renderSettings()
+
+    await user.clear(screen.getByLabelText('Nombre'))
+    await user.click(screen.getByRole('button', { name: 'Guardar' }))
+
+    expect(await screen.findByText('Ingresa tu nombre')).toBeInTheDocument()
+    expect(updateDisplayName).not.toHaveBeenCalled()
+  })
+
+  it('más de 60 caracteres no se guarda', async () => {
+    const user = userEvent.setup()
+    renderSettings()
+
+    await user.clear(screen.getByLabelText('Nombre'))
+    await user.type(screen.getByLabelText('Nombre'), 'a'.repeat(61))
+    await user.click(screen.getByRole('button', { name: 'Guardar' }))
+
+    expect(await screen.findByText('Máximo 60 caracteres')).toBeInTheDocument()
+    expect(updateDisplayName).not.toHaveBeenCalled()
+  })
+
+  it('un fallo al guardar se muestra y no se cuenta como éxito', async () => {
+    const user = userEvent.setup()
+    updateDisplayName.mockRejectedValue(new Error('sin conexión'))
+    renderSettings()
+
+    await user.click(screen.getByRole('button', { name: 'Guardar' }))
+
+    await waitFor(() =>
+      expect(toastError).toHaveBeenCalledWith('No se pudo guardar el nombre', {
+        description: 'sin conexión',
+      }),
+    )
+    expect(toastSuccess).not.toHaveBeenCalled()
+  })
+
+  it('mientras carga el perfil no muestra un campo vacío que invite a sobrescribir', () => {
+    useDisplayName.mockReturnValue({ data: undefined, isPending: true })
+    renderSettings()
+
+    expect(screen.getByText('Cargando perfil...')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Nombre')).not.toBeInTheDocument()
+  })
+})
+
+describe('Settings — ayuda de la pantalla (M18)', () => {
+  it('el «?» junto al título explica la pantalla', async () => {
+    renderSettings()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Ayuda: Ajustes' }))
+
+    expect(screen.getByRole('region', { name: 'Ajustes' })).toHaveTextContent(PAGE_HELP.settings)
   })
 })

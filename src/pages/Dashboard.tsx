@@ -3,6 +3,8 @@ import { ArrowDownLeft, ArrowUpRight, PiggyBank, Percent, Plus } from 'lucide-re
 import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
 
+import { PAGE_HELP } from '@/components/shared/page-help'
+import { PageTitle } from '@/components/shared/page-title'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useAccounts } from '@/features/accounts/hooks'
@@ -32,7 +34,6 @@ import {
   PanelEmptyMessage,
 } from '@/features/dashboard/components/dashboard-states'
 import { DashboardToolbar } from '@/features/dashboard/components/dashboard-toolbar'
-import { HelpHint } from '@/features/dashboard/components/help-hint'
 import { IncomeExpenseChart } from '@/features/dashboard/components/income-expense-chart'
 import { KpiCard } from '@/features/dashboard/components/kpi-card'
 import { QuickTransactionForm } from '@/features/dashboard/components/quick-transaction-form'
@@ -44,7 +45,7 @@ import {
   buildMonthlyTrend,
   hasBudgetThisMonth,
 } from '@/features/dashboard/summary'
-import { usePrimaryCurrency } from '@/features/profile/hooks'
+import { useDisplayName, usePrimaryCurrency } from '@/features/profile/hooks'
 import { TransactionForm } from '@/features/transactions/components/transaction-form'
 import { useCreateTransaction } from '@/features/transactions/hooks'
 import type { TransactionFormValues } from '@/features/transactions/schemas'
@@ -53,9 +54,9 @@ import { currentMonthKey, formatLongDate, formatMonthLabel, monthRange } from '@
 
 const TREND_MONTHS = 6
 
-/** Texto del «?» junto a los filtros. */
-export const FILTERS_HELP_TEXT =
-  'Elige el mes y, si quieres, una cuenta para revisar tus cifras y gráficos. Los presupuestos se muestran para el mes en la moneda del Plan.'
+/** Descripción bajo el saludo. */
+export const DASHBOARD_DESCRIPTION =
+  'Este es el resumen de tu mes: registra movimientos y revisa cómo van tus cuentas y presupuestos.'
 
 const percentFormatter = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 1 })
 
@@ -86,6 +87,9 @@ export default function Dashboard() {
     refetch,
   } = useAllTransactions()
   const primaryCurrency = usePrimaryCurrency()
+  // Un nombre en blanco cuenta como ausente. Mientras carga, o si la consulta
+  // falla, el saludo es «Hola» y se completa cuando llega.
+  const displayName = useDisplayName().data?.trim()
 
   const createTransaction = useCreateTransaction()
   const createCategory = useCreateCategory()
@@ -330,10 +334,11 @@ export default function Dashboard() {
           al título y no dentro de una columna. En móvil bajan bajo el título. */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-foreground">Dashboard</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground first-letter:uppercase">
-            {monthLabel}
-          </p>
+          <PageTitle helpTitle="Dashboard" help={PAGE_HELP.dashboard}>
+            {displayName ? `Hola, ${displayName}` : 'Hola'}
+          </PageTitle>
+          <p className="mt-0.5 text-sm text-muted-foreground">{DASHBOARD_DESCRIPTION}</p>
+          <p className="mt-1 text-sm text-muted-foreground first-letter:uppercase">{monthLabel}</p>
           {showsCurrencySplit && (
             <p className="mt-1 text-sm text-muted-foreground">
               Cifras en {currencyCode}. Tus cuentas en {joinCurrencyCodes(otherCurrencies)} no se
@@ -352,7 +357,6 @@ export default function Dashboard() {
             accountId={accountId}
             onAccountChange={setAccountId}
           />
-          <HelpHint title="Mes y cuenta">{FILTERS_HELP_TEXT}</HelpHint>
         </div>
       </div>
 

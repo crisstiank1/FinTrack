@@ -12,14 +12,12 @@ interface BudgetProgressBarProps {
 
 const TONE_BAR: Record<string, string> = {
   ok: 'bg-success',
-  warning: 'bg-warning',
   danger: 'bg-danger',
   neutral: 'bg-muted-foreground',
 }
 
 const TONE_TEXT: Record<string, string> = {
   ok: 'text-foreground',
-  warning: 'text-warning',
   danger: 'text-danger',
   neutral: 'text-muted-foreground',
 }

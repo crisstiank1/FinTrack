@@ -2,42 +2,23 @@ import { formatAmount } from '@/lib/currency'
 
 import type { BudgetProgress, BudgetStatus } from './progress'
 
-export type BudgetTone = 'neutral' | 'ok' | 'warning' | 'danger'
+export type BudgetTone = 'neutral' | 'ok' | 'danger'
 
 export const budgetStatusLabel: Record<BudgetStatus, string> = {
   unbudgeted: 'Sin presupuesto',
   ok: 'En rango',
-  warning_70: '70% usado',
-  warning_90: '90% usado',
   over: 'Presupuesto superado',
 }
 
 export const budgetStatusTone: Record<BudgetStatus, BudgetTone> = {
   unbudgeted: 'neutral',
   ok: 'ok',
-  warning_70: 'warning',
-  warning_90: 'warning',
   over: 'danger',
 }
 
-/**
- * Severidad del umbral. 0 significa "no genera alerta".
- *
- * `classifyBudgetStatus` ya devuelve un único estado por presupuesto, así que
- * esto no sirve para elegir entre umbrales de una misma categoría —esa
- * decisión ya está tomada— sino para ordenar las alertas de varias categorías
- * y mostrar primero lo más grave.
- */
-export const budgetAlertSeverity: Record<BudgetStatus, number> = {
-  unbudgeted: 0,
-  ok: 0,
-  warning_70: 1,
-  warning_90: 2,
-  over: 3,
-}
-
+/** Solo superar el presupuesto genera alerta (M15); el 100 % exacto cumple. */
 export function isBudgetAlert(status: BudgetStatus): boolean {
-  return budgetAlertSeverity[status] > 0
+  return status === 'over'
 }
 
 /*
@@ -103,13 +84,8 @@ export function budgetAlertMessage(
 ): string | null {
   if (!isBudgetAlert(progress.status) || progress.budgetMinor === null) return null
 
-  if (progress.status === 'over') {
-    const excess = progress.spentMinor - progress.budgetMinor
-    return `${categoryName} superó su presupuesto por ${formatAmount(excess, currencyCode)}.`
-  }
-
-  const percent = formatBudgetPercent(progress.ratio ?? 0)
-  return `${categoryName} va por el ${percent} de su presupuesto.`
+  const excess = progress.spentMinor - progress.budgetMinor
+  return `${categoryName} superó su presupuesto por ${formatAmount(excess, currencyCode)}.`
 }
 
 /**

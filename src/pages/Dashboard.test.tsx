@@ -3,7 +3,8 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 
-import Dashboard, { FILTERS_HELP_TEXT } from './Dashboard'
+import Dashboard, { DASHBOARD_DESCRIPTION } from './Dashboard'
+import { PAGE_HELP } from '@/components/shared/page-help'
 import type { Tables } from '@/types/database.types'
 
 // Recharts mide su contenedor con getBoundingClientRect, que en jsdom siempre
@@ -25,6 +26,7 @@ const useCategories = vi.fn()
 const useBudgets = vi.fn()
 const useBudgetProgress = vi.fn()
 const usePrimaryCurrency = vi.fn()
+const useDisplayName = vi.fn()
 const createTransactionMutate = vi.fn()
 const createCategoryMutate = vi.fn()
 const saveBudgetMutate = vi.fn()
@@ -46,6 +48,7 @@ vi.mock('@/features/categories/hooks', () => ({
 }))
 vi.mock('@/features/profile/hooks', () => ({
   usePrimaryCurrency: () => usePrimaryCurrency(),
+  useDisplayName: () => useDisplayName(),
 }))
 vi.mock('@/features/transactions/hooks', () => ({
   useCreateTransaction: () => ({ mutateAsync: createTransactionMutate, isPending: false }),
@@ -158,6 +161,7 @@ beforeEach(() => {
   saveBudgetMutate.mockResolvedValue({})
   useAccounts.mockReturnValue({ data: accounts })
   usePrimaryCurrency.mockReturnValue({ data: 'COP', isPending: false })
+  useDisplayName.mockReturnValue({ data: 'Cristian', isPending: false })
   useCategories.mockReturnValue({ data: categories })
   useBudgets.mockReturnValue({ data: [], isPending: false, isError: false })
   useBudgetProgress.mockReturnValue({ data: [], isPending: false, isError: false })
@@ -268,7 +272,7 @@ describe('Dashboard', () => {
           spentMinor: 120_000,
           remainingMinor: 10_000,
           ratio: 120_000 / 130_000,
-          status: 'warning_90',
+          status: 'ok',
           source: 'template',
         },
       ],
@@ -281,7 +285,9 @@ describe('Dashboard', () => {
     const panel = within(screen.getByRole('region', { name: 'Presupuestos' }))
     expect(panel.getByText('Alimentación')).toBeInTheDocument()
     expect(panel.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '92')
-    expect(panel.getByText(/va por el 92 % de su presupuesto/)).toBeInTheDocument()
+    // Dentro del presupuesto no hay aviso (M15): solo la barra.
+    expect(panel.queryByText(/va por el/)).not.toBeInTheDocument()
+    expect(panel.queryByRole('link', { name: 'Ajustar presupuesto' })).not.toBeInTheDocument()
   })
 
   it('las alertas enlazan al mes que se está viendo', () => {
@@ -577,31 +583,35 @@ describe('Dashboard — cabecera y ayuda (M14)', () => {
     expect(screen.queryByRole('button', { name: /Movimiento completo/ })).not.toBeInTheDocument()
   })
 
-  it('el «?» muestra la ayuda de los filtros con el ratón y se cierra con Escape', async () => {
+  it('hay un solo «?», junto al saludo, con la ayuda de la pantalla', async () => {
     const user = userEvent.setup()
     renderDashboard()
 
-    const ayuda = viewControls().getByRole('button', { name: 'Ayuda: Mes y cuenta' })
+    expect(screen.getAllByRole('button', { name: /^Ayuda:/ })).toHaveLength(1)
+    expect(viewControls().queryByRole('button', { name: /^Ayuda:/ })).not.toBeInTheDocument()
+
+    const titleRow = screen.getByRole('heading', { level: 1 }).parentElement as HTMLElement
+    const ayuda = within(titleRow).getByRole('button', { name: 'Ayuda: Dashboard' })
     await user.hover(ayuda)
 
-    const panel = screen.getByRole('region', { name: 'Mes y cuenta' })
-    expect(panel).toHaveTextContent(FILTERS_HELP_TEXT)
+    expect(screen.getByRole('region', { name: 'Dashboard' })).toHaveTextContent(PAGE_HELP.dashboard)
 
     await user.keyboard('{Escape}')
-    expect(screen.queryByRole('region', { name: 'Mes y cuenta' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Dashboard' })).not.toBeInTheDocument()
   })
 
   it('el «?» se abre con el teclado y con un toque', async () => {
     const user = userEvent.setup()
     renderDashboard()
 
-    const ayuda = viewControls().getByRole('button', { name: 'Ayuda: Mes y cuenta' })
+    const ayuda = screen.getByRole('button', { name: 'Ayuda: Dashboard' })
 
     act(() => ayuda.focus())
     expect(ayuda).toHaveAttribute('aria-expanded', 'true')
 
     await user.keyboard('{Escape}')
     expect(ayuda).toHaveAttribute('aria-expanded', 'false')
+    expect(ayuda).toHaveFocus()
 
     await user.click(ayuda)
     await user.unhover(ayuda)
@@ -744,7 +754,7 @@ describe('Dashboard — presupuestos (M14)', () => {
     spentMinor: 120_000,
     remainingMinor: 10_000,
     ratio: 120_000 / 130_000,
-    status: 'warning_90',
+    status: 'ok',
     source: 'template',
   }
 
@@ -901,5 +911,50 @@ describe('Dashboard — sin últimos movimientos (M14)', () => {
     const fila = screen.getByRole('region', { name: 'Gasto por categoría' }).parentElement
     expect(fila?.className).toContain('xl:grid-cols-2')
     expect(fila?.className).not.toContain('lg:grid-cols-2')
+  })
+})
+
+describe('Dashboard — saludo (M16)', () => {
+  it('saluda por el nombre del perfil y describe la pantalla', () => {
+    renderDashboard()
+
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Hola, Cristian')
+    expect(screen.getByText(DASHBOARD_DESCRIPTION)).toBeInTheDocument()
+    expect(DASHBOARD_DESCRIPTION).toBe(
+      'Este es el resumen de tu mes: registra movimientos y revisa cómo van tus cuentas y presupuestos.',
+    )
+    expect(screen.queryByRole('heading', { name: 'Dashboard' })).not.toBeInTheDocument()
+  })
+
+  it('sin nombre, o con uno en blanco, dice solo «Hola»', () => {
+    useDisplayName.mockReturnValue({ data: null, isPending: false })
+    const { unmount } = renderDashboard()
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(/^Hola$/)
+    unmount()
+
+    useDisplayName.mockReturnValue({ data: '   ', isPending: false })
+    renderDashboard()
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(/^Hola$/)
+  })
+
+  it('mientras carga el nombre saluda con «Hola» y lo completa al llegar', () => {
+    useDisplayName.mockReturnValue({ data: undefined, isPending: true })
+    const { rerender } = renderDashboard()
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(/^Hola$/)
+
+    useDisplayName.mockReturnValue({ data: 'Cristian', isPending: false })
+    rerender(
+      <MemoryRouter>
+        <Dashboard />
+      </MemoryRouter>,
+    )
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Hola, Cristian')
+  })
+
+  it('conserva el mes debajo de la descripción', () => {
+    renderDashboard()
+
+    const descripcion = screen.getByText(DASHBOARD_DESCRIPTION)
+    expect(descripcion.nextElementSibling?.textContent?.length).toBeGreaterThan(0)
   })
 })

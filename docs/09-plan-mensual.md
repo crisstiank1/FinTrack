@@ -665,8 +665,8 @@ interfaz debe distinguirlo visualmente.
 | Gastos, Facturas, Variables, Deuda | `planeado − actual` | Favorable |
 
 La igualdad exacta es **«En objetivo»**, ni favorable ni desfavorable. Es
-coherente con el criterio de `docs/06-presupuestos.md`, donde el 100% exacto es
-`warning_90` y no `over`: superado significa estrictamente gastar más.
+coherente con el criterio de `docs/06-presupuestos.md`, donde el 100 % exacto es
+`ok` y no `over`: superado significa estrictamente gastar más.
 
 Sin presupuesto, la diferencia es nula y se etiqueta «Sin presupuesto», nunca
 `0`. En Ahorro e Inversión la ausencia es de aportes planeados y se etiqueta
@@ -681,10 +681,11 @@ categoría por categoría.
 
 Dos ejes distintos, no uno.
 
-**Progreso**, en cualquier fila con presupuesto. Se reutiliza el vocabulario y
-los umbrales de `docs/06-presupuestos.md` para que la aplicación tenga un solo
-lenguaje de estado: `ok`, `warning_70`, `warning_90`, `over`, `unbudgeted`, con
-las comparaciones hechas con enteros.
+**Progreso**, en cualquier fila con presupuesto. Se reutiliza el vocabulario de
+`docs/06-presupuestos.md` para que la aplicación tenga un solo lenguaje de
+estado: `ok` (en verde hasta el 100 % exacto), `over` y `unbudgeted`, con la
+comparación hecha con enteros. Desde M15 no hay estados intermedios al 70 % ni al
+90 %.
 
 **Pago**, solo en `kind = 'bill'`:
 

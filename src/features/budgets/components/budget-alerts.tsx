@@ -2,9 +2,8 @@ import { AlertTriangle, TrendingDown } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 import { formatAmount } from '@/lib/currency'
-import { cn } from '@/lib/utils'
 
-import { budgetAlertMessage, budgetAlertSeverity, budgetStatusTone, isBudgetAlert } from '../labels'
+import { budgetAlertMessage, isBudgetAlert } from '../labels'
 import type { BudgetProgress, GlobalBudgetAlert } from '../progress'
 
 export interface BudgetAlertItem {
@@ -27,16 +26,16 @@ interface BudgetAlertsProps {
 }
 
 /**
- * Alertas del mes: una por presupuesto que cruza umbral, más la global.
+ * Alertas del mes: una por presupuesto superado, más la global. Desde M15 no hay
+ * avisos intermedios, así que todas son del mismo nivel y salen en el orden en
+ * que llegan: el de la lista de presupuestos.
  *
  * Son derivadas, no persistentes: se calculan al vuelo desde el progreso y no
  * hay nada que marcar como leído. `classifyBudgetStatus` ya devuelve un único
  * estado por categoría, así que no puede haber dos avisos para la misma.
  */
 export function BudgetAlerts({ items, globalAlert, currencyCode, linkToMonth }: BudgetAlertsProps) {
-  const alerts = items
-    .filter((item) => isBudgetAlert(item.progress.status))
-    .sort((a, b) => budgetAlertSeverity[b.progress.status] - budgetAlertSeverity[a.progress.status])
+  const alerts = items.filter((item) => isBudgetAlert(item.progress.status))
 
   if (alerts.length === 0 && !globalAlert) return null
 
@@ -59,23 +58,12 @@ export function BudgetAlerts({ items, globalAlert, currencyCode, linkToMonth }: 
         const message = budgetAlertMessage(item.categoryName, item.progress, currencyCode)
         if (!message) return null
 
-        const tone = budgetStatusTone[item.progress.status]
-
         return (
           <li
             key={item.categoryId}
-            className={cn(
-              'flex flex-wrap items-start gap-2 rounded-lg border p-3 text-sm',
-              tone === 'danger' ? 'border-danger/30 bg-danger/8' : 'border-warning/30 bg-warning/8',
-            )}
+            className="flex flex-wrap items-start gap-2 rounded-lg border border-danger/30 bg-danger/8 p-3 text-sm"
           >
-            <AlertTriangle
-              className={cn(
-                'mt-0.5 size-4 shrink-0',
-                tone === 'danger' ? 'text-danger' : 'text-warning',
-              )}
-              aria-hidden="true"
-            />
+            <AlertTriangle className="mt-0.5 size-4 shrink-0 text-danger" aria-hidden="true" />
             <span className="flex-1 text-foreground">{message}</span>
 
             {/* Una categoría archivada no admite un presupuesto nuevo, así que

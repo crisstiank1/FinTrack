@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 
 import { BudgetError } from '@/features/budgets/errors'
 import type { BudgetProgress } from '@/features/budgets/progress'
+import { PAGE_HELP } from '@/components/shared/page-help'
 import type { Tables } from '@/types/database.types'
 
 import Budgets from './Budgets'
@@ -376,5 +377,56 @@ describe('Budgets — orden de la lista', () => {
     // Con dinero, en el orden de siempre (activas antes que archivadas); después
     // el 0 explícito; al final lo que no tiene presupuesto.
     expect(nombres).toEqual(['Alimentación', 'Gimnasio', 'Entretenimiento', 'Arriendo'])
+  })
+})
+
+describe('Budgets — alerta solo al superar (M15)', () => {
+  it('al 100 % exacto la barra va en verde y no hay alerta; al pasarse, sí', () => {
+    useBudgetProgress.mockReturnValue({
+      data: [
+        {
+          categoryId: 'cat-food',
+          budgetMinor: 500_000,
+          spentMinor: 500_000,
+          remainingMinor: 0,
+          ratio: 1,
+          status: 'ok',
+          source: 'template',
+        },
+        {
+          categoryId: 'cat-gym',
+          budgetMinor: 200_000,
+          spentMinor: 250_000,
+          remainingMinor: -50_000,
+          ratio: 1.25,
+          status: 'over',
+          source: 'template',
+        },
+      ],
+      isPending: false,
+      isError: false,
+    })
+
+    renderBudgets()
+
+    const alimentacion = row('Alimentación')
+    expect(alimentacion.getByRole('progressbar').firstElementChild).toHaveClass('bg-success')
+    expect(screen.queryByText(/Alimentación va por el/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Alimentación superó su presupuesto/)).not.toBeInTheDocument()
+
+    expect(screen.getByText('Gimnasio superó su presupuesto por COP 50.000.')).toBeInTheDocument()
+    expect(row('Gimnasio').getByRole('progressbar').firstElementChild).toHaveClass('bg-danger')
+  })
+})
+
+describe('Budgets — ayuda de la pantalla (M18)', () => {
+  it('el «?» junto al título explica la pantalla', async () => {
+    renderBudgets()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Ayuda: Presupuestos' }))
+
+    expect(screen.getByRole('region', { name: 'Presupuestos' })).toHaveTextContent(
+      PAGE_HELP.budgets,
+    )
   })
 })

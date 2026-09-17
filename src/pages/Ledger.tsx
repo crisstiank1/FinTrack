@@ -8,6 +8,8 @@ import {
 import { Download, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
+import { PAGE_HELP } from '@/components/shared/page-help'
+import { PageTitle } from '@/components/shared/page-title'
 import { ConfirmDialog } from '@/components/shared/confirm-dialog'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -326,7 +328,9 @@ export default function Ledger() {
     <div className="mx-auto max-w-7xl p-4 sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-foreground">Libro financiero</h1>
+          <PageTitle helpTitle="Libro financiero" help={PAGE_HELP.ledger}>
+            Libro financiero
+          </PageTitle>
           <p className="mt-0.5 text-sm text-muted-foreground">
             Todos tus movimientos, con filtros y exportación.
           </p>

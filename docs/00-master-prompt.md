@@ -326,6 +326,10 @@ No implementar edición inline todavía.
 
 **Alertas:** 70% de presupuesto usado, 90% usado, presupuesto superado, ahorro neto negativo, gastos mayores que ingresos.
 
+> **Actualización (M15):** los avisos del 70 % y del 90 % se retiraron. Un
+> presupuesto se ve en verde hasta el 100 % exacto y solo genera alerta al
+> superarlo. Regla vigente en `docs/06-presupuestos.md`.
+
 **Criterios de aprobación:**
 - Los cálculos son correctos.
 - Las transferencias no se consideran gasto presupuestal.

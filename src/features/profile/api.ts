@@ -32,3 +32,28 @@ export async function updatePrimaryCurrency(userId: string, currencyCode: string
 
   if (error) throw error
 }
+
+/**
+ * Nombre con el que se saluda al usuario (`profiles.display_name`). Lo pide el
+ * onboarding, pero puede faltar: el trigger que crea el perfil no lo rellena.
+ */
+export async function fetchDisplayName(userId: string): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('display_name')
+    .eq('id', userId)
+    .single()
+
+  if (error) throw error
+  return data.display_name
+}
+
+/** Cambia el nombre desde Ajustes. Solo toca `profiles.display_name`. */
+export async function updateDisplayName(userId: string, displayName: string): Promise<void> {
+  const { error } = await supabase
+    .from('profiles')
+    .update({ display_name: displayName })
+    .eq('id', userId)
+
+  if (error) throw error
+}

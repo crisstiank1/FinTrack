@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest'
 import {
   excludedExpensesNote,
   budgetAlertMessage,
-  budgetAlertSeverity,
   formatBudgetPercent,
   formatBudgetWithoutBar,
   formatZeroBudget,
@@ -19,7 +18,7 @@ function progress(overrides: Partial<BudgetProgress> = {}): BudgetProgress {
     spentMinor: 75_000,
     remainingMinor: 25_000,
     ratio: 0.75,
-    status: 'warning_70',
+    status: 'ok',
     source: 'template',
     ...overrides,
   }
@@ -57,19 +56,9 @@ describe('isBudgetAlert', () => {
   it.each<[BudgetStatus, boolean]>([
     ['unbudgeted', false],
     ['ok', false],
-    ['warning_70', true],
-    ['warning_90', true],
     ['over', true],
   ])('%s -> %s', (status, expected) => {
     expect(isBudgetAlert(status)).toBe(expected)
-  })
-})
-
-describe('budgetAlertSeverity', () => {
-  it('ordena de menor a mayor gravedad', () => {
-    expect(budgetAlertSeverity.over).toBeGreaterThan(budgetAlertSeverity.warning_90)
-    expect(budgetAlertSeverity.warning_90).toBeGreaterThan(budgetAlertSeverity.warning_70)
-    expect(budgetAlertSeverity.warning_70).toBeGreaterThan(budgetAlertSeverity.ok)
   })
 })
 
@@ -90,10 +79,11 @@ describe('budgetAlertMessage', () => {
     expect(budgetAlertMessage('Alimentación', sinPresupuesto, 'COP')).toBeNull()
   })
 
-  it('al 70% dice cuánto se lleva gastado', () => {
-    expect(budgetAlertMessage('Alimentación', progress(), 'COP')).toBe(
-      'Alimentación va por el 75 % de su presupuesto.',
-    )
+  it('dentro del presupuesto no avisa, ni al 75 % ni al 100 % exacto (M15)', () => {
+    expect(budgetAlertMessage('Alimentación', progress(), 'COP')).toBeNull()
+
+    const justo = progress({ spentMinor: 100_000, remainingMinor: 0, ratio: 1, status: 'ok' })
+    expect(budgetAlertMessage('Alimentación', justo, 'COP')).toBeNull()
   })
 
   it('al superarlo dice por cuánto', () => {

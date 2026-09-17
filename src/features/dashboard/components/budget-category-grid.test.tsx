@@ -23,7 +23,7 @@ function item(
       spentMinor: 120_000,
       remainingMinor: 10_000,
       ratio: 120_000 / 130_000,
-      status: 'warning_90',
+      status: 'ok',
       source: 'template',
       ...progress,
     },

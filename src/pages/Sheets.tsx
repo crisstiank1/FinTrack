@@ -3,6 +3,8 @@ import { Columns3, FileSpreadsheet, Loader2, Plus, Trash2 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 
+import { PAGE_HELP } from '@/components/shared/page-help'
+import { PageTitle } from '@/components/shared/page-title'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -304,7 +306,9 @@ export default function Sheets() {
     <div className="mx-auto max-w-7xl p-4 sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-foreground">Hojas</h1>
+          <PageTitle helpTitle="Hojas" help={PAGE_HELP.sheets}>
+            Hojas
+          </PageTitle>
           <p className="mt-0.5 text-sm text-muted-foreground">
             Captura estructurada de movimientos antes de registrarlos.
           </p>

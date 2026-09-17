@@ -1,11 +1,16 @@
 import { useMemo, useState } from 'react'
-import { Plus } from 'lucide-react'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { Loader2, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 
+import { PAGE_HELP } from '@/components/shared/page-help'
+import { PageTitle } from '@/components/shared/page-title'
 import { useAccounts } from '@/features/accounts/hooks'
 import { ConfirmDialog } from '@/components/shared/confirm-dialog'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
 import {
@@ -33,7 +38,13 @@ import {
   useUpdateCategory,
 } from '@/features/categories/hooks'
 import type { CategoryFormValues } from '@/features/categories/schemas'
-import { usePrimaryCurrency, useUpdatePrimaryCurrency } from '@/features/profile/hooks'
+import {
+  useDisplayName,
+  usePrimaryCurrency,
+  useUpdateDisplayName,
+  useUpdatePrimaryCurrency,
+} from '@/features/profile/hooks'
+import { displayNameSchema, type DisplayNameValues } from '@/features/profile/schemas'
 import { accountsKeptInCurrentCurrency, currencyOptions } from '@/lib/currency'
 import type { Tables } from '@/types/database.types'
 
@@ -51,6 +62,8 @@ export default function Settings() {
   const updateClassification = useUpdateCategoryClassification()
   const deleteClassification = useDeleteCategoryClassification()
 
+  const displayNameQuery = useDisplayName()
+  const updateDisplayName = useUpdateDisplayName()
   const primaryCurrencyQuery = usePrimaryCurrency()
   const updatePrimaryCurrency = useUpdatePrimaryCurrency()
   const accountsQuery = useAccounts()
@@ -180,18 +193,53 @@ export default function Settings() {
     }
   }
 
+  async function handleDisplayNameSave(displayName: string) {
+    try {
+      await updateDisplayName.mutateAsync(displayName)
+      toast.success('Nombre actualizado')
+    } catch (error) {
+      toast.error('No se pudo guardar el nombre', {
+        description: error instanceof Error ? error.message : undefined,
+      })
+    }
+  }
+
   return (
     <div className="mx-auto max-w-3xl p-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-foreground">Ajustes</h1>
-          <p className="text-sm text-muted-foreground">Preferencias y categorías</p>
+          <PageTitle helpTitle="Ajustes" help={PAGE_HELP.settings}>
+            Ajustes
+          </PageTitle>
+          <p className="text-sm text-muted-foreground">Perfil, preferencias y categorías</p>
         </div>
         <Button type="button" onClick={openCreateForm}>
           <Plus className="size-4" aria-hidden="true" />
           Nueva categoría
         </Button>
       </div>
+
+      <section className="mt-8" aria-labelledby="settings-profile-title">
+        <h2 id="settings-profile-title" className="text-lg font-semibold text-foreground">
+          Perfil
+        </h2>
+        <p className="text-sm text-muted-foreground">
+          El nombre con el que te saluda el Dashboard.
+        </p>
+
+        {displayNameQuery.isPending ? (
+          <p className="mt-4 text-sm text-muted-foreground">Cargando perfil...</p>
+        ) : (
+          // La clave remonta el formulario cuando llega o cambia el nombre, para
+          // que el campo muestre el valor guardado.
+          <DisplayNameForm
+            key={displayNameQuery.data ?? ''}
+            defaultName={displayNameQuery.data ?? ''}
+            isSaving={updateDisplayName.isPending}
+            onSave={handleDisplayNameSave}
+          />
+        )}
+      </section>
 
       <section className="mt-8">
         <h2 className="text-lg font-semibold text-foreground">Moneda principal</h2>
@@ -302,5 +350,52 @@ export default function Settings() {
         onConfirm={handleCurrencyConfirm}
       />
     </div>
+  )
+}
+
+interface DisplayNameFormProps {
+  defaultName: string
+  isSaving: boolean
+  onSave: (displayName: string) => void | Promise<void>
+}
+
+/** Nombre del perfil, con la misma regla que el onboarding (entre 1 y 60 caracteres). */
+function DisplayNameForm({ defaultName, isSaving, onSave }: DisplayNameFormProps) {
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<DisplayNameValues>({
+    resolver: zodResolver(displayNameSchema),
+    mode: 'onBlur',
+    defaultValues: { displayName: defaultName },
+  })
+
+  return (
+    <form
+      className="mt-4 flex max-w-sm flex-col gap-2"
+      onSubmit={handleSubmit((values) => onSave(values.displayName))}
+      noValidate
+    >
+      <Label htmlFor="profile-display-name">Nombre</Label>
+      <div className="flex gap-2">
+        <Input
+          id="profile-display-name"
+          autoComplete="given-name"
+          aria-invalid={!!errors.displayName}
+          aria-describedby={errors.displayName ? 'profile-display-name-error' : undefined}
+          {...register('displayName')}
+        />
+        <Button type="submit" disabled={isSaving}>
+          {isSaving && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
+          Guardar
+        </Button>
+      </div>
+      {errors.displayName && (
+        <p id="profile-display-name-error" className="text-sm text-destructive">
+          {errors.displayName.message}
+        </p>
+      )}
+    </form>
   )
 }

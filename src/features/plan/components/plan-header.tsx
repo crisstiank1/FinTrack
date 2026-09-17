@@ -1,5 +1,7 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 
+import { PAGE_HELP } from '@/components/shared/page-help'
+import { PageTitle } from '@/components/shared/page-title'
 import { Button } from '@/components/ui/button'
 import { formatMonthLabel, shiftMonthKey } from '@/lib/dates'
 
@@ -24,7 +26,9 @@ export function PlanHeader({ monthKey, onMonthChange, currencyCode }: PlanHeader
   return (
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div>
-        <h1 className="text-2xl font-semibold text-foreground">Plan mensual</h1>
+        <PageTitle helpTitle="Plan mensual" help={PAGE_HELP.plan}>
+          Plan mensual
+        </PageTitle>
         <p className="mt-0.5 text-sm text-muted-foreground first-letter:uppercase">
           {formatMonthLabel(monthKey)} · {currencyCode}
         </p>
