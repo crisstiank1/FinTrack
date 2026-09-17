@@ -160,11 +160,19 @@ export interface CashflowStatus {
 /* Snapshot: lo único que puede salir hacia el proveedor de IA                 */
 /* -------------------------------------------------------------------------- */
 
-/** Categoría del snapshot. Sin identificador: la referencia es su clave (`c1`). */
+/**
+ * Categoría del snapshot. Sin identificador: la referencia es su clave (`c1`).
+ *
+ * `percentage` va ya en porcentaje (28.4), no en proporción, a diferencia del
+ * `share` de `SpendingCategorySlice`, que conserva el 0..1 que devuelve el
+ * dominio. La conversión se hace una vez, aquí, para que la interfaz no tenga
+ * que multiplicar por 100 al renderizar y no haya dos convenios conviviendo en
+ * la misma pantalla.
+ */
 export interface SnapshotCategory {
   name: string
   amount: number
-  share: number
+  percentage: number
 }
 
 /** Presupuesto del snapshot. Sin identificador: la referencia es su clave (`b1`). */

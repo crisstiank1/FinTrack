@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { currentMonthKey, monthKeyInTimeZone, todayIsoDate } from './dates'
+import { currentMonthKey, isoDateInTimeZone, monthKeyInTimeZone, todayIsoDate } from './dates'
 
 describe('todayIsoDate', () => {
   it('devuelve la fecha local en formato YYYY-MM-DD', () => {
@@ -72,5 +72,28 @@ describe('monthKeyInTimeZone', () => {
 
   it('lanza con una zona horaria que el entorno no reconoce, en vez de caer en UTC', () => {
     expect(() => monthKeyInTimeZone('No/Existe', endOfSeptemberInBogota)).toThrow(RangeError)
+  })
+})
+
+describe('isoDateInTimeZone', () => {
+  it('devuelve el día local, no el de UTC', () => {
+    const instant = new Date('2026-10-01T01:00:00Z')
+
+    expect(isoDateInTimeZone('America/Bogota', instant)).toBe('2026-09-30')
+    expect(isoDateInTimeZone('UTC', instant)).toBe('2026-10-01')
+  })
+
+  it('respeta una zona adelantada respecto a UTC', () => {
+    const instant = new Date('2026-09-30T20:00:00Z')
+
+    expect(isoDateInTimeZone('Asia/Tokyo', instant)).toBe('2026-10-01')
+  })
+
+  it('rellena mes y día a dos cifras', () => {
+    expect(isoDateInTimeZone('UTC', new Date('2026-01-05T12:00:00Z'))).toBe('2026-01-05')
+  })
+
+  it('lanza con una zona horaria que el entorno no reconoce', () => {
+    expect(() => isoDateInTimeZone('No/Existe')).toThrow(RangeError)
   })
 })

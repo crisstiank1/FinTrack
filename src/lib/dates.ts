@@ -45,20 +45,39 @@ export function currentMonthKey(): string {
  * por defecto, por ejemplo—, pero lo decide a la vista.
  */
 export function monthKeyInTimeZone(timeZone: string, date: Date = new Date()): string {
+  const { year, month } = datePartsInTimeZone(timeZone, date)
+  return `${year}-${month}`
+}
+
+/**
+ * Fecha YYYY-MM-DD de un instante **en una zona horaria concreta**.
+ *
+ * Misma razón de ser que `monthKeyInTimeZone`, para cuando hace falta el día y
+ * no solo el mes: acotar "este mes" al día de hoy del usuario, por ejemplo, en
+ * vez de prometer un período que todavía no ha terminado.
+ */
+export function isoDateInTimeZone(timeZone: string, date: Date = new Date()): string {
+  const { year, month, day } = datePartsInTimeZone(timeZone, date)
+  return `${year}-${month}-${day}`
+}
+
+function datePartsInTimeZone(timeZone: string, date: Date) {
   const parts = new Intl.DateTimeFormat('en-US', {
     timeZone,
     year: 'numeric',
     month: '2-digit',
+    day: '2-digit',
   }).formatToParts(date)
 
   const year = parts.find((part) => part.type === 'year')?.value
   const month = parts.find((part) => part.type === 'month')?.value
+  const day = parts.find((part) => part.type === 'day')?.value
 
-  if (!year || !month) {
-    throw new RangeError(`No se pudo resolver el mes en la zona horaria "${timeZone}".`)
+  if (!year || !month || !day) {
+    throw new RangeError(`No se pudo resolver la fecha en la zona horaria "${timeZone}".`)
   }
 
-  return `${year}-${month}`
+  return { year, month, day }
 }
 
 /**

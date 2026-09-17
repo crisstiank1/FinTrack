@@ -195,8 +195,8 @@ El snapshot es lo único que sale hacia el proveedor. Forma:
     "savingsRate": { "current": 71.8, "previous": 74.4, "deltaPoints": -2.6 }
   },
   "categories": {
-    "c1": { "name": "Alimentación", "amount": 240000, "share": 0.284 },
-    "c2": { "name": "Transporte", "amount": 180000, "share": 0.213 }
+    "c1": { "name": "Alimentación", "amount": 240000, "percentage": 28.4 },
+    "c2": { "name": "Transporte", "amount": 180000, "percentage": 21.3 }
   },
   "budgets": {
     "b1": {
