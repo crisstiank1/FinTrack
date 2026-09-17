@@ -301,6 +301,15 @@ de una categoría retirada quedarían congelados con un error dentro.
 
 Las categorías de ingreso no se listan nunca.
 
+### Orden de la lista
+
+Primero lo que tiene **dinero asignado** en el mes (un presupuesto mayor que 0),
+después las de **presupuesto explícito en 0** y al final las que **no tienen
+presupuesto** (`sortByBudgetAssignment`). Lo que se viene a revisar es lo que
+tiene dinero, y con muchas categorías sin presupuesto quedaba enterrado bajo
+ellas. Dentro de cada grupo se conserva el orden de siempre: activas antes que
+archivadas, y por nombre.
+
 ### Alertas
 
 Derivadas, no persistentes: se calculan desde el progreso en cada render. No

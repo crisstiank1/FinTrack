@@ -329,3 +329,52 @@ describe('Budgets — moneda de los presupuestos', () => {
     expect(screen.queryByRole('note')).not.toBeInTheDocument()
   })
 })
+
+describe('Budgets — orden de la lista', () => {
+  it('muestra primero las categorías con dinero asignado, luego las de 0 y al final las demás', () => {
+    // «Arriendo» va primera por nombre, pero no tiene presupuesto: baja al final.
+    useCategories.mockReturnValue({
+      data: [
+        {
+          id: 'cat-rent',
+          name: 'Arriendo',
+          type: 'expense',
+          is_archived: false,
+          color: null,
+          icon: null,
+        },
+        ...categories,
+      ],
+      isPending: false,
+    })
+    useBudgetProgress.mockReturnValue({
+      data: [
+        ...progress,
+        {
+          categoryId: 'cat-rent',
+          budgetMinor: null,
+          spentMinor: 0,
+          remainingMinor: null,
+          ratio: null,
+          status: 'unbudgeted',
+          source: null,
+        },
+      ],
+      isPending: false,
+      isError: false,
+    })
+
+    renderBudgets()
+
+    const nombres = ['Alimentación', 'Entretenimiento', 'Gimnasio', 'Arriendo']
+      .map((nombre) => ({ nombre, fila: screen.getByText(nombre).closest('li') as HTMLElement }))
+      .sort((a, b) =>
+        a.fila.compareDocumentPosition(b.fila) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1,
+      )
+      .map(({ nombre }) => nombre)
+
+    // Con dinero, en el orden de siempre (activas antes que archivadas); después
+    // el 0 explícito; al final lo que no tiene presupuesto.
+    expect(nombres).toEqual(['Alimentación', 'Gimnasio', 'Entretenimiento', 'Arriendo'])
+  })
+})
