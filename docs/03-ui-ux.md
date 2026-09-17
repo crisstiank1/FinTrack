@@ -112,7 +112,7 @@ Durante onboarding, crear las categorías por usuario mediante una estrategia se
 ### Ingresos
 
 - Salario.
-- Freelance.
+- Bono.
 - Ventas.
 - Inversiones.
 - Reembolsos.
@@ -124,7 +124,7 @@ Durante onboarding, crear las categorías por usuario mediante una estrategia se
 - Vivienda.
 - Servicios públicos.
 - Internet y telefonía.
-- Alimentación.
+- Mercado.
 - Transporte.
 - Salud.
 - Educación.
@@ -134,10 +134,10 @@ Durante onboarding, crear las categorías por usuario mediante una estrategia se
 ### Gastos flexibles
 
 - Restaurantes.
-- Entretenimiento.
+- Ocio.
 - Suscripciones.
 - Ropa.
-- Compras personales.
+- Gastos hormiga.
 - Viajes.
 - Mascotas.
 - Regalos.

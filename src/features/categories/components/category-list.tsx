@@ -1,6 +1,7 @@
 import { Pencil } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
+import { SWATCHES } from '@/components/ui/color-picker'
 import { getIcon } from '@/lib/icons'
 import type { Tables } from '@/types/database.types'
 
@@ -41,7 +42,10 @@ function CategoryGroup({
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         {categories.map((category, index) => {
           const Icon = getIcon(category.icon)
-          const accentColor = category.color ?? (category.type === 'income' ? '#16805B' : '#765362')
+          // Sin color propio (categorías creadas antes de guardar colores),
+          // cada una recibe uno distinto de la paleta según su posición, en
+          // vez de repetir el mismo tono para toda la lista.
+          const accentColor = category.color ?? SWATCHES[index % SWATCHES.length]
 
           return (
             <div

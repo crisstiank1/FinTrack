@@ -1,3 +1,4 @@
+import { SWATCHES } from '@/components/ui/color-picker'
 import {
   calculateBalancesByCurrency,
   calculateConsolidatedBalance,
@@ -256,7 +257,7 @@ export function buildCategoryBreakdown(
     .map(([id, amountMinor]) => ({
       id,
       name: categoryById.get(id)?.name ?? 'Sin categoría',
-      color: categoryById.get(id)?.color ?? FALLBACK_SLICE_COLOR,
+      color: categoryById.get(id)?.color ?? null,
       amountMinor,
     }))
     .sort((a, b) => b.amountMinor - a.amountMinor)
@@ -264,8 +265,16 @@ export function buildCategoryBreakdown(
   const visible = ranked.length > maxSlices ? ranked.slice(0, maxSlices - 1) : ranked
   const rest = ranked.slice(visible.length)
 
+  // Las categorías sin color propio (por ejemplo, creadas antes de guardar
+  // colores) reciben uno de la paleta según su posición, en vez de repetir
+  // el mismo gris para todas y volver el donut ilegible.
+  const paletted = visible.map((slice, index) => ({
+    ...slice,
+    color: slice.color ?? SWATCHES[index % SWATCHES.length],
+  }))
+
   if (rest.length > 0) {
-    visible.push({
+    paletted.push({
       id: 'other',
       name: 'Otras categorías',
       color: FALLBACK_SLICE_COLOR,
@@ -273,7 +282,7 @@ export function buildCategoryBreakdown(
     })
   }
 
-  return visible.map((slice) => ({ ...slice, share: slice.amountMinor / total }))
+  return paletted.map((slice) => ({ ...slice, share: slice.amountMinor / total }))
 }
 
 export interface TrendPoint {

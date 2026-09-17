@@ -63,11 +63,12 @@ export function OnboardingWizard() {
       if (accountsError) throw accountsError
 
       const { error: categoriesError } = await supabase.from('categories').insert(
-        DEFAULT_CATEGORIES.map((category) => ({
+        DEFAULT_CATEGORIES.map((category, index) => ({
           user_id: user.id,
           name: category.name,
           type: category.type,
           icon: category.icon,
+          color: SWATCHES[index % SWATCHES.length],
           is_system: true,
         })),
       )
