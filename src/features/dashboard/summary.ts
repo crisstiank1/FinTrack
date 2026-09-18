@@ -1,4 +1,3 @@
-import { SWATCHES } from '@/components/ui/color-picker'
 import {
   calculateBalancesByCurrency,
   calculateConsolidatedBalance,
@@ -11,6 +10,7 @@ import {
 } from '@/lib/calculations'
 import { sortCurrencyCodes } from '@/lib/currency'
 import { formatMonthShort, monthOfIsoDate, previousMonthKey, recentMonthKeys } from '@/lib/dates'
+import { SWATCHES } from '@/lib/palette'
 
 /** Subconjunto de columnas que el dashboard necesita de una cuenta. */
 export interface DashboardAccount {
@@ -85,8 +85,18 @@ function scopeAccounts(
   )
 }
 
-/** Movimientos de las cuentas del alcance. Sin filtros, todos. */
-function scopeTransactions(
+/**
+ * Movimientos de las cuentas del alcance. Sin filtros, todos.
+ *
+ * Se exporta para que la comparación entre meses (`comparison.ts`) recorte
+ * exactamente igual que el resto del dashboard. La diferencia con
+ * `partitionByAccountCurrency` importa: aquí un movimiento cuya cuenta no está
+ * en la lista **queda fuera**, mientras que en el Plan y el Libro una cuenta
+ * desconocida se queda dentro, en la moneda de la pantalla. Dos cálculos que
+ * dijeran "gasto de septiembre en COP" con criterios distintos acabarían dando
+ * cifras distintas.
+ */
+export function scopeTransactions(
   transactions: DashboardTransaction[],
   accounts: DashboardAccount[],
   filters: Pick<DashboardScope, 'accountId' | 'currencyCode'>,

@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { accountTypeOptions } from '@/features/accounts/schemas'
 import { formatAmount } from '@/lib/currency'
 import { getIcon } from '@/lib/icons'
+import { cn } from '@/lib/utils'
 import type { Tables } from '@/types/database.types'
 
 interface AccountCardProps {
@@ -18,24 +19,24 @@ interface AccountCardProps {
   onArchive: () => void
 }
 
-export function AccountCard({
-  account,
-  balanceMinor,
-  index,
-  onEdit,
-  onArchive,
-}: AccountCardProps) {
+export function AccountCard({ account, balanceMinor, index, onEdit, onArchive }: AccountCardProps) {
   const Icon = getIcon(account.icon)
   const typeLabel =
     accountTypeOptions.find((option) => option.value === account.type)?.label ?? account.type
-  const accentColor = account.color ?? '#E83E8C'
+  const FALLBACK_ACCENT = '#E83E8C'
+  const accentColor = account.color ?? FALLBACK_ACCENT
+  const isFallbackAccent = accentColor.toUpperCase() === FALLBACK_ACCENT
 
   return (
     <div
       className="animate-card-in relative flex flex-col justify-between overflow-hidden rounded-2xl border border-border bg-card p-5 text-card-foreground shadow-sm transition-opacity duration-300"
       style={{ animationDelay: `${index * 40}ms`, opacity: account.is_archived ? 0.6 : 1 }}
     >
-      <div className="absolute inset-x-0 top-0 h-1.5" style={{ backgroundColor: accentColor }} aria-hidden="true" />
+      <div
+        className={cn('absolute inset-x-0 top-0 h-1.5', isFallbackAccent && 'bg-primary')}
+        style={isFallbackAccent ? undefined : { backgroundColor: accentColor }}
+        aria-hidden="true"
+      />
 
       <div className="flex items-start justify-between">
         <div
@@ -57,7 +58,9 @@ export function AccountCard({
         <p className="mt-1 text-2xl font-semibold tabular-nums text-foreground">
           {formatAmount(balanceMinor, account.currency_code)}
         </p>
-        <p className="mt-0.5 text-xs text-muted-foreground">Dinero actual disponible en esta cuenta</p>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          Dinero actual disponible en esta cuenta
+        </p>
       </div>
 
       {!account.is_archived && (

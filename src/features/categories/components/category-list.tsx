@@ -1,8 +1,8 @@
 import { Pencil } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
-import { SWATCHES } from '@/components/ui/color-picker'
 import { getIcon } from '@/lib/icons'
+import { SWATCHES } from '@/lib/palette'
 import type { Tables } from '@/types/database.types'
 
 interface CategoryListProps {

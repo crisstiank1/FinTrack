@@ -1,0 +1,26 @@
+{
+  "imports": {
+    "@supabase/supabase-js": "npm:@supabase/supabase-js@^2.49.1",
+    "date-fns": "npm:date-fns@^4.4.0",
+    "date-fns/locale": "npm:date-fns@^4.4.0/locale",
+    "dinero.js": "npm:dinero.js@^2.0.2",
+    "@/features/coach/request": "../../src/features/coach/request.ts",
+    "@/features/coach/responses": "../../src/features/coach/responses.ts",
+    "@/features/budgets/progress": "../../src/features/budgets/progress.ts",
+    "@/lib/calculations": "../../src/lib/calculations.ts",
+    "@/lib/currency": "../../src/lib/currency.ts",
+    "@/lib/dates": "../../src/lib/dates.ts",
+    "@/lib/palette": "../../src/lib/palette.ts",
+    "@/types/database.types": "../../src/types/database.types.ts",
+    "../../src/features/coach/context": "../../src/features/coach/context.ts",
+    "../../src/features/coach/contracts": "../../src/features/coach/contracts.ts",
+    "../../src/features/coach/responses": "../../src/features/coach/responses.ts",
+    "../../src/features/coach/scope": "../../src/features/coach/scope.ts",
+    "../../src/features/budgets/resolution": "../../src/features/budgets/resolution.ts",
+    "../../src/features/dashboard/comparison": "../../src/features/dashboard/comparison.ts",
+    "../../src/features/dashboard/summary": "../../src/features/dashboard/summary.ts",
+    "@/features/coach/http": "../../src/features/coach/http.ts",
+    "../../src/features/coach/request": "../../src/features/coach/request.ts",
+    "../../src/features/coach/http": "../../src/features/coach/http.ts"
+  }
+}

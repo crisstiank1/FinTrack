@@ -9,7 +9,7 @@ import { WelcomeStep } from '@/features/onboarding/components/welcome-step'
 import type { DraftAccountValues, WelcomeStepValues } from '@/features/onboarding/schemas'
 import { useAuth } from '@/features/auth/auth-provider'
 import { DEFAULT_CATEGORIES } from '@/features/categories/default-categories'
-import { SWATCHES } from '@/components/ui/color-picker'
+import { SWATCHES } from '@/lib/palette'
 import { supabase } from '@/lib/supabase'
 
 const TOTAL_STEPS = 4

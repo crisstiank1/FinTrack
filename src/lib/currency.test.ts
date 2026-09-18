@@ -28,6 +28,14 @@ describe('formatAmount', () => {
   it('respeta el código de moneda indicado', () => {
     expect(formatAmount(1200000, 'USD')).toBe('USD 1.200.000')
   })
+
+  it('todas las monedas usan exponente 0: el mismo entero da los mismos dígitos', () => {
+    // 15000 es "quince mil", no "ciento cincuenta". Ninguna moneda divide
+    // entre 100, tampoco las que en otros sistemas tendrían centavos.
+    expect(formatAmount(15000, 'COP')).toBe('COP 15.000')
+    expect(formatAmount(15000, 'USD')).toBe('USD 15.000')
+    expect(formatAmount(15000, 'ARS')).toBe('ARS 15.000')
+  })
 })
 
 describe('catálogo de monedas', () => {

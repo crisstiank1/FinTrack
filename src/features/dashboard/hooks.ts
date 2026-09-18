@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 
 import { useAuth } from '@/features/auth/auth-provider'
+import { supabase } from '@/lib/supabase'
 
 import { fetchAllTransactions } from './api'
 
@@ -16,7 +17,7 @@ export function useAllTransactions(options?: { enabled?: boolean }) {
 
   return useQuery({
     queryKey: ['transactions', user?.id, 'all'],
-    queryFn: () => fetchAllTransactions(user!.id),
+    queryFn: () => fetchAllTransactions(supabase, user!.id),
     // El libro solo necesita el historial si el usuario activa la columna de
     // saldo acumulado, así que puede pedirse desactivado.
     enabled: !!user && (options?.enabled ?? true),

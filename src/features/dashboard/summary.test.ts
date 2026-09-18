@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
+import { SWATCHES } from '@/lib/palette'
+
 import {
   buildCategoryBreakdown,
   buildCurrencyBalances,
@@ -283,6 +285,23 @@ describe('buildCategoryBreakdown', () => {
     const slices = buildCategoryBreakdown({ ...mixedScope, currencyCode: 'COP', categories })
 
     expect(slices.map((slice) => slice.amountMinor)).toEqual([120_000, 30_000])
+  })
+
+  it('da a las categorías sin color propio uno de la paleta según su posición', () => {
+    const colorless: DashboardCategory[] = categories.map((category) => ({
+      ...category,
+      color: null,
+    }))
+
+    const slices = buildCategoryBreakdown({ ...scope, categories: colorless })
+
+    expect(slices.map((slice) => slice.color)).toEqual([SWATCHES[0], SWATCHES[1]])
+  })
+
+  it('respeta el color propio de la categoría cuando lo tiene', () => {
+    const slices = buildCategoryBreakdown({ ...scope, categories })
+
+    expect(slices.map((slice) => slice.color)).toEqual(['#F00', '#00F'])
   })
 
   it('devuelve una lista vacía cuando el mes no tuvo gastos', () => {

@@ -1,15 +1,5 @@
+import { SWATCHES } from '@/lib/palette'
 import { cn } from '@/lib/utils'
-
-export const SWATCHES = [
-  '#E83E8C',
-  '#A855F7',
-  '#3B82F6',
-  '#16805B',
-  '#B26B00',
-  '#C62848',
-  '#0EA5E9',
-  '#64748B',
-] as const
 
 interface ColorPickerProps {
   value: string | null
