@@ -1,19 +1,24 @@
 import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 import { AmountInput } from './amount-input'
 
 /** Campo controlado, como lo usa el formulario rápido. */
-function Controlled({ onChange = vi.fn(), initial = 0 }) {
+function Controlled({ onChange = vi.fn(), initial = 0, currency = 'COP' }: {
+  onChange?: (value: number) => void
+  initial?: number
+  currency?: string
+}) {
   const [value, setValue] = useState(initial)
 
   return (
     <>
-      <label htmlFor="amount">Monto (COP)</label>
+      <label htmlFor="amount">Monto ({currency})</label>
       <AmountInput
         id="amount"
+        currency={currency}
         value={value}
         onChange={(next) => {
           setValue(next)
@@ -24,8 +29,8 @@ function Controlled({ onChange = vi.fn(), initial = 0 }) {
   )
 }
 
-function field() {
-  return screen.getByLabelText('Monto (COP)') as HTMLInputElement
+function field(currency = 'COP') {
+  return screen.getByLabelText(`Monto (${currency})`) as HTMLInputElement
 }
 
 describe('AmountInput', () => {
@@ -62,13 +67,40 @@ describe('AmountInput', () => {
     expect(screen.getByText('$')).toBeInTheDocument()
   })
 
-  it('ignora lo que no sean dígitos', async () => {
+  it('convierte los digitados con el exponente de la moneda al reportar', async () => {
+    const onChange = vi.fn()
+    const user = userEvent.setup()
+    render(<Controlled onChange={onChange} currency="USD" />)
+
+    await user.type(field('USD'), '45,99')
+
+    expect(onChange).toHaveBeenLastCalledWith(4599)
+  })
+
+  it('muestra centavos al editar un importe existente en USD', () => {
+    render(<Controlled currency="USD" initial={4599} />)
+
+    expect(field('USD').value).toBe('45,99')
+  })
+
+  it('pisa los decimales al salir del campo', async () => {
+    const user = userEvent.setup()
+    render(<Controlled currency="USD" />)
+
+    await user.type(field('USD'), '10')
+    fireEvent.blur(field('USD'))
+
+    expect(field('USD')).toHaveValue('10,00')
+  })
+
+  it('en COP ignora lo que no sean dígitos: 1a2,5 queda 125', async () => {
     const onChange = vi.fn()
     const user = userEvent.setup()
     render(<Controlled onChange={onChange} />)
 
-    await user.type(field(), '$1a2,5')
+    await user.type(field(), '1a2,5')
 
+    // COP no tiene decimales: la coma se descarta y quedan los dígitos.
     expect(onChange).toHaveBeenLastCalledWith(125)
   })
 })

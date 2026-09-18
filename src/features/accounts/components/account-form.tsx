@@ -122,6 +122,7 @@ export function AccountForm({
           id="account-initial-balance"
           aria-invalid={!!errors.initialBalance}
           aria-describedby="account-balance-hint"
+          currency={currencyCode || 'COP'}
           value={initialBalance}
           onChange={(value) => setValue('initialBalance', value, { shouldValidate: true })}
         />

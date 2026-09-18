@@ -50,7 +50,7 @@ export function IncomeExpenseChart({ trend, currencyCode }: IncomeExpenseChartPr
               axisLine={false}
               width={48}
               tick={{ fill: theme.axis, fontSize: 11 }}
-              tickFormatter={(value: number) => formatCompactAmount(value)}
+              tickFormatter={(value: number) => formatCompactAmount(value, currencyCode)}
             />
             <Tooltip
               cursor={{ fill: theme.grid, fillOpacity: 0.35 }}

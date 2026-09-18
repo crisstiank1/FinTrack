@@ -105,6 +105,7 @@ export function TransactionForm({
         <CurrencyInput
           id="transaction-amount"
           aria-invalid={!!errors.amount}
+          currency={amountCurrency}
           value={amount}
           onChange={(value) => setValue('amount', value, { shouldValidate: true })}
         />

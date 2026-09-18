@@ -469,8 +469,8 @@ describe('Dashboard', () => {
 
       const hero = kpi('Saldo consolidado')
       expect(hero.getByText('Cuentas en COP')).toBeInTheDocument()
-      // USD: 1.000 + 500 - 200. ARS: saldo inicial de una cuenta archivada.
-      expect(hero.getByText('USD 1.300 · ARS 20.000')).toBeInTheDocument()
+      // USD: 1.000 + 500 - 200 = 1300 centavos. ARS: saldo inicial de una cuenta archivada.
+      expect(hero.getByText('USD 13,00 · ARS 200,00')).toBeInTheDocument()
       expect(
         screen.getByText(
           'Cifras en COP. Tus cuentas en USD y ARS no se suman: su saldo aparece aparte, sin convertir.',
@@ -483,9 +483,9 @@ describe('Dashboard', () => {
 
       renderDashboard()
 
-      expect(kpi('Saldo consolidado').getByText('USD 1.300')).toBeInTheDocument()
-      expect(kpi('Ingresos del mes').getByText('USD 500')).toBeInTheDocument()
-      expect(kpi('Saldo consolidado').getByText('COP 300.000 · ARS 20.000')).toBeInTheDocument()
+      expect(kpi('Saldo consolidado').getByText('USD 13,00')).toBeInTheDocument()
+      expect(kpi('Ingresos del mes').getByText('USD 5,00')).toBeInTheDocument()
+      expect(kpi('Saldo consolidado').getByText('COP 300.000 · ARS 200,00')).toBeInTheDocument()
     })
 
     it('usa la primera cuenta si no hay cuentas en la moneda principal', () => {
@@ -547,7 +547,7 @@ describe('Dashboard', () => {
       expect(panel.getByText(/superó su presupuesto por COP 20.000/)).toBeInTheDocument()
       expect(panel.queryByText(/USD 20.000/)).not.toBeInTheDocument()
       // La alerta global sale del resumen de la cuenta USD y va en USD.
-      expect(panel.getByText(/Gastaste USD 900 más de lo que ingresaste/)).toBeInTheDocument()
+      expect(panel.getByText(/Gastaste USD 9,00 más de lo que ingresaste/)).toBeInTheDocument()
     })
 
     it('al elegir una cuenta en otra moneda todo pasa a esa moneda, sin saldos aparte', async () => {
@@ -556,8 +556,8 @@ describe('Dashboard', () => {
 
       await user.selectOptions(viewControls().getByLabelText('Cuenta'), 'acc-usd')
 
-      expect(kpi('Saldo consolidado').getByText('USD 1.300')).toBeInTheDocument()
-      expect(kpi('Gastos del mes').getByText('USD 200')).toBeInTheDocument()
+      expect(kpi('Saldo consolidado').getByText('USD 13,00')).toBeInTheDocument()
+      expect(kpi('Gastos del mes').getByText('USD 2,00')).toBeInTheDocument()
       expect(screen.queryByText(/Otras monedas/)).not.toBeInTheDocument()
       expect(screen.queryByText(/Cifras en/)).not.toBeInTheDocument()
     })

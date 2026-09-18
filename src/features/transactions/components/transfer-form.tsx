@@ -153,6 +153,7 @@ export function TransferForm({
         <CurrencyInput
           id="transfer-amount"
           aria-invalid={!!errors.amount}
+          currency={fromCurrency}
           value={amount}
           onChange={(value) => setValue('amount', value, { shouldValidate: true })}
         />
@@ -171,6 +172,7 @@ export function TransferForm({
           <CurrencyInput
             id="transfer-received-amount"
             aria-invalid={!!errors.receivedAmount}
+            currency={toCurrency}
             value={receivedAmount ?? 0}
             onChange={(value) =>
               setValue('receivedAmount', value > 0 ? value : undefined, { shouldValidate: true })

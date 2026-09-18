@@ -359,7 +359,7 @@ describe('Ledger', () => {
 
       const table = within(screen.getByRole('table'))
       const usdRow = within(table.getByText('Pago en dólares').closest('tr')!)
-      expect(usdRow.getByText('+ USD 1.500')).toBeInTheDocument()
+      expect(usdRow.getByText('+ USD 15,00')).toBeInTheDocument()
       const copRow = within(table.getByText('Mercado del mes').closest('tr')!)
       expect(copRow.getByText('− COP 50.000')).toBeInTheDocument()
     })
@@ -367,9 +367,9 @@ describe('Ledger', () => {
     it('separa el resumen por moneda, con la principal primero y sin sumarlas', () => {
       renderLedger()
 
-      expect(summaryLines('Ingresos')).toEqual(['COP 300.000', 'USD 1.500'])
-      expect(summaryLines('Gastos')).toEqual(['COP 50.000', 'USD 400'])
-      expect(summaryLines('Balance')).toEqual(['COP 250.000', 'USD 1.100'])
+      expect(summaryLines('Ingresos')).toEqual(['COP 300.000', 'USD 15,00'])
+      expect(summaryLines('Gastos')).toEqual(['COP 50.000', 'USD 4,00'])
+      expect(summaryLines('Balance')).toEqual(['COP 250.000', 'USD 11,00'])
       expect(summaryLines('Movimientos')).toEqual(['121'])
     })
 
@@ -378,7 +378,7 @@ describe('Ledger', () => {
 
       renderLedger()
 
-      expect(summaryLines('Ingresos')).toEqual(['USD 1.500', 'COP 300.000'])
+      expect(summaryLines('Ingresos')).toEqual(['USD 15,00', 'COP 300.000'])
     })
 
     it('ofrece un selector de moneda con la principal primero', () => {
@@ -444,8 +444,8 @@ describe('Ledger', () => {
 
       await user.selectOptions(screen.getByRole('combobox', { name: 'Moneda' }), 'USD')
 
-      expect(summaryLines('Ingresos')).toEqual(['USD 0'])
-      expect(summaryLines('Balance')).toEqual(['USD 0'])
+      expect(summaryLines('Ingresos')).toEqual(['USD 0,00'])
+      expect(summaryLines('Balance')).toEqual(['USD 0,00'])
     })
 
     it('exporta a CSV solo las cuentas de la moneda elegida', async () => {
@@ -516,11 +516,11 @@ describe('Ledger', () => {
       renderLedger()
 
       const table = within(screen.getByRole('table'))
-      const outRow = within(table.getByText('→ Cuenta USD · + USD 25').closest('tr')!)
+      const outRow = within(table.getByText('→ Cuenta USD · + USD 0,25').closest('tr')!)
       expect(outRow.getByText('− COP 100.000')).toBeInTheDocument()
       expect(outRow.getByText('Bancolombia')).toBeInTheDocument()
       const inRow = within(table.getByText('← Bancolombia · − COP 100.000').closest('tr')!)
-      expect(inRow.getByText('+ USD 25')).toBeInTheDocument()
+      expect(inRow.getByText('+ USD 0,25')).toBeInTheDocument()
 
       // Dos filas, no cuatro: la contraparte es información de la fila.
       expect(table.getAllByText('Paso a dólares')).toHaveLength(2)
@@ -528,13 +528,13 @@ describe('Ledger', () => {
 
       // La misma contraparte aparece también en la tarjeta de móvil.
       const outCard = screen
-        .getAllByText('→ Cuenta USD · + USD 25')
+        .getAllByText('→ Cuenta USD · + USD 0,25')
         .find((element) => element.closest('li'))
       const inCard = screen
         .getAllByText('← Bancolombia · − COP 100.000')
         .find((element) => element.closest('li'))
       expect(within(outCard!.closest('li')!).getByText('− COP 100.000')).toBeInTheDocument()
-      expect(within(inCard!.closest('li')!).getByText('+ USD 25')).toBeInTheDocument()
+      expect(within(inCard!.closest('li')!).getByText('+ USD 0,25')).toBeInTheDocument()
     })
 
     it('las transferencias entre monedas no entran en el resumen por moneda', () => {
@@ -554,9 +554,9 @@ describe('Ledger', () => {
 
       // USD aparece porque tiene movimientos en el conjunto, pero la pata que
       // entra no suma ingresos ni balance, y la que sale no resta en COP.
-      expect(summaryLines('Ingresos')).toEqual(['COP 300.000', 'USD 0'])
-      expect(summaryLines('Gastos')).toEqual(['COP 0', 'USD 0'])
-      expect(summaryLines('Balance')).toEqual(['COP 300.000', 'USD 0'])
+      expect(summaryLines('Ingresos')).toEqual(['COP 300.000', 'USD 0,00'])
+      expect(summaryLines('Gastos')).toEqual(['COP 0', 'USD 0,00'])
+      expect(summaryLines('Balance')).toEqual(['COP 300.000', 'USD 0,00'])
     })
 
     it('no calcula el saldo acumulado mezclando monedas y explica cómo verlo', async () => {
@@ -647,7 +647,7 @@ describe('Ledger — editar transferencias (M8)', () => {
     const dialog = within(screen.getByRole('dialog'))
     expect(dialog.getByText('Editar transferencia')).toBeInTheDocument()
     expect((dialog.getByLabelText('Monto enviado (COP)') as HTMLInputElement).value).toBe('100.000')
-    expect((dialog.getByLabelText('Monto recibido (USD)') as HTMLInputElement).value).toBe('25')
+    expect((dialog.getByLabelText('Monto recibido (USD)') as HTMLInputElement).value).toBe('0,25')
     expect(optionLabels(dialog.getByLabelText('Hacia'))).toEqual(['Selecciona...', 'Cuenta USD'])
   })
 

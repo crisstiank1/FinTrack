@@ -1,21 +1,128 @@
-import { dinero, toDecimal } from 'dinero.js'
+// FinTrack guarda amount_minor como unidades mínimas de la moneda
+// (ver docs/02-base-de-datos.md: "COP 15.000 se guarda como 15000"). Lo que
+// es una "unidad mínima" depende de la moneda: COP trabaja en pesos enteros
+// (exponente 0), mientras que USD, EUR, MXN, ARS y PEN lo hacen en centavos
+// (exponente 2). Todos los montos se guardan como enteros, pero la escala de
+// cada moneda la decide su exponente.
 
-// FinTrack guarda amount_minor como unidades enteras de la moneda
-// (ver docs/02-base-de-datos.md: "COP 15.000 se guarda como 15000"),
-// no como centavos. Por eso el exponente es siempre 0.
-const MINOR_UNIT_EXPONENT = 0
+/**
+ * Diccionario de exponentes por moneda, según ISO 4217:
+ * 0 = sin decimales (COP, CLP, JPY), 2 = con centavos (USD, EUR, MXN, ARS, PEN).
+ */
+export const CURRENCY_EXPONENTS: Record<string, number> = {
+  COP: 0,
+  CLP: 0,
+  JPY: 0,
+  USD: 2,
+  EUR: 2,
+  MXN: 2,
+  ARS: 2,
+  PEN: 2,
+}
 
-function currencyDefinition(code: string) {
-  return { code, base: 10 as const, exponent: MINOR_UNIT_EXPONENT }
+/**
+ * Exponente decimal de una moneda. Por seguridad, asume 2 decimales si no la
+ * conoce: para un código desconocido, equivocarse de escala es más caro que
+ * mostrar dos decimales.
+ */
+export function getCurrencyExponent(currency: string): number {
+  return CURRENCY_EXPONENTS[currency.toUpperCase()] ?? 2
+}
+
+/**
+ * De unidades mayores (lo que el usuario escribe, ej. 45.99) a unidades
+ * mínimas (ej. 4599). `Math.round` evita el clásico 45.99 * 100 = 4598.99…
+ */
+export function toMinorUnit(majorAmount: number, currency: string): number {
+  const exponent = getCurrencyExponent(currency)
+  return Math.round(majorAmount * Math.pow(10, exponent))
+}
+
+/**
+ * De unidades mínimas (ej. 4599) a unidades mayores (ej. 45.99). Es el reverso
+ * exacto de `toMinorUnit` para el mismo exponente.
+ */
+export function toMajorUnit(minorAmount: number, currency: string): number {
+  return minorAmount / Math.pow(10, getCurrencyExponent(currency))
 }
 
 export function formatAmount(amountMinor: number, currencyCode: string): string {
-  const money = dinero({ amount: amountMinor, currency: currencyDefinition(currencyCode) })
-  const decimal = toDecimal(money)
-  const formatted = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 }).format(
-    Number(decimal),
-  )
+  const exponent = getCurrencyExponent(currencyCode)
+  const majorAmount = toMajorUnit(amountMinor, currencyCode)
+  const formatted = new Intl.NumberFormat('es-CO', {
+    minimumFractionDigits: exponent,
+    maximumFractionDigits: exponent,
+  }).format(majorAmount)
   return `${currencyCode} ${formatted}`
+}
+
+/**
+ * Normaliza el texto que el usuario está escribiendo en un campo de importe:
+ * deja solo dígitos y, si `exponent > 0`, un único separador decimal (se
+ * aceptan '.' y ','), con la fracción recortada a `exponent` decimales. Para
+ * exponente 0 el separador desaparece y quedan solo dígitos.
+ */
+/**
+ * Normaliza el texto que el usuario está escribiendo en un campo de importe.
+ *
+ * El campo se muestra con agrupación local ('1.500' mientras se teclea), así
+ * que el parseo tiene que soportar dos cosas a la vez: los separadores de miles
+ * que el propio campo introdujo y el separador decimal (',' o '.') que el
+ * usuario escribe para monedas con centavos.
+ *
+ * Reglas:
+ * - Exponente 0: solo importan los dígitos; '.' y ',' se descartan (los miles
+ *   aquí no existen, y COP no tiene fracción).
+ * - Exponente > 0: el separador decimal es el ÚLTIMO que venga seguido de como
+ *   mucho `exponent` dígitos ('1.500,50' → miles '.' y decimal ','; '45.99' →
+ *   decimal '.' por no tener miles). Si ninguno cumple, todos fueron miles y se
+ *   descartan ('1.500' → 1500).
+ */
+export function sanitizeMoneyText(text: string, exponent: number): string {
+  const clean = text.replace(/[^0-9.,]+/g, '')
+  if (exponent === 0) return clean.replace(/[.,]/g, '')
+  let decimalIdx = -1
+  let idx = clean.length
+  while (idx > 0) {
+    idx -= 1
+    const char = clean[idx]
+    if (char !== ',' && char !== '.') continue
+    if (clean.length - idx - 1 <= exponent) {
+      decimalIdx = idx
+      break
+    }
+  }
+  if (decimalIdx === -1) return clean.replace(/[.,]/g, '')
+  const integer = clean.slice(0, decimalIdx).replace(/[.,]/g, '')
+  const fraction = clean.slice(decimalIdx + 1).replace(/[.,]/g, '').slice(0, exponent)
+  return `${integer}${clean[decimalIdx]}${fraction}`
+}
+
+/** Texto saneado a unidades mayores; texto vacío o inválido devuelve 0. */
+export function moneyTextToMajor(text: string): number {
+  if (!text) return 0
+  const value = Number(text.replace(',', '.'))
+  return Number.isFinite(value) ? value : 0
+}
+
+/** Agrupa el entero con separadores de miles y conserva la fracción escrita. */
+export function groupMoneyText(text: string): string {
+  const sepIndex = text.search(/[,.]/)
+  if (sepIndex === -1) {
+    const digits = text.replace(/[^\d]/g, '')
+    return digits ? new Intl.NumberFormat('es-CO').format(Number(digits)) : ''
+  }
+  const integer = text.slice(0, sepIndex).replace(/[^\d]/g, '')
+  const grouped = integer ? new Intl.NumberFormat('es-CO').format(Number(integer)) : '0'
+  return `${grouped}${text.slice(sepIndex)}`
+}
+
+/** Unidades mayores fijadas a `exponent` decimales, para mostrar al salir del campo. */
+export function formatMajorUnits(majorAmount: number, exponent: number): string {
+  return new Intl.NumberFormat('es-CO', {
+    minimumFractionDigits: exponent,
+    maximumFractionDigits: exponent,
+  }).format(majorAmount)
 }
 
 /**
@@ -23,11 +130,12 @@ export function formatAmount(amountMinor: number, currencyCode: string): string 
  * un valor completo como '4.250.000' no cabe. Nunca usarlo para las cifras
  * principales: ahí se necesita el valor exacto.
  */
-export function formatCompactAmount(amountMinor: number): string {
+export function formatCompactAmount(amountMinor: number, currencyCode: string = 'COP'): string {
+  const majorAmount = toMajorUnit(amountMinor, currencyCode)
   return new Intl.NumberFormat('es-CO', {
     notation: 'compact',
     maximumFractionDigits: 1,
-  }).format(amountMinor)
+  }).format(majorAmount)
 }
 
 /** Códigos del catálogo completo de monedas de FinTrack. */

@@ -78,7 +78,7 @@ describe('TransferForm', () => {
       await user.selectOptions(screen.getByLabelText('Hacia'), 'acc-usd-2')
       await user.type(screen.getByLabelText('Monto'), '40')
 
-      expect(screen.getByText('Equivale a USD 40')).toBeInTheDocument()
+      expect(screen.getByText('Equivale a USD 40,00')).toBeInTheDocument()
     })
   })
 
@@ -120,7 +120,7 @@ describe('TransferForm', () => {
       await user.type(screen.getByLabelText('Monto recibido (USD)'), '25')
 
       expect(screen.getByText('Equivale a COP 100.000')).toBeInTheDocument()
-      expect(screen.getByText('Equivale a USD 25')).toBeInTheDocument()
+      expect(screen.getByText('Equivale a USD 25,00')).toBeInTheDocument()
 
       await user.click(screen.getByRole('button', { name: /transferir/i }))
 
@@ -129,7 +129,7 @@ describe('TransferForm', () => {
           fromAccountId: 'acc-1',
           toAccountId: 'acc-usd',
           amount: 100000,
-          receivedAmount: 25,
+          receivedAmount: 2500,
         }),
         expect.anything(),
       )
@@ -286,7 +286,7 @@ describe('TransferForm — edición (M8)', () => {
     expect((screen.getByLabelText('Desde') as HTMLSelectElement).value).toBe('acc-1')
     expect((screen.getByLabelText('Hacia') as HTMLSelectElement).value).toBe('acc-usd')
     expect((screen.getByLabelText('Monto enviado (COP)') as HTMLInputElement).value).toBe('100.000')
-    expect((screen.getByLabelText('Monto recibido (USD)') as HTMLInputElement).value).toBe('25')
+    expect((screen.getByLabelText('Monto recibido (USD)') as HTMLInputElement).value).toBe('0,25')
     expect((screen.getByLabelText('Fecha') as HTMLInputElement).value).toBe('2026-09-10')
   })
 

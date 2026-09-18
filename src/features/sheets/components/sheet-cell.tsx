@@ -112,11 +112,13 @@ export function AmountCell({
   onBlur,
   error,
   helper,
-}: GridCellProps & { helper?: string }) {
+  currency = 'COP',
+}: GridCellProps & { helper?: string; currency?: string }) {
   return (
     <SheetCell error={error}>
       <CurrencyInput
         className="h-9"
+        currency={currency}
         value={value ? Number(value) : 0}
         onChange={(numeric) => onChange(numeric ? String(numeric) : '')}
         onBlur={onBlur}

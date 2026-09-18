@@ -202,6 +202,7 @@ export function QuickTransactionForm({
           id="quick-amount"
           aria-invalid={!!errors.amount}
           aria-describedby="quick-amount-hint"
+          currency={amountCurrency}
           value={amount}
           onChange={(value) => setValue('amount', value, { shouldValidate: true })}
           className="h-12 text-xl font-semibold tabular-nums"

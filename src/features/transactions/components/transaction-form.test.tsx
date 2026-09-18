@@ -107,7 +107,7 @@ describe('TransactionForm', () => {
     expect(screen.getByText('Equivale a COP 1.500')).toBeInTheDocument()
 
     await user.selectOptions(screen.getByLabelText('Cuenta'), 'acc-usd')
-    expect(screen.getByText('Equivale a USD 1.500')).toBeInTheDocument()
+    expect(screen.getByText('Equivale a USD 15,00')).toBeInTheDocument()
 
     await user.selectOptions(screen.getByLabelText('Cuenta'), 'acc-cop')
     expect(screen.getByText('Equivale a COP 1.500')).toBeInTheDocument()

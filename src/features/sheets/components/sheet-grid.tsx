@@ -310,7 +310,11 @@ export function SheetGrid({
           />
         )
       }
-      case 'amount_minor':
+      case 'amount_minor': {
+        const mergedDraft = mergedFor(draftId)
+        const draftAccount = mergedDraft.account_id
+          ? stateRef.current.accountsById.get(mergedDraft.account_id)
+          : undefined
         return (
           <AmountCell
             value={mergedFor(draftId)[field] ?? ''}
@@ -318,8 +322,10 @@ export function SheetGrid({
             onBlur={() => saveRow(draftId)}
             error={message[field]}
             helper={amountHelper(draftId)}
+            currency={draftAccount?.currency_code ?? 'COP'}
           />
         )
+      }
       case 'notes':
         return (
           <InputCell

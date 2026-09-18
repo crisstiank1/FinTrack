@@ -131,15 +131,16 @@ describe('QuickTransactionForm', () => {
     expect(screen.queryByText(/Equivale a/)).not.toBeInTheDocument()
   })
 
-  it('cambiar de cuenta entre monedas no convierte ni toca el número escrito', async () => {
+  it('cambiar de cuenta entre monedas mantiene el entero guardado y re-lee la escala', async () => {
     const user = userEvent.setup()
     renderForm()
 
     await user.type(amountField(), '40')
     await user.selectOptions(screen.getByLabelText('Cuenta del movimiento'), 'acc-usd')
 
-    expect(screen.getByLabelText('Monto (USD)')).toHaveValue('40')
-    expect(screen.getByText('Se registrará como USD 40')).toBeInTheDocument()
+    // 40 sigue siendo 40 en unidades mínimas, pero en USD eso es 0,40.
+    expect(screen.getByLabelText('Monto (USD)')).toHaveValue('0,40')
+    expect(screen.getByText('Se registrará como USD 0,40')).toBeInTheDocument()
   })
 
   it('el monto empieza vacío, con un «$» fijo fuera del valor', () => {
