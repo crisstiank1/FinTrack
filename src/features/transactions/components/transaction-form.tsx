@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Loader2 } from 'lucide-react'
@@ -55,9 +56,24 @@ export function TransactionForm({
   const amountCurrency =
     accounts.find((account) => account.id === selectedAccountId)?.currency_code ?? currencyCode
   const activeAccounts = accounts.filter((account) => !account.is_archived)
+  const selectedAccount = accounts.find((account) => account.id === selectedAccountId)
+  // Una tarjeta de crédito no recibe "ingresos": anotar allí un ingreso contaría
+  // el dinero dos veces (la compra fue en sus gastos y el pago otra vez como
+  // flujo entrante). La deuda se cancela con una transferencia, no con un gasto.
+  const selectableAccounts = activeAccounts.filter(
+    (account) => type !== 'income' || account.type !== 'credit_card',
+  )
   const filteredCategories = categories.filter(
     (category) => category.type === type && !category.is_archived,
   )
+
+  // Si el tipo pasa a Ingreso con una tarjeta de crédito elegida, se descarta:
+  // la cuenta dejaría de ser una opción válida en el selector.
+  useEffect(() => {
+    if (type === 'income' && selectedAccount?.type === 'credit_card') {
+      setValue('accountId', '', { shouldValidate: false })
+    }
+  }, [type, selectedAccount, setValue])
 
   function handleTypeChange(nextType: 'income' | 'expense') {
     setValue('type', nextType, { shouldValidate: true })
@@ -127,7 +143,7 @@ export function TransactionForm({
             {...register('accountId')}
           >
             <option value="">Selecciona...</option>
-            {activeAccounts.map((account) => (
+            {selectableAccounts.map((account) => (
               <option key={account.id} value={account.id}>
                 {account.name}
               </option>

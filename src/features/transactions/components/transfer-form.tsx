@@ -78,6 +78,11 @@ export function TransferForm({
   const fromCurrency = currencyByAccountId.get(fromAccountId ?? '') ?? currencyCode
   const toCurrency = currencyByAccountId.get(toAccountId ?? '') ?? currencyCode
   const isCrossCurrency = isCrossCurrencyTransfer(currencyByAccountId, fromAccountId, toAccountId)
+  const destinationAccount = accounts.find((account) => account.id === toAccountId)
+  // Pagar el extracto es una transferencia, no un gasto ni un ingreso. El bloque
+  // azul avisa en el momento en que hace falta: no cuenta como gasto del mes, y
+  // los intereses del extracto se registran aparte en el presupuesto.
+  const isPayingCreditCard = destinationAccount?.type === 'credit_card'
 
   // Al editar, cada selector ofrece solo cuentas de la moneda de esa pata. La
   // cuenta que la transferencia ya tiene se mantiene aunque esté archivada:
@@ -145,6 +150,29 @@ export function TransferForm({
           )}
         </div>
       </div>
+
+      {isPayingCreditCard && (
+        <div
+          role="note"
+          className="rounded-lg border border-info/30 bg-info/8 p-4 text-sm"
+        >
+          <h3 className="font-medium text-foreground">Estás pagando una tarjeta de crédito</h3>
+          <div className="mt-2 space-y-1 text-muted-foreground">
+            <p>
+              Este movimiento trasladará tu deuda pero{' '}
+              <strong className="text-foreground">no contará como un gasto nuevo</strong> en tu
+              presupuesto mensual.
+            </p>
+            <p className="font-medium text-foreground">
+              ¿El extracto incluye intereses, seguros o cuota de manejo?
+            </p>
+            <p>
+              Registra esa parte aparte directamente como un <strong className="text-foreground">Gasto</strong>{' '}
+              en la categoría «Deudas y créditos».
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-col gap-2">
         <Label htmlFor="transfer-amount">

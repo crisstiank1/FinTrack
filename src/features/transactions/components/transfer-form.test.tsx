@@ -29,6 +29,33 @@ describe('TransferForm', () => {
     expect(onSubmit).not.toHaveBeenCalled()
   })
 
+  it('avisa con pedagogía cuando el destino es una tarjeta de crédito', async () => {
+    const user = userEvent.setup()
+    const withCard = [
+      ...accounts,
+      { id: 'acc-card', name: 'Visa', currency_code: 'COP', is_archived: false, type: 'credit_card' },
+    ] as Tables<'accounts'>[]
+    render(<TransferForm accounts={withCard} currencyCode="COP" onSubmit={vi.fn()} />)
+
+    expect(screen.queryByText('Estás pagando una tarjeta de crédito')).not.toBeInTheDocument()
+
+    await user.selectOptions(screen.getByLabelText('Desde'), 'acc-1')
+    await user.selectOptions(screen.getByLabelText('Hacia'), 'acc-card')
+
+    expect(screen.getByText('Estás pagando una tarjeta de crédito')).toBeInTheDocument()
+    expect(screen.getByText(/no contará como un gasto nuevo/)).toBeInTheDocument()
+  })
+
+  it('no muestra el aviso de tarjeta al transferir entre cuentas corrientes', async () => {
+    const user = userEvent.setup()
+    render(<TransferForm accounts={accounts} currencyCode="COP" onSubmit={vi.fn()} />)
+
+    await user.selectOptions(screen.getByLabelText('Desde'), 'acc-1')
+    await user.selectOptions(screen.getByLabelText('Hacia'), 'acc-2')
+
+    expect(screen.queryByText('Estás pagando una tarjeta de crédito')).not.toBeInTheDocument()
+  })
+
   it('envía una transferencia válida entre dos cuentas distintas', async () => {
     const onSubmit = vi.fn()
     const user = userEvent.setup()

@@ -86,6 +86,14 @@ export function QuickTransactionForm({
   const accountId = watch('accountId')
   const categoryId = watch('categoryId')
 
+  // Una tarjeta de crédito no recibe "ingresos": anotar allí un ingreso contaría
+  // el dinero dos veces (la compra fue en sus gastos y el pago otra vez como
+  // flujo entrante). La deuda se cancela con una transferencia, no con un gasto.
+  const selectableAccounts = useMemo(
+    () => activeAccounts.filter((account) => type !== 'income' || account.type !== 'credit_card'),
+    [activeAccounts, type],
+  )
+
   // La nota vive aparte del formulario: se guarda como descripción, y si queda
   // vacía manda el nombre de la categoría. Así el movimiento nunca se registra
   // sin descripción, que es lo que el esquema exige, sin pedirla dos veces.
@@ -118,8 +126,21 @@ export function QuickTransactionForm({
   // Las cuentas llegan después del primer render: si la que venía por defecto
   // no existía todavía, se elige en cuanto aparece.
   useEffect(() => {
-    if (!accountId && defaultAccountId) setValue('accountId', defaultAccountId)
-  }, [accountId, defaultAccountId, setValue])
+    if (!accountId && defaultAccountId && selectableAccounts.some((a) => a.id === defaultAccountId)) {
+      setValue('accountId', defaultAccountId)
+    }
+  }, [accountId, defaultAccountId, selectableAccounts, setValue])
+
+  // Al pasar a Ingreso, una tarjeta de crédito elegida deja de ser válida: se
+  // descarta y la cuenta por defecto, si no es tarjeta, vuelve a tomar el turno.
+  useEffect(() => {
+    if (type === 'income' && accountId) {
+      const selected = activeAccounts.find((account) => account.id === accountId)
+      if (selected?.type === 'credit_card') {
+        setValue('accountId', '', { shouldValidate: false })
+      }
+    }
+  }, [type, accountId, activeAccounts, setValue])
 
   function handleTypeChange(nextType: 'income' | 'expense') {
     setValue('type', nextType, { shouldValidate: false })
@@ -184,7 +205,7 @@ export function QuickTransactionForm({
           {...register('accountId')}
         >
           <option value="">Selecciona...</option>
-          {activeAccounts.map((account) => (
+          {selectableAccounts.map((account) => (
             <option key={account.id} value={account.id}>
               {account.name}
             </option>

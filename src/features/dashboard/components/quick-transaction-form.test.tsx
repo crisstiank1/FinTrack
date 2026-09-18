@@ -94,6 +94,32 @@ describe('QuickTransactionForm', () => {
     )
   })
 
+  it('oculta la tarjeta de crédito al registrar un ingreso y vuelve a la cuenta válida', async () => {
+    const user = userEvent.setup()
+    const withCard = [
+      { id: 'acc-cop', name: 'Efectivo', currency_code: 'COP', is_archived: false, type: 'cash' },
+      { id: 'acc-card', name: 'Visa', currency_code: 'COP', is_archived: false, type: 'credit_card' },
+    ] as Tables<'accounts'>[]
+    render(
+      <QuickTransactionForm
+        accounts={withCard}
+        categories={categories}
+        currencyCode="COP"
+        onSubmit={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByRole('option', { name: 'Visa' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('radio', { name: 'Ingreso' }))
+
+    expect(screen.queryByRole('option', { name: 'Visa' })).not.toBeInTheDocument()
+    // La tarjeta elegida se descarta y manda la primera cuenta que sí sirve.
+    expect((screen.getByLabelText('Cuenta del movimiento') as HTMLSelectElement).value).toBe(
+      'acc-cop',
+    )
+  })
+
   it('no ofrece categorías ni cuentas archivadas', () => {
     renderForm()
 

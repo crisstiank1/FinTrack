@@ -87,6 +87,53 @@ describe('TransactionForm', () => {
     )
   })
 
+  it('no ofrece tarjetas de crédito cuando el tipo es Ingreso', async () => {
+    const user = userEvent.setup()
+    const accountsWithCards = [
+      { id: 'acc-cash', name: 'Efectivo', is_archived: false, type: 'cash' },
+      { id: 'acc-card', name: 'Visa', is_archived: false, type: 'credit_card' },
+    ] as Tables<'accounts'>[]
+    render(
+      <TransactionForm
+        accounts={accountsWithCards}
+        categories={categories}
+        currencyCode="COP"
+        onSubmit={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByRole('option', { name: 'Visa' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('radio', { name: 'Ingreso' }))
+
+    expect(screen.queryByRole('option', { name: 'Visa' })).not.toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'Efectivo' })).toBeInTheDocument()
+  })
+
+  it('descarta una tarjeta de crédito elegida al cambiar a Ingreso', async () => {
+    const user = userEvent.setup()
+    const accountsWithCards = [
+      { id: 'acc-cash', name: 'Efectivo', is_archived: false, type: 'cash' },
+      { id: 'acc-card', name: 'Visa', is_archived: false, type: 'credit_card' },
+    ] as Tables<'accounts'>[]
+    render(
+      <TransactionForm
+        accounts={accountsWithCards}
+        categories={categories}
+        currencyCode="COP"
+        onSubmit={vi.fn()}
+      />,
+    )
+
+    await user.selectOptions(screen.getByLabelText('Cuenta'), 'acc-card')
+    expect((screen.getByLabelText('Cuenta') as HTMLSelectElement).value).toBe('acc-card')
+
+    await user.click(screen.getByRole('radio', { name: 'Ingreso' }))
+
+    expect((screen.getByLabelText('Cuenta') as HTMLSelectElement).value).toBe('')
+    expect(screen.queryByRole('option', { name: 'Visa' })).not.toBeInTheDocument()
+  })
+
   it('muestra el equivalente en la moneda de la cuenta elegida', async () => {
     const user = userEvent.setup()
     const accountsWithCurrency = [
