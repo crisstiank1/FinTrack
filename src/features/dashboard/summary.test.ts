@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { SWATCHES } from '@/lib/palette'
 
 import {
+  buildBalancePillars,
   buildCategoryBreakdown,
   buildCurrencyBalances,
   buildDashboardSummary,
@@ -16,8 +17,20 @@ import {
 const MONTH = '2026-09'
 
 const accounts: DashboardAccount[] = [
-  { id: 'acc-1', name: 'Efectivo', currency_code: 'COP', initial_balance_minor: 100_000 },
-  { id: 'acc-2', name: 'Ahorros', currency_code: 'COP', initial_balance_minor: 50_000 },
+  {
+    id: 'acc-1',
+    name: 'Efectivo',
+    type: 'cash',
+    currency_code: 'COP',
+    initial_balance_minor: 100_000,
+  },
+  {
+    id: 'acc-2',
+    name: 'Ahorros',
+    type: 'savings',
+    currency_code: 'COP',
+    initial_balance_minor: 50_000,
+  },
 ]
 
 const categories: DashboardCategory[] = [
@@ -96,8 +109,20 @@ const scope = { accounts, transactions, monthKey: MONTH }
  */
 const mixedAccounts: DashboardAccount[] = [
   ...accounts,
-  { id: 'usd-1', name: 'Cuenta USD', currency_code: 'USD', initial_balance_minor: 1_000 },
-  { id: 'ars-1', name: 'Cuenta ARS', currency_code: 'ARS', initial_balance_minor: 0 },
+  {
+    id: 'usd-1',
+    name: 'Cuenta USD',
+    type: 'checking',
+    currency_code: 'USD',
+    initial_balance_minor: 1_000,
+  },
+  {
+    id: 'ars-1',
+    name: 'Cuenta ARS',
+    type: 'digital_wallet',
+    currency_code: 'ARS',
+    initial_balance_minor: 0,
+  },
 ]
 
 const mixedTransactions: DashboardTransaction[] = [
@@ -367,6 +392,97 @@ describe('buildCurrencyBalances', () => {
     expect(buildCurrencyBalances(scope, 'COP')).toEqual([
       { currencyCode: 'COP', balanceMinor: 400_000 },
     ])
+  })
+})
+
+describe('buildBalancePillars', () => {
+  it('sin tarjetas, todo es dinero disponible y la deuda es cero', () => {
+    expect(buildBalancePillars(scope, 'COP')).toEqual([
+      {
+        currencyCode: 'COP',
+        liquidMinor: 400_000,
+        debtMinor: 0,
+        netMinor: 400_000,
+        previousLiquidMinor: 250_000,
+        previousDebtMinor: 0,
+        previousNetMinor: 250_000,
+      },
+    ])
+  })
+
+  it('un gasto con tarjeta engorda la deuda sin tocar el dinero disponible', () => {
+    const cardAccounts: DashboardAccount[] = [
+      ...accounts,
+      {
+        id: 'card-1',
+        name: 'Visa',
+        type: 'credit_card',
+        currency_code: 'COP',
+        initial_balance_minor: 0,
+      },
+    ]
+    const pillars = buildBalancePillars({
+      accounts: cardAccounts,
+      transactions: [
+        ...transactions,
+        transaction({
+          account_id: 'card-1',
+          category_id: 'cat-fun',
+          amount_minor: 80_000,
+          transaction_date: '2026-09-25',
+        }),
+      ],
+      monthKey: MONTH,
+    })
+
+    // Líquido intacto (400.000 como sin la tarjeta) y deuda de -80.000.
+    expect(pillars).toHaveLength(1)
+    expect(pillars[0].liquidMinor).toBe(400_000)
+    expect(pillars[0].debtMinor).toBe(-80_000)
+    expect(pillars[0].netMinor).toBe(320_000)
+  })
+
+  it('separa el líquido y la deuda por moneda, sin mezclar', () => {
+    const cardUsd: DashboardAccount = {
+      id: 'card-usd',
+      name: 'Visa USD',
+      type: 'credit_card',
+      currency_code: 'USD',
+      initial_balance_minor: 0,
+    }
+    const pillars = buildBalancePillars(
+      {
+        accounts: [...mixedAccounts, cardUsd],
+        transactions: [
+          ...mixedTransactions,
+          transaction({
+            account_id: 'card-usd',
+            category_id: 'cat-food',
+            amount_minor: 300,
+            transaction_date: '2026-09-26',
+          }),
+        ],
+        monthKey: MONTH,
+      },
+      'COP',
+    )
+
+    const cop = pillars.find((pillar) => pillar.currencyCode === 'COP')!
+    const usd = pillars.find((pillar) => pillar.currencyCode === 'USD')!
+    expect(cop.liquidMinor).toBe(400_000)
+    expect(cop.debtMinor).toBe(0)
+    // Líquido USD: 1.000 + 500 - 200. Deuda USD: -300.
+    expect(usd.liquidMinor).toBe(1_300)
+    expect(usd.debtMinor).toBe(-300)
+    expect(usd.netMinor).toBe(1_000)
+  })
+
+  it('limita el desglose a la cuenta elegida', () => {
+    const [pillar] = buildBalancePillars({ ...scope, accountId: 'acc-2' }, 'COP')
+
+    // acc-2: 50.000 iniciales - 30.000 de gasto + 50.000 recibidos por transferencia.
+    expect(pillar.liquidMinor).toBe(70_000)
+    expect(pillar.debtMinor).toBe(0)
   })
 })
 

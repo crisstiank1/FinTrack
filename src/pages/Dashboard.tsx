@@ -20,7 +20,7 @@ import {
   AddBudgetDialog,
   type BudgetCategoryOption,
 } from '@/features/dashboard/components/add-budget-dialog'
-import { BalanceHeroCard } from '@/features/dashboard/components/balance-hero-card'
+import { BalancePillars } from '@/features/dashboard/components/balance-pillars'
 import {
   BudgetCategoryGrid,
   type BudgetCategoryItem,
@@ -39,8 +39,8 @@ import { KpiCard } from '@/features/dashboard/components/kpi-card'
 import { QuickTransactionForm } from '@/features/dashboard/components/quick-transaction-form'
 import { useAllTransactions } from '@/features/dashboard/hooks'
 import {
+  buildBalancePillars,
   buildCategoryBreakdown,
-  buildCurrencyBalances,
   buildDashboardSummary,
   buildMonthlyTrend,
   hasBudgetThisMonth,
@@ -144,14 +144,9 @@ export default function Dashboard() {
     return [...uses.entries()].sort((a, b) => b[1] - a[1]).map(([categoryId]) => categoryId)
   }, [transactions, monthKey])
 
-  const otherBalances = useMemo(
-    () =>
-      showsCurrencySplit
-        ? buildCurrencyBalances(scope, primaryCurrency.data).filter(
-            (balance) => balance.currencyCode !== currencyCode,
-          )
-        : [],
-    [showsCurrencySplit, scope, primaryCurrency.data, currencyCode],
+  const pillars = useMemo(
+    () => buildBalancePillars(scope, primaryCurrency.data),
+    [scope, primaryCurrency.data],
   )
 
   // Los presupuestos no tienen dimensión de cuenta: se reparten por categoría
@@ -393,20 +388,22 @@ export default function Dashboard() {
 
           {!isPending && !isError && transactions.length > 0 && (
             <>
-              {/* Cuatro cifras en fila cuando la columna da de sí; antes, dos. */}
-              <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                <BalanceHeroCard
-                  className="sm:col-span-2 xl:row-span-2"
-                  balance={summary.balance}
+              {/* El primer vistazo: cuánto hay, cuánto se debe y qué queda.
+                  Las cifras de otras monedas viven aparte, sin convertir. */}
+              <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                <BalancePillars
+                  pillars={pillars}
                   currencyCode={currencyCode}
                   scopeLabel={scopeLabel}
-                  otherBalances={otherBalances}
                   asOfLabel={asOfLabel}
-                  trend={trend}
                 />
+              </div>
 
+              {/* Cuatro cifras de desempeño del mes en fila cuando la columna
+                  da de sí; antes, dos. */}
+              <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 <KpiCard
-                  index={1}
+                  index={0}
                   label="Ingresos del mes"
                   value={formatAmount(summary.income.currentMinor, currencyCode)}
                   icon={ArrowDownLeft}
@@ -417,7 +414,7 @@ export default function Dashboard() {
                 />
 
                 <KpiCard
-                  index={2}
+                  index={1}
                   label="Gastos del mes"
                   value={formatAmount(summary.expense.currentMinor, currencyCode)}
                   icon={ArrowUpRight}
@@ -428,7 +425,7 @@ export default function Dashboard() {
                 />
 
                 <KpiCard
-                  index={3}
+                  index={2}
                   label="Ahorro neto"
                   value={formatAmount(summary.netSavings.currentMinor, currencyCode)}
                   icon={PiggyBank}
@@ -439,7 +436,7 @@ export default function Dashboard() {
                 />
 
                 <KpiCard
-                  index={4}
+                  index={3}
                   label="Tasa de ahorro"
                   value={formatRate(summary.savingsRate.current)}
                   icon={Percent}

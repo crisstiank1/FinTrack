@@ -1,11 +1,11 @@
-import { useId } from 'react'
+import { useId, type ReactNode } from 'react'
 import type { LucideIcon } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 
 import { DeltaBadge } from './delta-badge'
 
-type KpiTone = 'income' | 'expense' | 'savings'
+type KpiTone = 'income' | 'expense' | 'savings' | 'warning'
 
 interface KpiCardProps {
   label: string
@@ -19,12 +19,15 @@ interface KpiCardProps {
   caption: string
   /** Posición en la cuadrícula; escalona la animación de entrada. */
   index: number
+  /** Línea extra bajo el delta, por ejemplo saldos de otras monedas. */
+  footer?: ReactNode
 }
 
 const TONE_STYLES: Record<KpiTone, { chip: string; value: string }> = {
   income: { chip: 'bg-success/12 text-success', value: 'text-success' },
   expense: { chip: 'bg-danger/12 text-danger', value: 'text-danger' },
   savings: { chip: 'bg-primary/12 text-primary', value: 'text-foreground' },
+  warning: { chip: 'bg-warning/15 text-warning', value: 'text-warning' },
 }
 
 /**
@@ -41,6 +44,7 @@ export function KpiCard({
   higherIsBetter,
   caption,
   index,
+  footer,
 }: KpiCardProps) {
   const labelId = useId()
   const styles = TONE_STYLES[tone]
@@ -56,7 +60,10 @@ export function KpiCard({
           {label}
         </h2>
         <span
-          className={cn('flex size-8 shrink-0 items-center justify-center rounded-full', styles.chip)}
+          className={cn(
+            'flex size-8 shrink-0 items-center justify-center rounded-full',
+            styles.chip,
+          )}
         >
           <Icon className="size-4" aria-hidden="true" />
         </span>
@@ -68,6 +75,8 @@ export function KpiCard({
         <DeltaBadge value={delta} unit={deltaUnit} higherIsBetter={higherIsBetter} />
         <span className="text-xs text-muted-foreground">{caption}</span>
       </div>
+
+      {footer}
     </section>
   )
 }
