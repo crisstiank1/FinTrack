@@ -29,6 +29,33 @@ describe('TransferForm', () => {
     expect(onSubmit).not.toHaveBeenCalled()
   })
 
+  it('avisa con pedagogía cuando el destino es una tarjeta de crédito', async () => {
+    const user = userEvent.setup()
+    const withCard = [
+      ...accounts,
+      { id: 'acc-card', name: 'Visa', currency_code: 'COP', is_archived: false, type: 'credit_card' },
+    ] as Tables<'accounts'>[]
+    render(<TransferForm accounts={withCard} currencyCode="COP" onSubmit={vi.fn()} />)
+
+    expect(screen.queryByText('Estás pagando una tarjeta de crédito')).not.toBeInTheDocument()
+
+    await user.selectOptions(screen.getByLabelText('Desde'), 'acc-1')
+    await user.selectOptions(screen.getByLabelText('Hacia'), 'acc-card')
+
+    expect(screen.getByText('Estás pagando una tarjeta de crédito')).toBeInTheDocument()
+    expect(screen.getByText(/no contará como un gasto nuevo/)).toBeInTheDocument()
+  })
+
+  it('no muestra el aviso de tarjeta al transferir entre cuentas corrientes', async () => {
+    const user = userEvent.setup()
+    render(<TransferForm accounts={accounts} currencyCode="COP" onSubmit={vi.fn()} />)
+
+    await user.selectOptions(screen.getByLabelText('Desde'), 'acc-1')
+    await user.selectOptions(screen.getByLabelText('Hacia'), 'acc-2')
+
+    expect(screen.queryByText('Estás pagando una tarjeta de crédito')).not.toBeInTheDocument()
+  })
+
   it('envía una transferencia válida entre dos cuentas distintas', async () => {
     const onSubmit = vi.fn()
     const user = userEvent.setup()
@@ -78,7 +105,7 @@ describe('TransferForm', () => {
       await user.selectOptions(screen.getByLabelText('Hacia'), 'acc-usd-2')
       await user.type(screen.getByLabelText('Monto'), '40')
 
-      expect(screen.getByText('Equivale a USD 40')).toBeInTheDocument()
+      expect(screen.getByText('Equivale a USD 40,00')).toBeInTheDocument()
     })
   })
 
@@ -120,7 +147,7 @@ describe('TransferForm', () => {
       await user.type(screen.getByLabelText('Monto recibido (USD)'), '25')
 
       expect(screen.getByText('Equivale a COP 100.000')).toBeInTheDocument()
-      expect(screen.getByText('Equivale a USD 25')).toBeInTheDocument()
+      expect(screen.getByText('Equivale a USD 25,00')).toBeInTheDocument()
 
       await user.click(screen.getByRole('button', { name: /transferir/i }))
 
@@ -129,7 +156,7 @@ describe('TransferForm', () => {
           fromAccountId: 'acc-1',
           toAccountId: 'acc-usd',
           amount: 100000,
-          receivedAmount: 25,
+          receivedAmount: 2500,
         }),
         expect.anything(),
       )
@@ -286,7 +313,7 @@ describe('TransferForm — edición (M8)', () => {
     expect((screen.getByLabelText('Desde') as HTMLSelectElement).value).toBe('acc-1')
     expect((screen.getByLabelText('Hacia') as HTMLSelectElement).value).toBe('acc-usd')
     expect((screen.getByLabelText('Monto enviado (COP)') as HTMLInputElement).value).toBe('100.000')
-    expect((screen.getByLabelText('Monto recibido (USD)') as HTMLInputElement).value).toBe('25')
+    expect((screen.getByLabelText('Monto recibido (USD)') as HTMLInputElement).value).toBe('0,25')
     expect((screen.getByLabelText('Fecha') as HTMLInputElement).value).toBe('2026-09-10')
   })
 

@@ -48,6 +48,17 @@ function useInvalidateTransactions() {
   const { user } = useAuth()
   const queryClient = useQueryClient()
 
+  /**
+   * Invalida todo lo que derive de movimientos, por prefijo.
+   *
+   * El dashboard y el Libro no guardan un caché por mes: leen el historial
+   * completo (`['transactions', userId, 'all']`) y derivan en cliente, así que
+   * una edición que cambie la fecha de un movimiento —retroactiva o no— solo
+   * puede quedar fresca invalidando ese prefijo. Las claves mensuales de otras
+   * pantallas (presupuestos, plan) empiezan también por 'transactions', igual
+   * que 'by-accounts', de modo que una invalidación por prefijo las cubre a
+   * todas sin enumerarlas.
+   */
   return () => {
     queryClient.invalidateQueries({ queryKey: ['transactions', user?.id] })
     queryClient.invalidateQueries({ queryKey: ['accounts', user?.id] })

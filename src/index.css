@@ -16,6 +16,7 @@
   --success: #16805b;
   --danger: #c62848;
   --warning: #b26b00;
+  --info: #2563eb;
 
   /* Alias para compatibilidad con componentes shadcn/ui */
   --card: var(--surface);
@@ -49,6 +50,7 @@
   --success: #4ade80;
   --danger: #fb7185;
   --warning: #fbbf24;
+  --info: #93c5fd;
 
   --card: var(--surface);
   --card-foreground: var(--foreground);
@@ -79,6 +81,7 @@
   --color-success: var(--success);
   --color-danger: var(--danger);
   --color-warning: var(--warning);
+  --color-info: var(--info);
 
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);

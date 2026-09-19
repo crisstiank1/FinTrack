@@ -299,7 +299,7 @@ describe('Budgets — moneda de los presupuestos', () => {
     expect(useBudgetProgress).toHaveBeenLastCalledWith(
       expect.objectContaining({ currencyCode: 'USD' }),
     )
-    expect(row('Entretenimiento').getByText('USD 30.000')).toBeInTheDocument()
+    expect(row('Entretenimiento').getByText('USD 300,00')).toBeInTheDocument()
   })
 
   it('avisa de los gastos en otras monedas que no cuentan', () => {

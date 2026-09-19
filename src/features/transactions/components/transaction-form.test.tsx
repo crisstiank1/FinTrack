@@ -87,6 +87,53 @@ describe('TransactionForm', () => {
     )
   })
 
+  it('no ofrece tarjetas de crédito cuando el tipo es Ingreso', async () => {
+    const user = userEvent.setup()
+    const accountsWithCards = [
+      { id: 'acc-cash', name: 'Efectivo', is_archived: false, type: 'cash' },
+      { id: 'acc-card', name: 'Visa', is_archived: false, type: 'credit_card' },
+    ] as Tables<'accounts'>[]
+    render(
+      <TransactionForm
+        accounts={accountsWithCards}
+        categories={categories}
+        currencyCode="COP"
+        onSubmit={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByRole('option', { name: 'Visa' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('radio', { name: 'Ingreso' }))
+
+    expect(screen.queryByRole('option', { name: 'Visa' })).not.toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'Efectivo' })).toBeInTheDocument()
+  })
+
+  it('descarta una tarjeta de crédito elegida al cambiar a Ingreso', async () => {
+    const user = userEvent.setup()
+    const accountsWithCards = [
+      { id: 'acc-cash', name: 'Efectivo', is_archived: false, type: 'cash' },
+      { id: 'acc-card', name: 'Visa', is_archived: false, type: 'credit_card' },
+    ] as Tables<'accounts'>[]
+    render(
+      <TransactionForm
+        accounts={accountsWithCards}
+        categories={categories}
+        currencyCode="COP"
+        onSubmit={vi.fn()}
+      />,
+    )
+
+    await user.selectOptions(screen.getByLabelText('Cuenta'), 'acc-card')
+    expect((screen.getByLabelText('Cuenta') as HTMLSelectElement).value).toBe('acc-card')
+
+    await user.click(screen.getByRole('radio', { name: 'Ingreso' }))
+
+    expect((screen.getByLabelText('Cuenta') as HTMLSelectElement).value).toBe('')
+    expect(screen.queryByRole('option', { name: 'Visa' })).not.toBeInTheDocument()
+  })
+
   it('muestra el equivalente en la moneda de la cuenta elegida', async () => {
     const user = userEvent.setup()
     const accountsWithCurrency = [
@@ -107,9 +154,134 @@ describe('TransactionForm', () => {
     expect(screen.getByText('Equivale a COP 1.500')).toBeInTheDocument()
 
     await user.selectOptions(screen.getByLabelText('Cuenta'), 'acc-usd')
-    expect(screen.getByText('Equivale a USD 1.500')).toBeInTheDocument()
+    expect(screen.getByText('Equivale a USD 15,00')).toBeInTheDocument()
 
     await user.selectOptions(screen.getByLabelText('Cuenta'), 'acc-cop')
     expect(screen.getByText('Equivale a COP 1.500')).toBeInTheDocument()
+  })
+
+  it('nunca ofrece cuentas ni categorías archivadas en un movimiento nuevo', () => {
+    render(
+      <TransactionForm
+        accounts={
+          [
+            { id: 'acc-1', name: 'Efectivo', is_archived: false },
+            { id: 'acc-arch', name: 'Cuenta vieja', is_archived: true },
+          ] as Tables<'accounts'>[]
+        }
+        categories={
+          [
+            { id: 'cat-expense-1', name: 'Mercado', type: 'expense', is_archived: false },
+            { id: 'cat-arch', name: 'Viajes antiguos', type: 'expense', is_archived: true },
+          ] as Tables<'categories'>[]
+        }
+        currencyCode="COP"
+        onSubmit={vi.fn()}
+      />,
+    )
+
+    expect(
+      screen.queryByRole('option', { name: 'Cuenta vieja (Archivada)' }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('option', { name: 'Viajes antiguos (Archivada)' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('al editar conserva la cuenta archivada original, bloqueada y aún elegida', () => {
+    render(
+      <TransactionForm
+        accounts={
+          [
+            { id: 'acc-1', name: 'Efectivo', is_archived: false },
+            { id: 'acc-arch', name: 'Cuenta vieja', is_archived: true },
+          ] as Tables<'accounts'>[]
+        }
+        categories={categories}
+        currencyCode="COP"
+        defaultValues={{
+          type: 'expense',
+          description: 'Compra antigua',
+          amount: 10000,
+          accountId: 'acc-arch',
+          categoryId: 'cat-expense-1',
+          transactionDate: '2024-05-10',
+        }}
+        onSubmit={vi.fn()}
+      />,
+    )
+
+    const cuenta = screen.getByLabelText('Cuenta') as HTMLSelectElement
+    expect(cuenta.value).toBe('acc-arch')
+    const option = screen.getByRole('option', { name: 'Cuenta vieja (Archivada)' })
+    expect(option).toBeDisabled()
+    // Se puede cambiar a una cuenta activa si se quiere.
+    expect(screen.getByRole('option', { name: 'Efectivo' })).toBeEnabled()
+  })
+
+  it('al editar conserva la categoría archivada original, bloqueada y aún elegida', () => {
+    render(
+      <TransactionForm
+        accounts={accounts}
+        categories={
+          [
+            { id: 'cat-expense-1', name: 'Mercado', type: 'expense', is_archived: false },
+            { id: 'cat-arch', name: 'Viajes antiguos', type: 'expense', is_archived: true },
+          ] as Tables<'categories'>[]
+        }
+        currencyCode="COP"
+        defaultValues={{
+          type: 'expense',
+          description: 'Viaje viejo',
+          amount: 200000,
+          accountId: 'acc-1',
+          categoryId: 'cat-arch',
+          transactionDate: '2024-05-10',
+        }}
+        onSubmit={vi.fn()}
+      />,
+    )
+
+    const categoria = screen.getByLabelText('Categoría') as HTMLSelectElement
+    expect(categoria.value).toBe('cat-arch')
+    const option = screen.getByRole('option', { name: 'Viajes antiguos (Archivada)' })
+    expect(option).toBeDisabled()
+    expect(screen.getByRole('option', { name: 'Mercado' })).toBeEnabled()
+  })
+
+  it('al editar un ingreso histórico con tarjeta conserva la cuenta sin descartarla', () => {
+    render(
+      <TransactionForm
+        accounts={
+          [
+            { id: 'acc-cash', name: 'Efectivo', is_archived: false, type: 'cash' },
+            { id: 'acc-card', name: 'Visa', is_archived: false, type: 'credit_card' },
+          ] as Tables<'accounts'>[]
+        }
+        categories={
+          [
+            { id: 'cat-income-1', name: 'Salario', type: 'income', is_archived: false },
+          ] as Tables<'categories'>[]
+        }
+        currencyCode="COP"
+        defaultValues={{
+          type: 'income',
+          description: 'Ingreso antiguo',
+          amount: 50000,
+          accountId: 'acc-card',
+          categoryId: 'cat-income-1',
+          transactionDate: '2024-05-10',
+        }}
+        onSubmit={vi.fn()}
+      />,
+    )
+
+    // La regla «no ingresos con tarjeta» no se aplica retroactivamente: editar
+    // no borra una cuenta que el movimiento ya tenía guardada, solo la bloquea.
+    const cuenta = screen.getByLabelText('Cuenta') as HTMLSelectElement
+    expect(cuenta.value).toBe('acc-card')
+    const option = screen.getByRole('option', { name: 'Visa (no recibe ingresos)' })
+    expect(option).toBeDisabled()
+    expect(screen.getByRole('option', { name: 'Efectivo' })).toBeEnabled()
   })
 })

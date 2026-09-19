@@ -135,6 +135,7 @@ export function AccountsStep({ defaultValues, currencyCode, onBack, onNext }: Ac
                   <CurrencyInput
                     id={`account-${index}-balance`}
                     aria-invalid={!!errors.accounts?.[index]?.initialBalance}
+                    currency={accountCurrency}
                     value={Number(watch(`accounts.${index}.initialBalance` as const)) || 0}
                     onChange={(value) =>
                       setValue(`accounts.${index}.initialBalance` as const, value, {

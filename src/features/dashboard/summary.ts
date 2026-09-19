@@ -1,4 +1,5 @@
 import {
+  calculateAccountBalance,
   calculateBalancesByCurrency,
   calculateConsolidatedBalance,
   calculateMonthlyExpense,
@@ -16,6 +17,8 @@ import { SWATCHES } from '@/lib/palette'
 export interface DashboardAccount {
   id: string
   name: string
+  /** 'credit_card' separa lo líquido de lo que se debe; los demás tipos son líquido. */
+  type: string
   currency_code: string
   initial_balance_minor: number
 }
@@ -129,8 +132,11 @@ function upToEndOfMonth(transactions: DashboardTransaction[], monthKey: string) 
  * Devuelve `null` cuando la base es 0, porque "creció un ∞%" no informa nada.
  * El divisor va en valor absoluto para que el signo represente la dirección
  * real del cambio incluso partiendo de un ahorro neto negativo.
+ *
+ * Se exporta porque las tarjetas de saldo la reutilizan para sus propias
+ * comparaciones (líquido, deuda y patrimonio).
  */
-function percentDelta(currentMinor: number, previousMinor: number): number | null {
+export function percentDelta(currentMinor: number, previousMinor: number): number | null {
   if (previousMinor === 0) return null
   return ((currentMinor - previousMinor) / Math.abs(previousMinor)) * 100
 }
@@ -360,6 +366,89 @@ export function buildCurrencyBalances(
     currencyCode,
     balanceMinor: balances.get(currencyCode) ?? 0,
   }))
+}
+
+/**
+ * Desglose del cierre de mes por naturaleza de cuenta, en cada moneda.
+ *
+ * FinTrack no convierte divisas: cada moneda devuelve una entrada con sus
+ * propias cifras, ordenadas con la moneda principal primero.
+ *
+ * El líquido suma las cuentas que no son tarjeta (efectivo, cuentas, billeteras
+ * e inversiones); la deuda suma las tarjetas de crédito, que cierran en
+ * negativo por diseño porque el gasto con ellas resta. `netMinor` es el
+ * patrimonio neto: lo que se tiene disponible menos lo que se debe.
+ *
+ * Se incluyen los cierres del mes anterior para que las tarjetas puedan
+ * comparar su mejora o deterioro sin recalcular nada.
+ */
+export interface BalancePillars {
+  currencyCode: string
+  /** Fin del mes en pantalla. */
+  liquidMinor: number
+  /** ≤ 0 por diseño: negativo es deuda pendiente; 0 es no deber nada. */
+  debtMinor: number
+  netMinor: number
+  /** Cierre del mes anterior. */
+  previousLiquidMinor: number
+  previousDebtMinor: number
+  previousNetMinor: number
+}
+
+export function buildBalancePillars(
+  { accounts, transactions, monthKey, accountId }: DashboardScope,
+  primaryCode?: string | null,
+): BalancePillars[] {
+  const scopedAccounts = scopeAccounts(accounts, { accountId })
+  const scoped = scopeTransactions(transactions, accounts, { accountId })
+  const earlierMonthKey = previousMonthKey(monthKey)
+  const currentInputs = upToEndOfMonth(scoped, monthKey).map(toCalculationInput)
+  const previousInputs = upToEndOfMonth(scoped, earlierMonthKey).map(toCalculationInput)
+
+  const totals = new Map<string, BalancePillars>()
+  for (const account of scopedAccounts) {
+    const currentMinor = calculateAccountBalance(
+      account.initial_balance_minor,
+      currentInputs,
+      account.id,
+    )
+    const previousMinor = calculateAccountBalance(
+      account.initial_balance_minor,
+      previousInputs,
+      account.id,
+    )
+    const pillars = totals.get(account.currency_code) ?? {
+      currencyCode: account.currency_code,
+      liquidMinor: 0,
+      debtMinor: 0,
+      netMinor: 0,
+      previousLiquidMinor: 0,
+      previousDebtMinor: 0,
+      previousNetMinor: 0,
+    }
+    if (account.type === 'credit_card') {
+      pillars.debtMinor += currentMinor
+      pillars.previousDebtMinor += previousMinor
+    } else {
+      pillars.liquidMinor += currentMinor
+      pillars.previousLiquidMinor += previousMinor
+    }
+    totals.set(account.currency_code, pillars)
+  }
+
+  return sortCurrencyCodes(totals.keys(), primaryCode).map((currencyCode) => {
+    const { liquidMinor, debtMinor, previousLiquidMinor, previousDebtMinor } =
+      totals.get(currencyCode)!
+    return {
+      currencyCode,
+      liquidMinor,
+      debtMinor,
+      netMinor: liquidMinor + debtMinor,
+      previousLiquidMinor,
+      previousDebtMinor,
+      previousNetMinor: previousLiquidMinor + previousDebtMinor,
+    }
+  })
 }
 
 /**

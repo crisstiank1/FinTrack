@@ -178,7 +178,10 @@ describe('Dashboard', () => {
     renderDashboard()
 
     // 150.000 de saldos iniciales + 300.000 de ingresos - 150.000 de gastos.
-    expect(kpi('Saldo consolidado').getByText('COP 300.000')).toBeInTheDocument()
+    // Sin tarjetas, todo el patrimonio es dinero disponible y la deuda es 0.
+    expect(kpi('Dinero disponible').getByText('COP 300.000')).toBeInTheDocument()
+    expect(kpi('Deuda en tarjetas').getByText('COP 0')).toBeInTheDocument()
+    expect(kpi('Balance total').getByText('COP 300.000')).toBeInTheDocument()
     expect(kpi('Ingresos del mes').getByText('COP 300.000')).toBeInTheDocument()
     expect(kpi('Gastos del mes').getByText('COP 150.000')).toBeInTheDocument()
     expect(kpi('Ahorro neto').getByText('COP 150.000')).toBeInTheDocument()
@@ -188,7 +191,7 @@ describe('Dashboard', () => {
   it('con una sola moneda no añade notas ni saldos aparte', () => {
     renderDashboard()
 
-    expect(kpi('Saldo consolidado').getByText('Todas las cuentas')).toBeInTheDocument()
+    expect(kpi('Dinero disponible').getByText('Todas las cuentas')).toBeInTheDocument()
     expect(screen.queryByText(/Otras monedas/)).not.toBeInTheDocument()
     expect(screen.queryByText(/Cifras en/)).not.toBeInTheDocument()
   })
@@ -211,10 +214,48 @@ describe('Dashboard', () => {
     await user.selectOptions(viewControls().getByLabelText('Cuenta'), 'acc-2')
 
     // acc-2: 50.000 iniciales - 30.000 del único gasto de esa cuenta.
-    expect(kpi('Saldo consolidado').getByText('COP 20.000')).toBeInTheDocument()
+    expect(kpi('Balance total').getByText('COP 20.000')).toBeInTheDocument()
     expect(kpi('Ingresos del mes').getByText('COP 0')).toBeInTheDocument()
     expect(kpi('Gastos del mes').getByText('COP 30.000')).toBeInTheDocument()
     expect(kpi('Tasa de ahorro').getByText('Sin ingresos')).toBeInTheDocument()
+  })
+
+  it('un gasto con tarjeta engorda la deuda sin tocar el dinero disponible', () => {
+    useAccounts.mockReturnValue({
+      data: [
+        ...accounts,
+        {
+          id: 'acc-card',
+          name: 'Visa',
+          type: 'credit_card',
+          currency_code: 'COP',
+          initial_balance_minor: 0,
+          is_archived: false,
+        },
+      ] as Tables<'accounts'>[],
+    })
+    useAllTransactions.mockReturnValue({
+      data: [
+        ...transactions,
+        transaction({
+          account_id: 'acc-card',
+          category_id: 'cat-fun',
+          amount_minor: 80_000,
+          description: 'Compra con tarjeta',
+        }),
+      ],
+      isPending: false,
+      isError: false,
+      refetch: vi.fn(),
+    })
+
+    renderDashboard()
+
+    // 150.000 de saldos iniciales + 300.000 de ingresos - 150.000 de gastos
+    // en efectivo: líquido intacto, deuda de 80.000 y patrimonio de 220.000.
+    expect(kpi('Dinero disponible').getByText('COP 300.000')).toBeInTheDocument()
+    expect(kpi('Deuda en tarjetas').getByText('COP 80.000')).toBeInTheDocument()
+    expect(kpi('Balance total').getByText('COP 220.000')).toBeInTheDocument()
   })
 
   it('muestra el estado vacío cuando el usuario no tiene ningún movimiento', () => {
@@ -230,7 +271,7 @@ describe('Dashboard', () => {
     const emptyState = within(screen.getByRole('region', { name: 'Tu dashboard está listo' }))
     expect(emptyState.getByRole('button', { name: /registrar movimiento/i })).toBeInTheDocument()
     // Sin datos no se dibujan KPIs ni gráficos.
-    expect(screen.queryByRole('region', { name: 'Saldo consolidado' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Balance total' })).not.toBeInTheDocument()
     expect(screen.queryByRole('region', { name: 'Gasto por categoría' })).not.toBeInTheDocument()
   })
 
@@ -258,7 +299,7 @@ describe('Dashboard', () => {
 
     renderDashboard()
 
-    expect(screen.queryByRole('region', { name: 'Saldo consolidado' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Balance total' })).not.toBeInTheDocument()
     expect(screen.queryByText('Tu dashboard está listo')).not.toBeInTheDocument()
   })
 
@@ -389,7 +430,7 @@ describe('Dashboard', () => {
 
     renderDashboard()
 
-    expect(screen.queryByRole('region', { name: 'Saldo consolidado' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Balance total' })).not.toBeInTheDocument()
   })
 
   it('ofrece reintentar cuando la consulta falla', async () => {
@@ -455,7 +496,7 @@ describe('Dashboard', () => {
       renderDashboard()
 
       // Las mismas cifras que sin la cuenta en USD: 500 y 200 no se suman a COP.
-      expect(kpi('Saldo consolidado').getByText('COP 300.000')).toBeInTheDocument()
+      expect(kpi('Balance total').getByText('COP 300.000')).toBeInTheDocument()
       expect(kpi('Ingresos del mes').getByText('COP 300.000')).toBeInTheDocument()
       expect(kpi('Gastos del mes').getByText('COP 150.000')).toBeInTheDocument()
       expect(kpi('Tasa de ahorro').getByText('50 %')).toBeInTheDocument()
@@ -467,10 +508,10 @@ describe('Dashboard', () => {
     it('muestra aparte el saldo de las otras monedas, incluidas cuentas archivadas', () => {
       renderDashboard()
 
-      const hero = kpi('Saldo consolidado')
-      expect(hero.getByText('Cuentas en COP')).toBeInTheDocument()
-      // USD: 1.000 + 500 - 200. ARS: saldo inicial de una cuenta archivada.
-      expect(hero.getByText('USD 1.300 · ARS 20.000')).toBeInTheDocument()
+      expect(kpi('Dinero disponible').getByText('Cuentas en COP')).toBeInTheDocument()
+      expect(kpi('Deuda en tarjetas').getByText('COP 0')).toBeInTheDocument()
+      // USD: 1.000 + 500 - 200 = 1300 centavos. ARS: saldo inicial de una cuenta archivada.
+      expect(kpi('Balance total').getByText('USD 13,00 · ARS 200,00')).toBeInTheDocument()
       expect(
         screen.getByText(
           'Cifras en COP. Tus cuentas en USD y ARS no se suman: su saldo aparece aparte, sin convertir.',
@@ -483,9 +524,9 @@ describe('Dashboard', () => {
 
       renderDashboard()
 
-      expect(kpi('Saldo consolidado').getByText('USD 1.300')).toBeInTheDocument()
-      expect(kpi('Ingresos del mes').getByText('USD 500')).toBeInTheDocument()
-      expect(kpi('Saldo consolidado').getByText('COP 300.000 · ARS 20.000')).toBeInTheDocument()
+      expect(kpi('Balance total').getByText('USD 13,00')).toBeInTheDocument()
+      expect(kpi('Ingresos del mes').getByText('USD 5,00')).toBeInTheDocument()
+      expect(kpi('Balance total').getByText('COP 300.000 · ARS 200,00')).toBeInTheDocument()
     })
 
     it('usa la primera cuenta si no hay cuentas en la moneda principal', () => {
@@ -547,7 +588,7 @@ describe('Dashboard', () => {
       expect(panel.getByText(/superó su presupuesto por COP 20.000/)).toBeInTheDocument()
       expect(panel.queryByText(/USD 20.000/)).not.toBeInTheDocument()
       // La alerta global sale del resumen de la cuenta USD y va en USD.
-      expect(panel.getByText(/Gastaste USD 900 más de lo que ingresaste/)).toBeInTheDocument()
+      expect(panel.getByText(/Gastaste USD 9,00 más de lo que ingresaste/)).toBeInTheDocument()
     })
 
     it('al elegir una cuenta en otra moneda todo pasa a esa moneda, sin saldos aparte', async () => {
@@ -556,8 +597,8 @@ describe('Dashboard', () => {
 
       await user.selectOptions(viewControls().getByLabelText('Cuenta'), 'acc-usd')
 
-      expect(kpi('Saldo consolidado').getByText('USD 1.300')).toBeInTheDocument()
-      expect(kpi('Gastos del mes').getByText('USD 200')).toBeInTheDocument()
+      expect(kpi('Balance total').getByText('USD 13,00')).toBeInTheDocument()
+      expect(kpi('Gastos del mes').getByText('USD 2,00')).toBeInTheDocument()
       expect(screen.queryByText(/Otras monedas/)).not.toBeInTheDocument()
       expect(screen.queryByText(/Cifras en/)).not.toBeInTheDocument()
     })

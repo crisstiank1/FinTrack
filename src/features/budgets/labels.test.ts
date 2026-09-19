@@ -48,7 +48,7 @@ describe('estados sin barra: ausencia y COP 0 explícito', () => {
 
   it('el 0 se escribe en la moneda de presentación', () => {
     expect(formatZeroBudget('COP')).toBe('Presupuesto en COP 0')
-    expect(formatZeroBudget('USD')).toBe('Presupuesto en USD 0')
+    expect(formatZeroBudget('USD')).toBe('Presupuesto en USD 0,00')
   })
 })
 

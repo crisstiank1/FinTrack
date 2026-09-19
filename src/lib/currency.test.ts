@@ -4,12 +4,20 @@ import {
   accountsKeptInCurrentCurrency,
   CURRENCIES,
   CURRENCY_CODES,
+  CURRENCY_EXPONENTS,
   formatAmount,
   currencyOptions,
+  formatMajorUnits,
+  getCurrencyExponent,
+  groupMoneyText,
+  moneyTextToMajor,
   partitionByAccountCurrency,
   resolveCurrencyFilter,
   resolvePresentationCurrency,
+  sanitizeMoneyText,
   sortCurrencyCodes,
+  toMajorUnit,
+  toMinorUnit,
 } from './currency'
 
 describe('formatAmount', () => {
@@ -25,16 +33,69 @@ describe('formatAmount', () => {
     expect(formatAmount(0, 'COP')).toBe('COP 0')
   })
 
-  it('respeta el código de moneda indicado', () => {
-    expect(formatAmount(1200000, 'USD')).toBe('USD 1.200.000')
+  it('respeta el exponente de la moneda: 4599 USD son 45,99', () => {
+    expect(formatAmount(4599, 'USD')).toBe('USD 45,99')
   })
 
-  it('todas las monedas usan exponente 0: el mismo entero da los mismos dígitos', () => {
-    // 15000 es "quince mil", no "ciento cincuenta". Ninguna moneda divide
-    // entre 100, tampoco las que en otros sistemas tendrían centavos.
+  it('convierte los enteros guardados según la escala de cada moneda', () => {
+    // 15000 en COP son "quince mil"; en USD son 150,00 si se guardaron como
+    // centavos (15000 centavos) — eso es exactamente lo que corrije la
+    // migración de divisas con centavos.
     expect(formatAmount(15000, 'COP')).toBe('COP 15.000')
-    expect(formatAmount(15000, 'USD')).toBe('USD 15.000')
-    expect(formatAmount(15000, 'ARS')).toBe('ARS 15.000')
+    expect(formatAmount(15000, 'USD')).toBe('USD 150,00')
+    expect(formatAmount(15000, 'ARS')).toBe('ARS 150,00')
+  })
+})
+
+describe('exponentes por moneda', () => {
+  it('COP, CLP y JPY tienen exponente 0; las demás con centavos, 2', () => {
+    expect(CURRENCY_EXPONENTS).toMatchObject({ COP: 0, CLP: 0, JPY: 0 })
+    expect(CURRENCY_EXPONENTS).toMatchObject({ USD: 2, EUR: 2, MXN: 2, ARS: 2, PEN: 2 })
+  })
+
+  it('desconocida cae al fallback seguro de 2 decimales', () => {
+    expect(getCurrencyExponent('XYZ')).toBe(2)
+    expect(getCurrencyExponent('cop')).toBe(0)
+  })
+})
+
+describe('conversión minor/major', () => {
+  it('toMinorUnit multiplica por la potencia del exponente, redondeado', () => {
+    expect(toMinorUnit(45.99, 'USD')).toBe(4599)
+    expect(toMinorUnit(1.1, 'USD')).toBe(110)
+    expect(toMinorUnit(15000, 'COP')).toBe(15000)
+  })
+
+  it('toMajorUnit es el reverso de toMinorUnit', () => {
+    expect(toMajorUnit(4599, 'USD')).toBe(45.99)
+    expect(toMajorUnit(15000, 'COP')).toBe(15000)
+  })
+})
+
+describe('texto de importe', () => {
+  it('sanitizeMoneyText distingue miles (del propio campo) del decimal escrito', () => {
+    expect(sanitizeMoneyText('45,99', 2)).toBe('45,99')
+    expect(sanitizeMoneyText('45.99', 2)).toBe('45.99')
+    expect(sanitizeMoneyText('1.500', 2)).toBe('1500')
+    expect(sanitizeMoneyText('1.500,50', 2)).toBe('1500,50')
+    expect(sanitizeMoneyText('$45a,9b9', 2)).toBe('45,99')
+    expect(sanitizeMoneyText('45,999', 2)).toBe('45999')
+    expect(sanitizeMoneyText('15000', 0)).toBe('15000')
+    expect(sanitizeMoneyText('1.500', 0)).toBe('1500')
+  })
+
+  it('moneyTextToMajor normaliza coma a punto y devuelve 0 para vacío', () => {
+    expect(moneyTextToMajor('45,99')).toBe(45.99)
+    expect(moneyTextToMajor('')).toBe(0)
+  })
+
+  it('groupMoneyText agrupa miles y conserva la fracción', () => {
+    expect(groupMoneyText('1900000')).toBe('1.900.000')
+    expect(groupMoneyText('1500,5')).toBe('1.500,5')
+  })
+
+  it('formatMajorUnits fija los decimales de la moneda', () => {
+    expect(formatMajorUnits(45, 2)).toBe('45,00')
   })
 })
 
@@ -54,7 +115,7 @@ describe('catálogo de monedas', () => {
   })
 
   it('formatea montos en ARS', () => {
-    expect(formatAmount(1250, 'ARS')).toBe('ARS 1.250')
+    expect(formatAmount(1250, 'ARS')).toBe('ARS 12,50')
   })
 })
 

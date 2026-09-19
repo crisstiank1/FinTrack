@@ -7,9 +7,21 @@ const MONTH = '2026-09'
 const PREVIOUS = '2026-08'
 
 const accounts: DashboardAccount[] = [
-  { id: 'acc-cop', name: 'Efectivo', currency_code: 'COP', initial_balance_minor: 0 },
-  { id: 'acc-cop-2', name: 'Ahorros', currency_code: 'COP', initial_balance_minor: 0 },
-  { id: 'acc-usd', name: 'Cuenta USD', currency_code: 'USD', initial_balance_minor: 0 },
+  { id: 'acc-cop', name: 'Efectivo', type: 'cash', currency_code: 'COP', initial_balance_minor: 0 },
+  {
+    id: 'acc-cop-2',
+    name: 'Ahorros',
+    type: 'savings',
+    currency_code: 'COP',
+    initial_balance_minor: 0,
+  },
+  {
+    id: 'acc-usd',
+    name: 'Cuenta USD',
+    type: 'checking',
+    currency_code: 'USD',
+    initial_balance_minor: 0,
+  },
 ]
 
 const categories: DashboardCategory[] = [

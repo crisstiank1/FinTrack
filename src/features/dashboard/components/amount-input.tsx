@@ -1,17 +1,26 @@
-import { forwardRef, type InputHTMLAttributes } from 'react'
+import { forwardRef, useEffect, useState, type InputHTMLAttributes } from 'react'
 
 import { Input } from '@/components/ui/input'
+import {
+  formatMajorUnits,
+  getCurrencyExponent,
+  groupMoneyText,
+  moneyTextToMajor,
+  sanitizeMoneyText,
+  toMajorUnit,
+  toMinorUnit,
+} from '@/lib/currency'
 import { cn } from '@/lib/utils'
-
-const thousands = new Intl.NumberFormat('es-CO')
 
 interface AmountInputProps extends Omit<
   InputHTMLAttributes<HTMLInputElement>,
   'value' | 'onChange' | 'type'
 > {
-  /** Entero en unidades mínimas. `0` se muestra vacío: todavía no hay importe. */
+  /** Entero en unidades mínimas de `currency`. `0` se muestra vacío. */
   value: number
   onChange: (value: number) => void
+  /** Moneda del importe: decide cuántos decimales se aceptan y se muestran. */
+  currency?: string
 }
 
 /**
@@ -26,8 +35,35 @@ interface AmountInputProps extends Omit<
  * hacen la etiqueta del campo y la línea «Se registrará como…» de quien lo usa.
  */
 export const AmountInput = forwardRef<HTMLInputElement, AmountInputProps>(
-  ({ value, onChange, className, placeholder = '0', ...props }, ref) => {
-    const display = value > 0 ? thousands.format(value) : ''
+  ({ value, onChange, currency = 'COP', className, placeholder = '0', ...props }, ref) => {
+    const exponent = getCurrencyExponent(currency)
+    const [focused, setFocused] = useState(false)
+    const [raw, setRaw] = useState<string>('')
+    const [display, setDisplay] = useState<string>(() =>
+      value > 0 ? formatMajorUnits(toMajorUnit(value, currency), exponent) : '',
+    )
+
+    // Un valor que llega de fuera (reset del formulario) reemplaza lo escrito.
+    useEffect(() => {
+      if (!focused) {
+        const formatted = value > 0 ? formatMajorUnits(toMajorUnit(value, currency), exponent) : ''
+        setRaw(value > 0 ? String(toMajorUnit(value, currency)) : '')
+        setDisplay(formatted)
+      }
+    }, [value, currency, exponent, focused])
+
+    function handleChange(event: React.ChangeEvent<HTMLInputElement>) {
+      const sanitized = sanitizeMoneyText(event.target.value, exponent)
+      const major = moneyTextToMajor(sanitized)
+      setRaw(sanitized)
+      setDisplay(groupMoneyText(sanitized))
+      onChange(major > 0 ? toMinorUnit(major, currency) : 0)
+
+      const input = event.target
+      requestAnimationFrame(() => {
+        input.setSelectionRange(input.value.length, input.value.length)
+      })
+    }
 
     return (
       <div className="relative">
@@ -41,21 +77,24 @@ export const AmountInput = forwardRef<HTMLInputElement, AmountInputProps>(
           {...props}
           ref={ref}
           type="text"
-          inputMode="numeric"
+          inputMode="decimal"
           autoComplete="off"
           placeholder={placeholder}
           className={cn('pl-7', className)}
           value={display}
-          onChange={(event) => {
-            const digits = event.target.value.replace(/\D/g, '')
-            onChange(digits ? Number(digits) : 0)
-
-            // Al agrupar miles cambia la longitud: el cursor vuelve al final para
-            // que seguir tecleando no escriba en medio de la cifra.
+          onChange={handleChange}
+          onFocus={(event) => {
+            setFocused(true)
             const input = event.target
             requestAnimationFrame(() => {
               input.setSelectionRange(input.value.length, input.value.length)
             })
+          }}
+          onBlur={(event) => {
+            setFocused(false)
+            const groupedRaw = groupMoneyText(raw)
+            setDisplay(exponent > 0 ? formatMajorUnits(moneyTextToMajor(raw), exponent) : groupedRaw)
+            event.target.setSelectionRange(0, 0)
           }}
         />
       </div>

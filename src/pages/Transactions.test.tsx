@@ -297,7 +297,7 @@ describe('Transactions — formularios', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Nuevo movimiento' }))
 
     const dialog = within(screen.getByRole('dialog'))
-    expect(dialog.getByText('Equivale a USD 0')).toBeInTheDocument()
+    expect(dialog.getByText('Equivale a USD 0,00')).toBeInTheDocument()
 
     fireEvent.change(dialog.getByLabelText('Cuenta'), { target: { value: 'acc-bank' } })
     expect(dialog.getByText('Equivale a COP 0')).toBeInTheDocument()
@@ -344,7 +344,7 @@ describe('Transactions — moneda de cada fila', () => {
     renderTransactions('/transactions?month=2026-08')
 
     expect(screen.getByText(/COP 250\.000/)).toBeInTheDocument()
-    expect(screen.getByText(/USD 40/)).toBeInTheDocument()
+    expect(screen.getByText(/USD 0,40/)).toBeInTheDocument()
   })
 })
 
@@ -383,8 +383,8 @@ describe('Transactions — transferencias entre monedas', () => {
 
     expect(screen.getAllByText('Paso a dólares')).toHaveLength(2)
     expect(screen.getByText('− COP 100.000')).toBeInTheDocument()
-    expect(screen.getByText('+ USD 25')).toBeInTheDocument()
-    expect(screen.getByText('→ Cuenta USD · + USD 25')).toBeInTheDocument()
+    expect(screen.getByText('+ USD 0,25')).toBeInTheDocument()
+    expect(screen.getByText('→ Cuenta USD · + USD 0,25')).toBeInTheDocument()
     expect(screen.getByText('← Banco · − COP 100.000')).toBeInTheDocument()
   })
 
@@ -423,7 +423,7 @@ describe('Transactions — transferencias entre monedas', () => {
         fromAccountId: 'acc-bank',
         toAccountId: 'acc-usd',
         fromAmountMinor: 100_000,
-        toAmountMinor: 25,
+        toAmountMinor: 2500,
       }),
     )
   })
@@ -481,7 +481,7 @@ describe('Transactions — editar transferencias (M8)', () => {
     expect((dialog.getByLabelText('Desde') as HTMLSelectElement).value).toBe('acc-bank')
     expect((dialog.getByLabelText('Hacia') as HTMLSelectElement).value).toBe('acc-usd')
     expect((dialog.getByLabelText('Monto enviado (COP)') as HTMLInputElement).value).toBe('100.000')
-    expect((dialog.getByLabelText('Monto recibido (USD)') as HTMLInputElement).value).toBe('25')
+    expect((dialog.getByLabelText('Monto recibido (USD)') as HTMLInputElement).value).toBe('0,25')
   })
 
   it('guarda las dos patas con su grupo y cada importe en su moneda', async () => {
@@ -502,7 +502,7 @@ describe('Transactions — editar transferencias (M8)', () => {
         fromAccountId: 'acc-bank',
         toAccountId: 'acc-usd',
         fromAmountMinor: 100_000,
-        toAmountMinor: 30,
+        toAmountMinor: 3000,
         transactionDate: '2026-08-10',
       }),
     )
