@@ -52,11 +52,16 @@ export function TransactionForm({
   const type = watch('type')
   const amount = Number(watch('amount')) || 0
   const selectedAccountId = watch('accountId')
+  const selectedCategoryId = watch('categoryId')
+  // Al editar, el formulario parte de un movimiento ya guardado: sus valores
+  // originales se conservan aunque ya no sean elegibles.
+  const isEditing = !!defaultValues
   // La moneda la define la cuenta: no hay selector de moneda en el formulario.
   const amountCurrency =
     accounts.find((account) => account.id === selectedAccountId)?.currency_code ?? currencyCode
   const activeAccounts = accounts.filter((account) => !account.is_archived)
   const selectedAccount = accounts.find((account) => account.id === selectedAccountId)
+  const selectedCategory = categories.find((category) => category.id === selectedCategoryId)
   // Una tarjeta de crédito no recibe "ingresos": anotar allí un ingreso contaría
   // el dinero dos veces (la compra fue en sus gastos y el pago otra vez como
   // flujo entrante). La deuda se cancela con una transferencia, no con un gasto.
@@ -67,13 +72,29 @@ export function TransactionForm({
     (category) => category.type === type && !category.is_archived,
   )
 
+  // Al editar, la cuenta y la categoría originales siguen en el selector aunque
+  // ya no sean elegibles: un movimiento histórico no puede quedarse sin su
+  // cuenta ni su categoría. Van bloqueadas para que nadie las elija en un
+  // movimiento nuevo, con el marcador que corresponda («Archivada» o «no
+  // recibe ingresos» para tarjetas bajo un ingreso).
+  const blockedOriginalAccounts =
+    isEditing && selectedAccount && selectedAccountId
+      ? [selectedAccount].filter(
+          (account) => !selectableAccounts.some((option) => option.id === account.id),
+        )
+      : []
+  const blockedOriginalCategories =
+    isEditing && selectedCategory?.is_archived && selectedCategoryId ? [selectedCategory] : []
+
   // Si el tipo pasa a Ingreso con una tarjeta de crédito elegida, se descarta:
-  // la cuenta dejaría de ser una opción válida en el selector.
+  // la cuenta dejaría de ser una opción válida en el selector. En edición no,
+  // porque el movimiento puede venir de antes de esa regla y se conserva tal
+  // cual.
   useEffect(() => {
-    if (type === 'income' && selectedAccount?.type === 'credit_card') {
+    if (!isEditing && type === 'income' && selectedAccount?.type === 'credit_card') {
       setValue('accountId', '', { shouldValidate: false })
     }
-  }, [type, selectedAccount, setValue])
+  }, [isEditing, type, selectedAccount, setValue])
 
   function handleTypeChange(nextType: 'income' | 'expense') {
     setValue('type', nextType, { shouldValidate: true })
@@ -148,6 +169,12 @@ export function TransactionForm({
                 {account.name}
               </option>
             ))}
+            {blockedOriginalAccounts.map((account) => (
+              <option key={account.id} value={account.id} disabled>
+                {account.name}
+                {account.is_archived ? ' (Archivada)' : ' (no recibe ingresos)'}
+              </option>
+            ))}
           </Select>
           {errors.accountId && (
             <p className="text-sm text-destructive">{errors.accountId.message}</p>
@@ -165,6 +192,11 @@ export function TransactionForm({
             {filteredCategories.map((category) => (
               <option key={category.id} value={category.id}>
                 {category.name}
+              </option>
+            ))}
+            {blockedOriginalCategories.map((category) => (
+              <option key={category.id} value={category.id} disabled>
+                {category.name} (Archivada)
               </option>
             ))}
           </Select>
