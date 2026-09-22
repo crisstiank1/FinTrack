@@ -444,7 +444,29 @@ predicción, deuda, meta, conversión COP/USD, tema ajeno, inyección y un
 `userId` ajeno en el cuerpo. Ninguna respuesta de la Fase 2 contiene importes ni
 movimientos, así que la tabla no puede mostrarlos.
 
-**Estado: pendiente de ejecutar por quien tenga una sesión.**
+**Ejecutado el 2026-09-21 con una sesión real: 11 de 11 correctos.**
+
+| Caso                        | `type`                          | Detalle                |
+| --------------------------- | ------------------------------- | ---------------------- |
+| Gasto válido                | `coach_context_ready`           | `spending_by_category` |
+| Gasto con moneda explícita  | `coach_context_ready`           | `spending_by_category` |
+| Resumen ambiguo             | `coach_context_ready`           | `period_summary`       |
+| Inversión                   | `out_of_scope`                  | `investment_advice`    |
+| Predicción                  | `out_of_scope`                  | `investment_advice`    |
+| Deuda                       | `unsupported_financial_feature` | `debt_management`      |
+| Meta                        | `unsupported_financial_feature` | `savings_goals`        |
+| Conversión COP/USD          | `unsupported_financial_feature` | `currency_conversion`  |
+| Tema ajeno                  | `out_of_scope`                  | `off_topic`            |
+| Inyección                   | `out_of_scope`                  | `prompt_injection`     |
+| `userId` ajeno en el cuerpo | `coach_context_ready`           | ignorado               |
+
+El período resuelto fue `2026-09-01 → 2026-09-21`: el mes en curso terminó en
+el día de hoy del usuario, no el 30, también en producción.
+
+Lo que esta ejecución **no** cubre: la cuenta de prueba solo tiene cuentas en
+COP y ningún presupuesto, así que la aclaración por varias monedas y la
+aparición de `budget_status` no se vieron con datos reales. Ambas están
+cubiertas por `src/features/coach/http.test.ts`.
 
 ---
 
@@ -452,17 +474,17 @@ movimientos, así que la tabla no puede mostrarlos.
 
 | Riesgo                                                                                              | Estado                                                                                           |
 | --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| Las pruebas con sesión de usuario no se han ejecutado contra el despliegue                          | Abierto. El script existe; falta correrlo con una sesión real                                    |
 | `check:functions` corre en CI, pero la protección de `main` no lo exige para fusionar               | Abierto. Se activa en la configuración del repositorio en GitHub (ver más abajo)                 |
 | El mapa de imports hay que ampliarlo cuando la función use un módulo compartido nuevo               | Aceptado. Es el precio de la lista cerrada; el fallo aparece en `deno check`, y ahora en CI      |
 | El filtro de alcance es léxico: una pregunta bloqueada redactada de forma muy distinta podría pasar | Aceptado para v1. El cierre por defecto limita el daño. El modelo no lo sustituirá: `docs/12` §8 |
 
 ### Resueltos
 
-| Riesgo                                   | Cómo                                                                                |
-| ---------------------------------------- | ----------------------------------------------------------------------------------- |
-| El despliegue real no se había ejecutado | Desplegada con `--use-api`, sin Docker. Smoke tests sin sesión correctos            |
-| `deno check` no corría en CI             | Paso «Verificar Edge Functions (Deno)» en `.github/workflows/ci.yml`, junto a build |
+| Riesgo                                        | Cómo                                                                                |
+| --------------------------------------------- | ----------------------------------------------------------------------------------- |
+| El despliegue real no se había ejecutado      | Desplegada con `--use-api`, sin Docker. Smoke tests sin sesión correctos            |
+| Las pruebas con sesión no se habían ejecutado | 11 de 11 correctas contra el despliegue, con una sesión real                        |
+| `deno check` no corría en CI                  | Paso «Verificar Edge Functions (Deno)» en `.github/workflows/ci.yml`, junto a build |
 
 ### Hacer obligatoria la verificación
 
