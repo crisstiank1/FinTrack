@@ -396,11 +396,77 @@ datos financieros. Hay pruebas que lo comprueban leyendo el código fuente.
 
 ---
 
+## Despliegue y smoke tests
+
+Desplegada al proyecto de Supabase sin Docker, con el empaquetado del lado del
+servidor:
+
+```bash
+bunx supabase functions deploy finance-chat --use-api
+```
+
+`supabase/config.toml` fija `verify_jwt = true` e `import_map` para la función.
+`verify_jwt` ya era el valor por defecto; fijarlo evita que un despliegue con
+`--no-verify-jwt` quite la primera barrera sin tocar ningún archivo revisado. El
+segundo despliegue se hizo **sin** `--import-map` precisamente para comprobar
+que `config.toml` se respeta.
+
+### Sin sesión de usuario — ejecutadas con `curl`
+
+| Prueba                                      | Resultado                                 | Quién responde                             |
+| ------------------------------------------- | ----------------------------------------- | ------------------------------------------ |
+| Sin `Authorization`                         | 401                                       | Gateway de Supabase                        |
+| JWT inventado                               | 401                                       | Gateway de Supabase                        |
+| JWT válido pero sin usuario (clave pública) | 401                                       | **`finance-chat`**, con el contrato propio |
+| `GET` con JWT válido                        | 405                                       | `finance-chat`                             |
+| `OPTIONS` desde `fintrack.win`              | 204 con `Access-Control-Allow-Origin`     | `finance-chat`                             |
+| `OPTIONS` desde un origen ajeno             | 204 **sin** `Access-Control-Allow-Origin` | `finance-chat`                             |
+
+La tercera fila es la que importa: un JWT que el gateway acepta pero que no es
+de ningún usuario atraviesa la primera barrera y lo rechaza nuestro código con
+`{"type":"error","code":"unauthorized"}`. Eso demuestra dos cosas del entorno
+real a la vez: que las dos barreras existen, y que el paquete desplegado ejecuta
+los módulos de `src/` con el mapa de imports resuelto.
+
+En el origen ajeno, el 204 sin cabecera de permiso es el comportamiento
+correcto: el navegador bloquea la respuesta.
+
+### Con sesión de usuario — `supabase/tests/finance-chat-smoke.js`
+
+Necesitan un JWT de usuario real, y no se obtienen iniciando sesión desde un
+script con contraseña ni copiando un token de sesión a otra herramienta. El
+script se pega en la consola del navegador con FinTrack ya abierto: lee el
+token de la sesión existente, llama a la función y muestra una tabla con el
+`type` de cada respuesta. El token no sale del navegador.
+
+Cubre gasto válido, gasto con moneda explícita, resumen ambiguo, inversión,
+predicción, deuda, meta, conversión COP/USD, tema ajeno, inyección y un
+`userId` ajeno en el cuerpo. Ninguna respuesta de la Fase 2 contiene importes ni
+movimientos, así que la tabla no puede mostrarlos.
+
+**Estado: pendiente de ejecutar por quien tenga una sesión.**
+
+---
+
 ## Riesgos abiertos
 
-| Riesgo                                                                                              | Estado                                                                                          |
-| --------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| El despliegue real no se ha ejecutado: `supabase functions deploy` necesita Docker y un proyecto    | Abierto. `deno check` valida el grafo completo, pero no sustituye a un despliegue               |
-| El mapa de imports hay que ampliarlo cuando la función use un módulo compartido nuevo               | Aceptado. Es el precio de la lista cerrada; el fallo es en `deno check`, no en producción       |
-| `deno check` no corre en CI todavía                                                                 | Abierto. Conviene añadirlo antes de la Fase 3, para que un cambio en `src/` no rompa la función |
-| El filtro de alcance es léxico: una pregunta bloqueada redactada de forma muy distinta podría pasar | Aceptado para v1. El cierre por defecto limita el daño: lo que no se reconoce se rechaza        |
+| Riesgo                                                                                              | Estado                                                                                           |
+| --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| Las pruebas con sesión de usuario no se han ejecutado contra el despliegue                          | Abierto. El script existe; falta correrlo con una sesión real                                    |
+| `check:functions` corre en CI, pero la protección de `main` no lo exige para fusionar               | Abierto. Se activa en la configuración del repositorio en GitHub (ver más abajo)                 |
+| El mapa de imports hay que ampliarlo cuando la función use un módulo compartido nuevo               | Aceptado. Es el precio de la lista cerrada; el fallo aparece en `deno check`, y ahora en CI      |
+| El filtro de alcance es léxico: una pregunta bloqueada redactada de forma muy distinta podría pasar | Aceptado para v1. El cierre por defecto limita el daño. El modelo no lo sustituirá: `docs/12` §8 |
+
+### Resueltos
+
+| Riesgo                                   | Cómo                                                                                |
+| ---------------------------------------- | ----------------------------------------------------------------------------------- |
+| El despliegue real no se había ejecutado | Desplegada con `--use-api`, sin Docker. Smoke tests sin sesión correctos            |
+| `deno check` no corría en CI             | Paso «Verificar Edge Functions (Deno)» en `.github/workflows/ci.yml`, junto a build |
+
+### Hacer obligatoria la verificación
+
+El flujo de CI ya se ejecuta en cada pull request hacia `main` y en cada push a
+`main`. Para que un fallo **bloquee** la fusión, en GitHub: _Settings →
+Branches → Branch protection rule_ para `main` → _Require status checks to pass
+before merging_ → marcar `validar-codigo`.

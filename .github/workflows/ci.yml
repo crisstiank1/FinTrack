@@ -30,3 +30,14 @@ jobs:
 
       - name: Ejecutar pruebas (Vitest)
         run: bun run test
+
+      - name: Compilar (Vite)
+        run: bun run build
+
+      # La Edge Function importa módulos de src/. Sin este paso, un cambio en
+      # src/ podría romper uno de esos imports mientras el frontend sigue
+      # compilando, y el fallo solo aparecería al desplegar o al ejecutar la
+      # función. Usa el mismo script que en local para que no haya dos formas
+      # de comprobar lo mismo.
+      - name: Verificar Edge Functions (Deno)
+        run: bun run check:functions

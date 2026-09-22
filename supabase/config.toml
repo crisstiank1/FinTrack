@@ -381,6 +381,15 @@ inspector_port = 8083
 # The Deno major version to use.
 deno_version = 2
 
+# FinTrack Coach. `verify_jwt` es el valor por defecto, pero se fija aquí a
+# propósito: el gateway es la primera de dos barreras de autenticación, y un
+# despliegue con `--no-verify-jwt` no debería poder quitarla sin tocar este
+# archivo. `import_map` apunta al mapa explícito que resuelve los módulos
+# compartidos de `src/` (ver docs/14-coach-fase-2.md).
+[functions.finance-chat]
+verify_jwt = true
+import_map = "./functions/deno.json"
+
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 

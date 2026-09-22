@@ -2,8 +2,7 @@
   "version": "5",
   "specifiers": {
     "npm:@supabase/supabase-js@^2.49.1": "2.116.0",
-    "npm:date-fns@^4.4.0": "4.4.0",
-    "npm:dinero.js@^2.0.2": "2.0.2"
+    "npm:date-fns@^4.4.0": "4.4.0"
   },
   "npm": {
     "@supabase/auth-js@2.116.0": {
@@ -54,9 +53,6 @@
     "date-fns@4.4.0": {
       "integrity": "sha512-+1UMbeh68lH1SegH83CGWwpb6OHHbpSgr3+s5Eww5M4CAgswBpoWS0AjTOfEJ33HiYKz1hdj/KTFprzXHmq/6w=="
     },
-    "dinero.js@2.0.2": {
-      "integrity": "sha512-d+4egJTvNinkb66KSed11Daqz6MWaOHzyalLu6h3p+BLrsmwKFjHjvOKivOWeM7WyoX89te+xx4cKI6zrDtCfQ=="
-    },
     "iceberg-js@0.8.1": {
       "integrity": "sha512-1dhVQZXhcHje7798IVM+xoo/1ZdVfzOMIc8/rgVSijRK38EDqOJoGula9N/8ZI5RD8QTxNQtK/Gozpr+qUqRRA=="
     },
@@ -67,8 +63,7 @@
   "workspace": {
     "dependencies": [
       "npm:@supabase/supabase-js@^2.49.1",
-      "npm:date-fns@^4.4.0",
-      "npm:dinero.js@^2.0.2"
+      "npm:date-fns@^4.4.0"
     ]
   }
 }

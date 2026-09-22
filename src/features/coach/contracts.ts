@@ -21,9 +21,11 @@
  * nombres de cuenta, correos, tokens ni movimientos sin agregar. La lista
  * completa está en `docs/13-coach-fase-0.md` §5.
  *
- * Todos los importes son unidades mínimas enteras con exponente 0, como en el
- * resto de FinTrack. El frontend los renderiza con `formatAmount`; nadie los
- * divide entre 100 por el camino.
+ * Todos los importes son enteros en la unidad mínima **de su moneda**: pesos
+ * para COP (exponente 0), centavos para USD, ARS, EUR y MXN (exponente 2). Por
+ * eso cada contrato lleva su `currencyCode`: sin él, `4599` no significa nada.
+ * Nadie los reescala por el camino; el frontend los renderiza con
+ * `formatAmount`, que es el único sitio que aplica el exponente.
  */
 
 import type { BudgetStatus as BudgetStatusKind } from '@/features/budgets/progress'
