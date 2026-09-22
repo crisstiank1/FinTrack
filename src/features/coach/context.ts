@@ -17,6 +17,7 @@ import {
   type CoachResponse,
 } from './responses'
 import type { CoachIntent } from './scope'
+import { intentNeedsData } from './snapshot'
 
 /**
  * Cliente autenticado con el JWT del usuario.
@@ -93,6 +94,21 @@ export async function resolveCoachContext({
       'invalid_profile_timezone',
       'La zona horaria de tu perfil no es válida, así que no puedo saber a qué mes te refieres.',
     )
+  }
+
+  // Una pregunta de concepto o de ayuda no usa datos del usuario, así que no
+  // tiene sentido preguntarle en qué moneda la quiere: "¿qué es la tasa de
+  // ahorro?" no depende de si tiene cuentas en USD. Se responde en la moneda
+  // principal y sin leer sus cuentas.
+  if (!intentNeedsData(intent)) {
+    return {
+      type: 'coach_context_ready',
+      intent,
+      currency: profile.data.currency_code,
+      period: buildPeriod(monthKey, today),
+      comparedTo: buildPeriod(previousMonthKey(monthKey), today),
+      availableData: [],
+    }
   }
 
   const accounts = await client.from('accounts').select('currency_code').eq('user_id', userId)

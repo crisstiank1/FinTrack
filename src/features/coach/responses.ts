@@ -87,11 +87,28 @@ export interface CoachFinancialAnswer {
   currency: string
   period: CoachPeriodRange
   snapshot: CoachContextSnapshot
-  content: {
-    titleTemplate: string
-    summaryTemplate: string
-    factReferences: string[]
-  }
+  content: CoachAnswerContent
+  /** Trazabilidad: qué prompt y qué modelo produjeron la redacción. */
+  meta: { promptVersion: string; model: string }
+}
+
+/**
+ * Contenido redactado, ya validado.
+ *
+ * Todo texto es una plantilla: puede citar `{{rutas}}` del `snapshot` y no
+ * puede contener cifras propias. `factReferences` lo calcula el backend —las
+ * rutas realmente citadas, sin repetir—, no el modelo.
+ *
+ * Los tres últimos campos se añadieron en la Fase 3. `financial_answer` no se
+ * había emitido nunca, así que no rompen a ningún cliente.
+ */
+export interface CoachAnswerContent {
+  titleTemplate: string
+  summaryTemplate: string
+  factReferences: string[]
+  factTemplates: string[]
+  recommendationTemplates: string[]
+  assumptionTemplates: string[]
 }
 
 export type CoachErrorCode =
@@ -100,6 +117,10 @@ export type CoachErrorCode =
   | 'method_not_allowed'
   | 'rate_limited'
   | 'invalid_profile_timezone'
+  /** El proveedor de IA no respondió, o respondió con un error. */
+  | 'provider_error'
+  /** El modelo respondió, pero su redacción no pasó la validación ni al reintentar. */
+  | 'answer_rejected'
   | 'internal'
 
 export interface CoachError {
@@ -190,6 +211,11 @@ export function httpStatusFor(response: CoachResponse): number {
       return 405
     case 'rate_limited':
       return 429
+    // Fallos de un servicio del que dependemos, no del nuestro ni de quien
+    // pregunta: 502, para que la interfaz pueda ofrecer reintentar.
+    case 'provider_error':
+    case 'answer_rejected':
+      return 502
     default:
       return 500
   }

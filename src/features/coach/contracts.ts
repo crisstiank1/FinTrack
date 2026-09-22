@@ -221,6 +221,15 @@ export interface CoachContextSnapshot {
   categoryDeltas?: Record<string, SnapshotCategoryDelta>
   /** Indexados `b1`, `b2`… */
   budgets?: Record<string, SnapshotBudget>
+  /**
+   * Moneda en la que están los presupuestos. Aparece siempre que se pidieron.
+   *
+   * `budgets` no guarda moneda: sus importes se entienden en la moneda de
+   * presentación, igual que en `/budgets`. Si el análisis es en otra moneda, los
+   * presupuestos **no se calculan** —compararían gasto en USD contra un tope en
+   * COP— y este campo le dice al modelo por qué faltan.
+   */
+  budgetsCurrency?: string
   cashflow?: Pick<CashflowStatus, 'incomeMinor' | 'expenseMinor' | 'netSavingsMinor' | 'alert'>
   exclusions: CurrencyExclusionSummary
 }

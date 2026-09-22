@@ -1,6 +1,15 @@
+import { generateFinancialAnswer } from './answer'
+import type { ConsentCheck } from './consent'
 import { resolveCoachContext, type CoachSupabaseClient } from './context'
+import type { LLMProvider } from './llm/provider'
 import { coachError, outOfScope, unsupportedFeature, type CoachResponse } from './responses'
 import { classifyMessage } from './scope'
+import {
+  buildCoachSnapshot,
+  intentNeedsData,
+  loadSnapshotData,
+  type SnapshotData,
+} from './snapshot'
 
 /**
  * Longitud máxima del mensaje.
@@ -25,6 +34,25 @@ export interface CoachRequestInput {
   client: CoachSupabaseClient
   /** Inyectable para que las pruebas no dependan del reloj. */
   now?: Date
+  /**
+   * Redacción por IA. Sin esto, la respuesta es el contexto resuelto, igual que
+   * en la Fase 2. Con esto, además hace falta que `hasConsent` diga que sí.
+   */
+  ai?: CoachAI
+}
+
+export interface CoachAI {
+  provider: LLMProvider
+  hasConsent: ConsentCheck
+}
+
+/** Snapshot de una pregunta que no usa datos: período y moneda, y nada más. */
+const NO_DATA: SnapshotData = {
+  primaryCurrency: null,
+  accounts: [],
+  transactions: [],
+  categories: [],
+  budgets: [],
 }
 
 /**
@@ -43,6 +71,7 @@ export async function handleCoachRequest({
   userId,
   client,
   now,
+  ai,
 }: CoachRequestInput): Promise<CoachResponse> {
   const message = readMessage(body)
 
@@ -61,12 +90,30 @@ export async function handleCoachRequest({
   if (decision.kind === 'out_of_scope') return outOfScope(decision.reason)
   if (decision.kind === 'unsupported') return unsupportedFeature(decision.feature)
 
-  return resolveCoachContext({
+  const context = await resolveCoachContext({
     client,
     userId,
     intent: decision.intent,
     currencyHint: decision.currencyHint,
     now,
+  })
+
+  // El filtro de alcance ya decidió antes de llegar aquí, y el modelo no lo
+  // sustituye (docs/12, principio 8). Lo que queda son dos condiciones más para
+  // enviar algo a un tercero: que haya proveedor y que el usuario lo autorizara.
+  if (context.type !== 'coach_context_ready' || !ai) return context
+  if (!(await ai.hasConsent(client, userId))) return context
+
+  // Las preguntas de concepto y de ayuda no leen ni una fila del usuario.
+  const data = intentNeedsData(context.intent)
+    ? await loadSnapshotData(client, userId, context)
+    : NO_DATA
+
+  return generateFinancialAnswer({
+    provider: ai.provider,
+    context,
+    snapshot: buildCoachSnapshot({ context, data }),
+    question: message,
   })
 }
 

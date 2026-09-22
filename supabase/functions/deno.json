@@ -20,6 +20,21 @@
     "../../src/features/dashboard/summary": "../../src/features/dashboard/summary.ts",
     "@/features/coach/http": "../../src/features/coach/http.ts",
     "../../src/features/coach/request": "../../src/features/coach/request.ts",
-    "../../src/features/coach/http": "../../src/features/coach/http.ts"
+    "../../src/features/coach/http": "../../src/features/coach/http.ts",
+    "@/features/coach/consent": "../../src/features/coach/consent.ts",
+    "@/features/coach/llm/openai-compatible": "../../src/features/coach/llm/openai-compatible.ts",
+    "@/features/budgets/categories": "../../src/features/budgets/categories.ts",
+    "@/features/budgets/resolution": "../../src/features/budgets/resolution.ts",
+    "@/features/dashboard/api": "../../src/features/dashboard/api.ts",
+    "@/features/dashboard/comparison": "../../src/features/dashboard/comparison.ts",
+    "@/features/dashboard/summary": "../../src/features/dashboard/summary.ts",
+    "../../src/features/coach/answer": "../../src/features/coach/answer.ts",
+    "../../src/features/coach/consent": "../../src/features/coach/consent.ts",
+    "../../src/features/coach/snapshot": "../../src/features/coach/snapshot.ts",
+    "../../src/features/coach/prompt": "../../src/features/coach/prompt.ts",
+    "../../src/features/coach/references": "../../src/features/coach/references.ts",
+    "../../src/features/coach/validation": "../../src/features/coach/validation.ts",
+    "../../src/features/coach/llm/provider": "../../src/features/coach/llm/provider.ts",
+    "../../src/features/budgets/progress": "../../src/features/budgets/progress.ts"
   }
 }

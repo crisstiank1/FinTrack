@@ -38,12 +38,8 @@ export async function fetchAllTransactions(
   client: TransactionsClient,
   userId: string,
 ): Promise<Tables<'transactions'>[]> {
-  const all: Tables<'transactions'>[] = []
-
-  for (let page = 0; page < MAX_PAGES; page += 1) {
-    const from = page * PAGE_SIZE
-
-    const { data, error } = await client
+  return fetchAllPages((from, to) =>
+    client
       .from('transactions')
       .select('*')
       .eq('user_id', userId)
@@ -51,12 +47,36 @@ export async function fetchAllTransactions(
       // `id` desempata: sin un orden total y estable, dos filas con la misma
       // fecha podrían repetirse o perderse entre páginas.
       .order('id', { ascending: false })
-      .range(from, from + PAGE_SIZE - 1)
+      .range(from, to),
+  )
+}
+
+/**
+ * Recorre una consulta página a página hasta agotarla.
+ *
+ * Es la única implementación de la paginación: `PAGE_SIZE`, `MAX_PAGES` y la
+ * condición de parada viven aquí. Quien llama construye la consulta —columnas,
+ * filtros y **un orden total y estable**, sin el cual una fila podría repetirse
+ * o perderse entre páginas— y recibe el rango de cada una.
+ *
+ * Existe para que una lectura que no necesita todas las columnas no tenga que
+ * copiar el bucle. El Coach, por ejemplo, lee movimientos sin `description` ni
+ * `notes`: no basta con no enviarlas al proveedor, es mejor no leerlas.
+ */
+export async function fetchAllPages<T>(
+  fetchPage: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>,
+): Promise<T[]> {
+  const all: T[] = []
+
+  for (let page = 0; page < MAX_PAGES; page += 1) {
+    const from = page * PAGE_SIZE
+    const { data, error } = await fetchPage(from, from + PAGE_SIZE - 1)
 
     if (error) throw error
 
-    all.push(...data)
-    if (data.length < PAGE_SIZE) break
+    const rows = data ?? []
+    all.push(...rows)
+    if (rows.length < PAGE_SIZE) break
   }
 
   return all

@@ -25,8 +25,12 @@ jobs:
       - name: Verificar sintaxis (ESLint)
         run: bun run lint
 
+      # `tsc -b`, no `tsc --noEmit`: el tsconfig.json raíz es una solución con
+      # `"files": []` y referencias, y `tsc --noEmit` sobre él no revisa ningún
+      # archivo. Los dos proyectos referenciados tienen `noEmit`, así que esto
+      # comprueba sin generar salida.
       - name: Verificar Tipos (TypeScript)
-        run: bunx tsc --noEmit
+        run: bun run typecheck
 
       - name: Ejecutar pruebas (Vitest)
         run: bun run test

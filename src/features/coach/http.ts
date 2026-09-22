@@ -1,5 +1,5 @@
 import type { CoachSupabaseClient } from './context'
-import { handleCoachRequest } from './request'
+import { handleCoachRequest, type CoachAI } from './request'
 import { coachError, httpStatusFor, type CoachResponse } from './responses'
 
 /**
@@ -36,6 +36,8 @@ export interface CoachHttpDeps {
   createClient: (authorization: string) => CoachSupabaseClient
   /** Inyectable para que las pruebas no dependan del reloj. */
   now?: Date
+  /** Redacción por IA. Ver `CoachAI` en `request.ts`. */
+  ai?: CoachAI
 }
 
 export function corsHeaders(origin: string | null): Record<string, string> {
@@ -124,6 +126,7 @@ export async function handleCoachHttpRequest(
       userId: data.user.id,
       client,
       now: deps.now,
+      ai: deps.ai,
     })
 
     return jsonResponse(response, origin)
