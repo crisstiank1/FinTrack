@@ -260,7 +260,7 @@ describe('getCategoryDelta', () => {
     expect(deltaOf(inUsd, 'cat-food').previousAmount).toBe(0)
   })
 
-  it('conserva los importes como enteros, sin dividir entre 100', () => {
+  it('conserva los importes en unidades mínimas, sin reescalarlos', () => {
     const result = getCategoryDelta({
       accounts,
       categories,

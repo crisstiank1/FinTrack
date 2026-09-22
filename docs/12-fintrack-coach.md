@@ -128,6 +128,29 @@ backend la convierte en fechas usando `profiles.timezone`.
 Ninguna herramienta de v1 escribe en tablas financieras. La Edge Function no
 expone ninguna ruta que lo permita.
 
+### 8. El modelo no sustituye el filtro de alcance
+
+Cuando exista un proveedor de IA podrá mejorar la comprensión del lenguaje:
+entender una pregunta mal escrita o clasificar mejor una intención. **No será
+nunca la única barrera.** El filtro por reglas de `src/features/coach/scope.ts`
+se sigue ejecutando antes de construir el contexto financiero, y estas
+categorías se bloquean ahí, sin que el modelo llegue a ver un solo dato:
+
+- inversiones específicas;
+- predicciones de mercado;
+- conversión entre monedas;
+- evasión fiscal o fraude;
+- instrucciones que intenten revelar el prompt, secretos o datos de otros
+  usuarios;
+- temas ajenos a FinTrack.
+
+El orden importa por una razón concreta: un modelo que decide si una pregunta
+es admisible ya ha recibido la pregunta, y si además ha recibido el contexto,
+un rechazo tardío no deshace lo que se envió. Si el modelo sugiere una
+intención que las reglas bloquean, **ganan las reglas**. Si las reglas admiten
+algo que el modelo considera fuera de alcance, puede rechazarlo: sumar
+prudencia está permitido; restarla, no.
+
 ---
 
 ## Arquitectura
@@ -222,8 +245,10 @@ Reglas del snapshot:
   dentro del snapshot y el modelo solo puede citarlos por referencia
   (`{{categories.c1.name}}`), nunca reescribirlos. Eso corta de raíz tanto la
   inyección por nombre de categoría como los nombres inventados.
-- Los importes van en unidades mínimas enteras, exponente 0, como en toda la
-  app. El frontend los formatea.
+- Los importes van en enteros, en la unidad mínima de su moneda —pesos para
+  COP, centavos para USD y ARS—, acompañados siempre de su código, como en
+  toda la app. El frontend los formatea con `formatAmount`, que es el único
+  sitio que aplica el exponente.
 
 ### Validación de la respuesta
 

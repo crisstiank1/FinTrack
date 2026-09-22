@@ -61,17 +61,17 @@ Las cinco primeras son todo lo que el Coach necesita.
 
 **`transactions`** — el corazón de todo cálculo
 
-| Columna              | Tipo     | Valores / nota                                      |
-| -------------------- | -------- | --------------------------------------------------- |
-| `account_id`         | `uuid`   | `not null`. **De aquí sale la moneda**              |
-| `category_id`        | `uuid`   | Nulo en transferencias, obligatoriamente            |
-| `type`               | `text`   | `income` \| `expense` \| `transfer`                 |
-| `transfer_direction` | `text`   | `incoming` \| `outgoing`, solo en transferencias    |
-| `amount_minor`       | `bigint` | **Siempre positivo**, unidades mínimas, exponente 0 |
-| `transaction_date`   | `date`   | Sin hora ni zona                                    |
-| `description`        | `text`   | **Nunca sale hacia el LLM**                         |
-| `notes`              | `text`   | **Nunca sale hacia el LLM**                         |
-| `transfer_group_id`  | `uuid`   | Une las dos patas de una transferencia              |
+| Columna              | Tipo     | Valores / nota                                   |
+| -------------------- | -------- | ------------------------------------------------ |
+| `account_id`         | `uuid`   | `not null`. **De aquí sale la moneda**           |
+| `category_id`        | `uuid`   | Nulo en transferencias, obligatoriamente         |
+| `type`               | `text`   | `income` \| `expense` \| `transfer`              |
+| `transfer_direction` | `text`   | `incoming` \| `outgoing`, solo en transferencias |
+| `amount_minor`       | `bigint` | **Siempre positivo**, unidad mínima de su moneda |
+| `transaction_date`   | `date`   | Sin hora ni zona                                 |
+| `description`        | `text`   | **Nunca sale hacia el LLM**                      |
+| `notes`              | `text`   | **Nunca sale hacia el LLM**                      |
+| `transfer_group_id`  | `uuid`   | Une las dos patas de una transferencia           |
 
 **`budgets`**
 
@@ -107,12 +107,16 @@ lectura (`src/lib/currency.ts`).
 3. **`budgets` → `categories`** por clave compuesta `(category_id, user_id)`:
    un presupuesto no puede apuntar a la categoría de otro usuario, ni siquiera
    saltándose RLS.
-4. **`amount_minor` es exponente 0 en todas las monedas.** `COP 15.000` y
-   `USD 15.000` se guardan ambos como `15000`. Nunca dividir entre 100.
+4. **`amount_minor` está en la unidad mínima de cada moneda.** COP usa
+   exponente 0 (`COP 15.000` es `15000`); USD, ARS, EUR y MXN usan exponente 2
+   (`USD 45,99` es `4599`), desde la migración
+   `20260918220000_fix_divisas_con_centavos.sql`. El dominio nunca reescala: suma
+   y resta enteros. Solo `formatAmount` aplica el exponente, y por eso ningún
+   importe viaja sin su código de moneda.
 
 ### 1.5 Lo que no existe
 
-Confirmado por inspección de las siete migraciones:
+Confirmado por inspección de las migraciones:
 
 - **No hay tabla de deudas.** La única noción es
   `category_classifications.budget_group = 'debt'`, una etiqueta sobre una
@@ -145,7 +149,7 @@ los reimplementa.
 
 | Función                       | Regla                                                  |
 | ----------------------------- | ------------------------------------------------------ |
-| `formatAmount`                | `es-CO`, sin decimales, con código de moneda delante   |
+| `formatAmount`                | `es-CO`, decimales según el exponente de la moneda     |
 | `resolvePresentationCurrency` | Qué moneda muestra una pantalla agregada               |
 | `resolveCurrencyFilter`       | Traduce «moneda» a «cuentas de esa moneda»             |
 | `partitionByAccountCurrency`  | Separa lo incluido de lo excluido y cuenta lo excluido |
@@ -362,7 +366,8 @@ aislamiento no depende de que el código del Coach filtre bien.
 ### 4.5 Resolución de módulos en Deno
 
 - Alias `@/`: mapearlo en `supabase/functions/deno.json` hacia `../../src/`.
-- `date-fns` y `dinero.js`: especificadores `npm:` con versión fija.
+- `date-fns`: especificador `npm:` con versión fija. `dinero.js` dejó de usarse
+  al pasar `currency.ts` a exponentes por moneda y salió del mapa.
 - `src/lib/supabase.ts` **no se importa jamás** desde la Edge Function: lee
   variables `VITE_` y construye el cliente del navegador.
 - CI: añadir una verificación de tipos de la función (`deno check`) para que un

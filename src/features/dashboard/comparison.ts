@@ -14,8 +14,10 @@ import {
  * compara los totales del mes contra el anterior, pero no baja al detalle de
  * qué categoría explica la diferencia.
  *
- * Los importes son unidades mínimas enteras con exponente 0, como en el resto
- * de la aplicación: `COP 15.000` es `15000`, y nunca se dividen entre 100.
+ * Los importes son enteros en la unidad mínima de la moneda analizada, como en
+ * el resto de la aplicación, y aquí solo se suman y se restan: nunca se
+ * reescalan. Que `4599` sea `USD 45,99` o `COP 4.599` lo decide `formatAmount`
+ * al mostrarlo, no esta función.
  */
 export interface CategoryDelta {
   /** `'uncategorized'` para el gasto sin categoría, igual que el reparto del dashboard. */

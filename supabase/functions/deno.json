@@ -3,7 +3,6 @@
     "@supabase/supabase-js": "npm:@supabase/supabase-js@^2.49.1",
     "date-fns": "npm:date-fns@^4.4.0",
     "date-fns/locale": "npm:date-fns@^4.4.0/locale",
-    "dinero.js": "npm:dinero.js@^2.0.2",
     "@/features/coach/request": "../../src/features/coach/request.ts",
     "@/features/coach/responses": "../../src/features/coach/responses.ts",
     "@/features/budgets/progress": "../../src/features/budgets/progress.ts",
