@@ -474,21 +474,21 @@ cubiertas por `src/features/coach/http.test.ts`.
 
 | Riesgo                                                                                              | Estado                                                                                           |
 | --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| `check:functions` corre en CI, pero la protección de `main` no lo exige para fusionar               | Abierto. Se activa en la configuración del repositorio en GitHub (ver más abajo)                 |
 | El mapa de imports hay que ampliarlo cuando la función use un módulo compartido nuevo               | Aceptado. Es el precio de la lista cerrada; el fallo aparece en `deno check`, y ahora en CI      |
 | El filtro de alcance es léxico: una pregunta bloqueada redactada de forma muy distinta podría pasar | Aceptado para v1. El cierre por defecto limita el daño. El modelo no lo sustituirá: `docs/12` §8 |
 
 ### Resueltos
 
-| Riesgo                                        | Cómo                                                                                |
-| --------------------------------------------- | ----------------------------------------------------------------------------------- |
-| El despliegue real no se había ejecutado      | Desplegada con `--use-api`, sin Docker. Smoke tests sin sesión correctos            |
-| Las pruebas con sesión no se habían ejecutado | 11 de 11 correctas contra el despliegue, con una sesión real                        |
-| `deno check` no corría en CI                  | Paso «Verificar Edge Functions (Deno)» en `.github/workflows/ci.yml`, junto a build |
+| Riesgo                                            | Cómo                                                                                |
+| ------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| El despliegue real no se había ejecutado          | Desplegada con `--use-api`, sin Docker. Smoke tests sin sesión correctos            |
+| Las pruebas con sesión no se habían ejecutado     | 11 de 11 correctas contra el despliegue, con una sesión real                        |
+| La protección de `main` no exigía la verificación | Ruleset «Proteccion de main»: `validar-codigo` es obligatorio para fusionar         |
+| `deno check` no corría en CI                      | Paso «Verificar Edge Functions (Deno)» en `.github/workflows/ci.yml`, junto a build |
 
-### Hacer obligatoria la verificación
+### Verificación obligatoria
 
-El flujo de CI ya se ejecuta en cada pull request hacia `main` y en cada push a
-`main`. Para que un fallo **bloquee** la fusión, en GitHub: _Settings →
-Branches → Branch protection rule_ para `main` → _Require status checks to pass
-before merging_ → marcar `validar-codigo`.
+El flujo de CI se ejecuta en cada pull request hacia `main` y en cada push a
+`main`. El ruleset «Proteccion de main» exige que `validar-codigo` pase antes de
+fusionar, así que un fallo en cualquiera de sus pasos —incluido
+`check:functions`— bloquea la fusión.
