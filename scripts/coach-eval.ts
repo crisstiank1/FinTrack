@@ -14,6 +14,9 @@
  *   COACH_LLM_API_KEY=<clave> \
  *   bun run eval:coach
  *
+ * Si el modelo rechaza `response_format` con un 400, repetir con
+ * `COACH_LLM_JSON_MODE=false`: el validador sigue exigiendo JSON igual.
+ *
  * Qué mide, por caso: si terminó en `financial_answer`, cuántos intentos
  * necesitó, la latencia y los tokens. Al final, las tasas agregadas.
  */
@@ -208,6 +211,7 @@ const real = createOpenAICompatibleProvider({
   baseUrl,
   model,
   apiKey,
+  jsonMode: process.env.COACH_LLM_JSON_MODE !== 'false',
 })
 
 interface Row {
@@ -299,7 +303,9 @@ for (const item of cases) {
   }
 }
 
-console.log(`\nProveedor: ${real.name} · modelo: ${real.model}\n`)
+console.log(
+  `\nProveedor: ${real.name} · modelo: ${real.model} · modo JSON: ${process.env.COACH_LLM_JSON_MODE !== 'false'}\n`,
+)
 console.table(rows)
 
 const ok = rows.filter((r) => r.resultado === 'ok')
