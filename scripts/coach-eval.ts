@@ -23,7 +23,7 @@
 
 import { generateFinancialAnswer } from '@/features/coach/answer'
 import { createOpenAICompatibleProvider } from '@/features/coach/llm/openai-compatible'
-import type { LLMProvider } from '@/features/coach/llm/provider'
+import { LLMProviderError, type LLMProvider } from '@/features/coach/llm/provider'
 import { resolveTemplate } from '@/features/coach/references'
 import type { CoachContextReady } from '@/features/coach/responses'
 import { classifyMessage } from '@/features/coach/scope'
@@ -217,6 +217,7 @@ const real = createOpenAICompatibleProvider({
 interface Row {
   caso: string
   resultado: string
+  detalle?: string
   intentos: number
   ms: number
   tokens: number
@@ -240,14 +241,28 @@ for (const item of cases) {
 
   let attempts = 0
   let tokens = 0
+  // `generateFinancialAnswer` convierte cualquier fallo del proveedor en un
+  // `provider_error` genérico, que es lo correcto para el usuario pero no dice
+  // nada al evaluar. Aquí se guarda el tipo y el código HTTP para distinguir
+  // una clave rechazada (401/403) de un modelo inexistente (404) o de un
+  // `response_format` no admitido (400/422).
+  let failure = ''
   const counting: LLMProvider = {
     name: real.name,
     model: real.model,
     async generate(request) {
       attempts += 1
-      const response = await real.generate(request)
-      tokens += (response.usage?.promptTokens ?? 0) + (response.usage?.completionTokens ?? 0)
-      return response
+      try {
+        const response = await real.generate(request)
+        tokens += (response.usage?.promptTokens ?? 0) + (response.usage?.completionTokens ?? 0)
+        return response
+      } catch (error) {
+        failure =
+          error instanceof LLMProviderError
+            ? `${error.kind}${error.status ? ` ${error.status}` : ''}`
+            : 'desconocido'
+        throw error
+      }
     },
   }
 
@@ -283,6 +298,7 @@ for (const item of cases) {
   rows.push({
     caso: item.label,
     resultado: result.type === 'financial_answer' ? 'ok' : `${result.type}:${result.code}`,
+    detalle: failure,
     intentos: attempts,
     ms,
     tokens,
