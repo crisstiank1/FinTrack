@@ -28,7 +28,12 @@ export interface OpenAICompatibleConfig {
   fetch?: typeof fetch
 }
 
-const DEFAULT_TIMEOUT_MS = 20_000
+/**
+ * 30 s. La primera evaluación con `gemini-3.1-flash-lite` dio una media de
+ * 7,2 s y un caso que superó los 20 s anteriores. El tope está para que una
+ * Edge Function no espere indefinidamente, no para descartar respuestas lentas.
+ */
+const DEFAULT_TIMEOUT_MS = 30_000
 
 interface ChatCompletionBody {
   model?: unknown

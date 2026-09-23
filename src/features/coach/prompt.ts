@@ -15,7 +15,7 @@ import { CONTENT_LIMITS, type Violation } from './validation'
  * después. Lo que hace el prompt es que el modelo acierte a la primera y no
  * gaste un reintento.
  */
-export const PROMPT_VERSION = 'fintrack-coach-v1'
+export const PROMPT_VERSION = 'fintrack-coach-v2'
 
 const INTENT_GUIDANCE: Record<CoachIntent, string> = {
   period_summary:
@@ -48,6 +48,18 @@ Nunca escribas un importe, un porcentaje, una fecha completa ni un año con díg
 - Mal: "El gasto subió un 24%." (usa {{summary.expense.deltaPercent}})
 Solo puedes escribir enteros pequeños que no sean datos del usuario, como "durante 2 semanas".
 Si una referencia no está en la lista, no existe: no la inventes.
+
+CÓMO REDACTAR ALREDEDOR DE UNA REFERENCIA
+- El valor ya trae su unidad y su signo. No añadas "%", "puntos", "puntos porcentuales" ni el código de la moneda después de una referencia.
+  - Mal: "bajó {{summary.savingsRate.deltaPoints}} puntos porcentuales" (saldría "puntos" dos veces).
+  - Bien: "la tasa de ahorro cambió en {{summary.savingsRate.deltaPoints}}".
+- Una variación negativa ya se ve por su signo. No la combines con un verbo de caída, o dirás dos veces lo mismo.
+  - Mal: "disminuyó un {{summary.netSavings.deltaPercent}}" cuando el valor es negativo.
+  - Bien: "el ahorro neto varió {{summary.netSavings.deltaPercent}}".
+- Un importe restante negativo significa que se superó el presupuesto. Dilo así, sin llamarlo "exceso de" seguido de un número negativo.
+- No pongas un sustantivo en plural pegado a un conteo que puede valer uno.
+  - Mal: "{{exclusions.count}} movimientos en otras monedas".
+  - Bien: "movimientos en otras monedas que quedan fuera: {{exclusions.count}}".
 
 DATOS
 - Usa exclusivamente el snapshot. No inventes movimientos, saldos, tasas ni hechos externos.
