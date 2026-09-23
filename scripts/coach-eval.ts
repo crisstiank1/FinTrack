@@ -14,6 +14,9 @@
  *   COACH_LLM_API_KEY=<clave> \
  *   bun run eval:coach
  *
+ * Entre casos espera `COACH_LLM_DELAY_MS` (4 s por defecto) para no agotar el
+ * límite por minuto de un plan gratuito y acabar midiendo la cuota.
+ *
  * Si el modelo rechaza `response_format` con un 400, repetir con
  * `COACH_LLM_JSON_MODE=false`: el validador sigue exigiendo JSON igual.
  *
@@ -226,7 +229,20 @@ interface Row {
 const rows: Row[] = []
 const samples: string[] = []
 
+/**
+ * Pausa entre casos.
+ *
+ * Sin ella, los nueve casos salen en ráfaga y agotan el límite por minuto de un
+ * plan gratuito: la evaluación acaba midiendo la cuota en vez del modelo. Se
+ * ajusta con `COACH_LLM_DELAY_MS`; 0 la desactiva.
+ */
+const delayMs = Number(process.env.COACH_LLM_DELAY_MS ?? 4000)
+let first = true
+
 for (const item of cases) {
+  if (!first && delayMs > 0) await new Promise((resolve) => setTimeout(resolve, delayMs))
+  first = false
+
   const decision = classifyMessage(item.question)
   if (decision.kind !== 'allowed') {
     rows.push({
