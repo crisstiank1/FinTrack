@@ -245,8 +245,30 @@ Lo que falló y lo que se cambió por ello:
 | «Se han registrado 1 **movimientos**»                   | El prompt pide no pegar un plural a un conteo                       |
 | Un caso agotó los 20 s de espera                        | El tope pasa a 30 s                                                 |
 
-Esos cambios suben el prompt a `fintrack-coach-v2`. **Falta volver a evaluar con
-la versión nueva**, y comparar contra otro modelo antes de decidir.
+Esos cambios suben el prompt a `fintrack-coach-v2`.
+
+### Segunda evaluación — mismo modelo, prompt v2
+
+| Métrica              | v1     | v2         |
+| -------------------- | ------ | ---------- |
+| Válidas              | 8 de 9 | 7 de 9     |
+| Válidas a la primera | 7 de 9 | **7 de 7** |
+| Reintentos gastados  | 2      | **0**      |
+| Latencia media       | 7,2 s  | 11,0 s     |
+
+Los tres defectos de redacción desaparecieron y ninguna respuesta necesitó
+reintento: con el prompt v2, **todo lo que el modelo devolvió pasó la validación
+a la primera**.
+
+Las dos que faltan no fallaron por calidad: una recibió `http 503` —proveedor
+saturado— y otra agotó los 30 s. La latencia osciló entre 3,1 s y 16,4 s. Es el
+comportamiento del plan gratuito bajo carga, no del modelo.
+
+**Pendiente antes de decidir:** comparar con otros modelos y resolver si el
+fallo por saturación se trata con un reintento del proveedor. Hoy un `503` se
+devuelve tal cual, porque la regla es no reintentar fallos de proveedor para no
+duplicar la espera; un `503` que llega rápido es un caso distinto de un tiempo
+de espera agotado.
 
 NVIDIA NIM quedó sin evaluar: `meta/llama-3.3-70b-instruct` devolvió `http 410`
 —retirado del catálogo— y no se reintentó con otro modelo.
