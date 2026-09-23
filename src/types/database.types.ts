@@ -1,16 +1,10 @@
-export type Json =
-  | string
-  | number
-  | boolean
-  | null
-  | { [key: string]: Json | undefined }
-  | Json[]
+export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[]
 
 export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
+    PostgrestVersion: '14.5'
   }
   graphql_public: {
     Tables: {
@@ -81,6 +75,86 @@ export type Database = {
         }
         Relationships: []
       }
+      ai_conversations: {
+        Row: {
+          created_at: string
+          id: string
+          title: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          title?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          title?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      ai_messages: {
+        Row: {
+          content: string
+          conversation_id: string
+          created_at: string
+          id: string
+          metadata: Json
+          role: string
+          user_id: string
+        }
+        Insert: {
+          content: string
+          conversation_id: string
+          created_at?: string
+          id?: string
+          metadata?: Json
+          role: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          metadata?: Json
+          role?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'ai_messages_conversation_same_user_fkey'
+            columns: ['conversation_id', 'user_id']
+            isOneToOne: false
+            referencedRelation: 'ai_conversations'
+            referencedColumns: ['id', 'user_id']
+          },
+        ]
+      }
+      ai_usage_counters: {
+        Row: {
+          message_count: number
+          user_id: string
+          window_start: string
+        }
+        Insert: {
+          message_count?: number
+          user_id: string
+          window_start: string
+        }
+        Update: {
+          message_count?: number
+          user_id?: string
+          window_start?: string
+        }
+        Relationships: []
+      }
       budgets: {
         Row: {
           amount_minor: number
@@ -114,11 +188,11 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "budgets_category_same_user_fkey"
-            columns: ["category_id", "user_id"]
+            foreignKeyName: 'budgets_category_same_user_fkey'
+            columns: ['category_id', 'user_id']
             isOneToOne: false
-            referencedRelation: "categories"
-            referencedColumns: ["id", "user_id"]
+            referencedRelation: 'categories'
+            referencedColumns: ['id', 'user_id']
           },
         ]
       }
@@ -188,11 +262,11 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "category_classifications_category_same_user_fkey"
-            columns: ["category_id", "user_id"]
+            foreignKeyName: 'category_classifications_category_same_user_fkey'
+            columns: ['category_id', 'user_id']
             isOneToOne: false
-            referencedRelation: "categories"
-            referencedColumns: ["id", "user_id"]
+            referencedRelation: 'categories'
+            referencedColumns: ['id', 'user_id']
           },
         ]
       }
@@ -226,11 +300,11 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "plan_allocations_plan_month_same_user_fkey"
-            columns: ["plan_month_id", "user_id"]
+            foreignKeyName: 'plan_allocations_plan_month_same_user_fkey'
+            columns: ['plan_month_id', 'user_id']
             isOneToOne: false
-            referencedRelation: "plan_months"
-            referencedColumns: ["id", "user_id"]
+            referencedRelation: 'plan_months'
+            referencedColumns: ['id', 'user_id']
           },
         ]
       }
@@ -261,25 +335,25 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "plan_income_source_categories_category_same_user_fkey"
-            columns: ["category_id", "user_id"]
+            foreignKeyName: 'plan_income_source_categories_category_same_user_fkey'
+            columns: ['category_id', 'user_id']
             isOneToOne: false
-            referencedRelation: "categories"
-            referencedColumns: ["id", "user_id"]
+            referencedRelation: 'categories'
+            referencedColumns: ['id', 'user_id']
           },
           {
-            foreignKeyName: "plan_income_source_categories_source_month_fkey"
-            columns: ["plan_income_source_id", "plan_month_id"]
+            foreignKeyName: 'plan_income_source_categories_source_month_fkey'
+            columns: ['plan_income_source_id', 'plan_month_id']
             isOneToOne: false
-            referencedRelation: "plan_income_sources"
-            referencedColumns: ["id", "plan_month_id"]
+            referencedRelation: 'plan_income_sources'
+            referencedColumns: ['id', 'plan_month_id']
           },
           {
-            foreignKeyName: "plan_income_source_categories_source_same_user_fkey"
-            columns: ["plan_income_source_id", "user_id"]
+            foreignKeyName: 'plan_income_source_categories_source_same_user_fkey'
+            columns: ['plan_income_source_id', 'user_id']
             isOneToOne: false
-            referencedRelation: "plan_income_sources"
-            referencedColumns: ["id", "user_id"]
+            referencedRelation: 'plan_income_sources'
+            referencedColumns: ['id', 'user_id']
           },
         ]
       }
@@ -316,11 +390,11 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "plan_income_sources_plan_month_same_user_fkey"
-            columns: ["plan_month_id", "user_id"]
+            foreignKeyName: 'plan_income_sources_plan_month_same_user_fkey'
+            columns: ['plan_month_id', 'user_id']
             isOneToOne: false
-            referencedRelation: "plan_months"
-            referencedColumns: ["id", "user_id"]
+            referencedRelation: 'plan_months'
+            referencedColumns: ['id', 'user_id']
           },
         ]
       }
@@ -372,32 +446,32 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "plan_lines_account_same_user_fkey"
-            columns: ["account_id", "user_id"]
+            foreignKeyName: 'plan_lines_account_same_user_fkey'
+            columns: ['account_id', 'user_id']
             isOneToOne: false
-            referencedRelation: "accounts"
-            referencedColumns: ["id", "user_id"]
+            referencedRelation: 'accounts'
+            referencedColumns: ['id', 'user_id']
           },
           {
-            foreignKeyName: "plan_lines_category_same_user_fkey"
-            columns: ["category_id", "user_id"]
+            foreignKeyName: 'plan_lines_category_same_user_fkey'
+            columns: ['category_id', 'user_id']
             isOneToOne: false
-            referencedRelation: "categories"
-            referencedColumns: ["id", "user_id"]
+            referencedRelation: 'categories'
+            referencedColumns: ['id', 'user_id']
           },
           {
-            foreignKeyName: "plan_lines_plan_month_period_fkey"
-            columns: ["plan_month_id", "period_month"]
+            foreignKeyName: 'plan_lines_plan_month_period_fkey'
+            columns: ['plan_month_id', 'period_month']
             isOneToOne: false
-            referencedRelation: "plan_months"
-            referencedColumns: ["id", "period_month"]
+            referencedRelation: 'plan_months'
+            referencedColumns: ['id', 'period_month']
           },
           {
-            foreignKeyName: "plan_lines_plan_month_same_user_fkey"
-            columns: ["plan_month_id", "user_id"]
+            foreignKeyName: 'plan_lines_plan_month_same_user_fkey'
+            columns: ['plan_month_id', 'user_id']
             isOneToOne: false
-            referencedRelation: "plan_months"
-            referencedColumns: ["id", "user_id"]
+            referencedRelation: 'plan_months'
+            referencedColumns: ['id', 'user_id']
           },
         ]
       }
@@ -427,6 +501,8 @@ export type Database = {
       }
       profiles: {
         Row: {
+          ai_consent_at: string | null
+          ai_consent_version: string | null
           created_at: string
           currency_code: string
           display_name: string | null
@@ -437,6 +513,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          ai_consent_at?: string | null
+          ai_consent_version?: string | null
           created_at?: string
           currency_code?: string
           display_name?: string | null
@@ -447,6 +525,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          ai_consent_at?: string | null
+          ai_consent_version?: string | null
           created_at?: string
           currency_code?: string
           display_name?: string | null
@@ -488,18 +568,18 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "sheet_drafts_sheet_id_fkey"
-            columns: ["sheet_id"]
+            foreignKeyName: 'sheet_drafts_sheet_id_fkey'
+            columns: ['sheet_id']
             isOneToOne: false
-            referencedRelation: "sheets"
-            referencedColumns: ["id"]
+            referencedRelation: 'sheets'
+            referencedColumns: ['id']
           },
           {
-            foreignKeyName: "sheet_drafts_sheet_same_user_fkey"
-            columns: ["sheet_id", "user_id"]
+            foreignKeyName: 'sheet_drafts_sheet_same_user_fkey'
+            columns: ['sheet_id', 'user_id']
             isOneToOne: false
-            referencedRelation: "sheets"
-            referencedColumns: ["id", "user_id"]
+            referencedRelation: 'sheets'
+            referencedColumns: ['id', 'user_id']
           },
         ]
       }
@@ -584,18 +664,18 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "transactions_account_id_fkey"
-            columns: ["account_id"]
+            foreignKeyName: 'transactions_account_id_fkey'
+            columns: ['account_id']
             isOneToOne: false
-            referencedRelation: "accounts"
-            referencedColumns: ["id"]
+            referencedRelation: 'accounts'
+            referencedColumns: ['id']
           },
           {
-            foreignKeyName: "transactions_category_id_fkey"
-            columns: ["category_id"]
+            foreignKeyName: 'transactions_category_id_fkey'
+            columns: ['category_id']
             isOneToOne: false
-            referencedRelation: "categories"
-            referencedColumns: ["id"]
+            referencedRelation: 'categories'
+            referencedColumns: ['id']
           },
         ]
       }
@@ -604,6 +684,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      consume_ai_quota: { Args: { p_limit: number }; Returns: number }
+      purge_ai_data: {
+        Args: { p_counter_days?: number; p_message_days?: number }
+        Returns: {
+          contadores: number
+          conversaciones: number
+          mensajes: number
+        }[]
+      }
       register_sheet_draft: { Args: { p_draft_id: string }; Returns: Json }
     }
     Enums: {
@@ -615,33 +704,31 @@ export type Database = {
   }
 }
 
-type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
+type DatabaseWithoutInternals = Omit<Database, '__InternalSupabase'>
 
-type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, 'public'>]
 
 export type Tables<
   DefaultSchemaTableNameOrOptions extends
-    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    | keyof (DefaultSchema['Tables'] & DefaultSchema['Views'])
     | { schema: keyof DatabaseWithoutInternals },
   TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Tables'] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Views'])
     : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
-  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
-      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Tables'] &
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Views'])[TableName] extends {
       Row: infer R
     }
     ? R
     : never
-  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
-        DefaultSchema["Views"])
-    ? (DefaultSchema["Tables"] &
-        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema['Tables'] & DefaultSchema['Views'])
+    ? (DefaultSchema['Tables'] & DefaultSchema['Views'])[DefaultSchemaTableNameOrOptions] extends {
         Row: infer R
       }
       ? R
@@ -650,23 +737,22 @@ export type Tables<
 
 export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
-    | keyof DefaultSchema["Tables"]
-    | { schema: keyof DatabaseWithoutInternals },
+    keyof DefaultSchema['Tables'] | { schema: keyof DatabaseWithoutInternals },
   TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Tables']
     : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
-  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Tables'][TableName] extends {
       Insert: infer I
     }
     ? I
     : never
-  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
-    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema['Tables']
+    ? DefaultSchema['Tables'][DefaultSchemaTableNameOrOptions] extends {
         Insert: infer I
       }
       ? I
@@ -675,23 +761,22 @@ export type TablesInsert<
 
 export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
-    | keyof DefaultSchema["Tables"]
-    | { schema: keyof DatabaseWithoutInternals },
+    keyof DefaultSchema['Tables'] | { schema: keyof DatabaseWithoutInternals },
   TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Tables']
     : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
-  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions['schema']]['Tables'][TableName] extends {
       Update: infer U
     }
     ? U
     : never
-  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
-    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema['Tables']
+    ? DefaultSchema['Tables'][DefaultSchemaTableNameOrOptions] extends {
         Update: infer U
       }
       ? U
@@ -700,36 +785,34 @@ export type TablesUpdate<
 
 export type Enums<
   DefaultSchemaEnumNameOrOptions extends
-    | keyof DefaultSchema["Enums"]
-    | { schema: keyof DatabaseWithoutInternals },
+    keyof DefaultSchema['Enums'] | { schema: keyof DatabaseWithoutInternals },
   EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions['schema']]['Enums']
     : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
-  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
-  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
-    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions['schema']]['Enums'][EnumName]
+  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema['Enums']
+    ? DefaultSchema['Enums'][DefaultSchemaEnumNameOrOptions]
     : never
 
 export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
-    | keyof DefaultSchema["CompositeTypes"]
-    | { schema: keyof DatabaseWithoutInternals },
+    keyof DefaultSchema['CompositeTypes'] | { schema: keyof DatabaseWithoutInternals },
   CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
-    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions['schema']]['CompositeTypes']
     : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
-  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
-  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
-    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions['schema']]['CompositeTypes'][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema['CompositeTypes']
+    ? DefaultSchema['CompositeTypes'][PublicCompositeTypeNameOrOptions]
     : never
 
 export const Constants = {
