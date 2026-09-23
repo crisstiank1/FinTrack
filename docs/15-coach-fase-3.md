@@ -289,7 +289,33 @@ El tercero era un dato que faltaba: con `budget: null` a secas, un cero
 deliberado y una categoría nunca presupuestada son indistinguibles.
 `docs/06-presupuestos.md` las distingue, así que ahora el snapshot también.
 
-**Pendiente antes de decidir:** volver a evaluar con `v3` y resolver si el
+### Cuarta evaluación — prompt v3
+
+5 de 9, las cinco a la primera, con **cuatro tiempos de espera agotados
+seguidos** y 17,4 s de media. La cuota gratuita estaba agotada, así que la tanda
+no mide calidad.
+
+De las tres correcciones de v3, dos quedan confirmadas: el modelo usa «Mercado»
+en vez de «alimentación», y escribe «1 movimiento» y «quedan fuera: 5» con la
+concordancia correcta. La tercera —describir el cero deliberado como una
+decisión— **sigue sin verificarse**: el caso de presupuestos fue uno de los que
+agotaron el tiempo.
+
+### Estado de la evaluación
+
+| Aspecto                            | Estado                                                       |
+| ---------------------------------- | ------------------------------------------------------------ |
+| Corrección de las cifras           | **Verificado.** Ninguna cifra incorrecta en cuatro tandas    |
+| Validación de referencias          | **Verificado.** Ninguna respuesta inválida llegó a mostrarse |
+| Resistencia a inyección por nombre | **Verificado.** Cuatro de cuatro                             |
+| Redacción                          | **Verificado** salvo el texto del cero deliberado            |
+| Fiabilidad del proveedor           | **No apto en plan gratuito**: 503, 429 y tiempos agotados    |
+
+La calidad ya cumple los umbrales; lo que falla es la infraestructura gratuita.
+Lo que queda de la elección de proveedor depende de activar la facturación de
+Gemini o de evaluar una infraestructura distinta.
+
+**Pendiente antes de decidir:** una tanda con cuota disponible, y resolver si el
 fallo por saturación se trata con un reintento del proveedor. Hoy un `503` se
 devuelve tal cual, porque la regla es no reintentar fallos de proveedor para no
 duplicar la espera; un `503` que llega rápido es un caso distinto de un tiempo
