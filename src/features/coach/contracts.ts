@@ -184,6 +184,16 @@ export interface SnapshotBudget {
   spent: number
   remaining: number | null
   status: BudgetStatusKind
+  /**
+   * De dónde salió el presupuesto del mes.
+   *
+   * Distingue las dos cosas que comparten `budget: null`: un 0 puesto a
+   * propósito —`source` no nulo— y una categoría que nunca se presupuestó
+   * —`source` nulo—. Sin este campo, el modelo describe el 0 deliberado como
+   * "sin presupuesto definido", que es justo lo que `docs/06-presupuestos.md`
+   * distingue.
+   */
+  source: 'exception' | 'template' | null
 }
 
 /** Variación por categoría, ya sin identificador. */

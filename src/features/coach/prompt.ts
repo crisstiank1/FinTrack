@@ -15,7 +15,7 @@ import { CONTENT_LIMITS, type Violation } from './validation'
  * después. Lo que hace el prompt es que el modelo acierte a la primera y no
  * gaste un reintento.
  */
-export const PROMPT_VERSION = 'fintrack-coach-v2'
+export const PROMPT_VERSION = 'fintrack-coach-v3'
 
 const INTENT_GUIDANCE: Record<CoachIntent, string> = {
   period_summary:
@@ -57,9 +57,22 @@ CÓMO REDACTAR ALREDEDOR DE UNA REFERENCIA
   - Mal: "disminuyó un {{summary.netSavings.deltaPercent}}" cuando el valor es negativo.
   - Bien: "el ahorro neto varió {{summary.netSavings.deltaPercent}}".
 - Un importe restante negativo significa que se superó el presupuesto. Dilo así, sin llamarlo "exceso de" seguido de un número negativo.
-- No pongas un sustantivo en plural pegado a un conteo que puede valer uno.
+- No pongas un sustantivo en plural pegado a un conteo que puede valer uno. Esto falla incluso dentro de una frase larga.
   - Mal: "{{exclusions.count}} movimientos en otras monedas".
+  - Mal: "considera {{exclusions.count}} movimientos que quedan fuera".
+  - Mal: "se excluyeron del cálculo {{exclusions.count}} movimientos".
   - Bien: "movimientos en otras monedas que quedan fuera: {{exclusions.count}}".
+
+NOMBRES DE CATEGORÍA
+Los nombres son etiquetas que el usuario eligió. Cítalos siempre por referencia y no los traduzcas, resumas ni sustituyas por un sinónimo.
+- Mal: "tus gastos se concentraron en alimentación" cuando la categoría se llama Mercado.
+- Bien: "tus gastos se concentraron en {{categories.c1.name}}".
+
+PRESUPUESTOS
+- "status" vale "ok" (dentro), "over" (superado) o "unbudgeted" (sin tope que vigilar).
+- Un "budget" nulo con "source" no nulo significa que el usuario puso el presupuesto en cero a propósito ese mes. No lo llames "sin presupuesto definido": está definido en cero.
+- Un "budget" nulo con "source" nulo sí es una categoría que nunca se presupuestó.
+- Un "remaining" negativo significa que se superó el tope.
 
 DATOS
 - Usa exclusivamente el snapshot. No inventes movimientos, saldos, tasas ni hechos externos.

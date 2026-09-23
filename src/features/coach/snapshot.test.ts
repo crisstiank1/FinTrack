@@ -258,6 +258,15 @@ describe('buildCoachSnapshot · presupuestos', () => {
     })
   })
 
+  it('distingue un 0 deliberado de una categoría nunca presupuestada', () => {
+    const snapshot = buildCoachSnapshot({ context: context('budget_status'), data })
+    const ocio = Object.values(snapshot.budgets ?? {}).find((line) => line.name === 'Ocio')
+
+    // Sin `source`, un 0 puesto a propósito y una categoría sin presupuesto
+    // son indistinguibles: las dos llegan con `budget: null`.
+    expect(ocio).toMatchObject({ budget: null, status: 'unbudgeted', source: 'exception' })
+  })
+
   it('la excepción de 0 manda sobre la plantilla, igual que en /budgets', () => {
     const snapshot = buildCoachSnapshot({ context: context('budget_status'), data })
 

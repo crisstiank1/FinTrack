@@ -253,6 +253,7 @@ function buildBudgetSection(
     spent: line.spentMinor,
     remaining: line.remainingMinor,
     status: line.status,
+    source: line.source,
   }))
 }
 

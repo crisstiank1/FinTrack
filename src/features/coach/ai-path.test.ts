@@ -160,7 +160,7 @@ describe('respuesta financiera', () => {
       type: 'financial_answer',
       intent: 'spending_by_category',
       currency: 'COP',
-      meta: { promptVersion: 'fintrack-coach-v2', model: 'modelo-falso' },
+      meta: { promptVersion: 'fintrack-coach-v3', model: 'modelo-falso' },
       content: {
         factReferences: ['period.label', 'summary.expense.currentMinor', 'categories.c1.name'],
       },

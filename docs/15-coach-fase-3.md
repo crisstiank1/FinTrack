@@ -11,7 +11,7 @@
 ## Lo que entrega y lo que no
 
 **Entrega:** el serializador del snapshot, el validador de respuestas, el
-prompt `fintrack-coach-v2`, la interfaz `LLMProvider` con un adaptador para
+prompt `fintrack-coach-v3`, la interfaz `LLMProvider` con un adaptador para
 APIs compatibles con OpenAI, la orquestación con un reintento, y un arnés de
 evaluación con datos sintéticos.
 
@@ -163,7 +163,7 @@ realmente citadas.
 
 ---
 
-## Prompt `fintrack-coach-v2`
+## Prompt `fintrack-coach-v3`
 
 `src/features/coach/prompt.ts`. El prompt **no es una barrera de seguridad**: el
 alcance lo decidió el filtro antes, y las cifras las vigila el validador
@@ -264,7 +264,32 @@ Las dos que faltan no fallaron por calidad: una recibió `http 503` —proveedor
 saturado— y otra agotó los 30 s. La latencia osciló entre 3,1 s y 16,4 s. Es el
 comportamiento del plan gratuito bajo carga, no del modelo.
 
-**Pendiente antes de decidir:** comparar con otros modelos y resolver si el
+### Tercera evaluación — con pausas entre casos
+
+Los intentos de comparar `gemini-3.5-flash`, `gemini-flash-latest` y
+`gemini-2.5-flash` no midieron calidad: el primero acabó en `429` tras cuatro
+casos, el segundo dio `503` o tiempo agotado en los nueve, y el tercero `404` en
+todos —ese id no existe en la capa compatible con OpenAI, aunque el listado lo
+muestre—. Veintisiete llamadas seguidas agotaron la cuota gratuita, así que el
+arnés espera ahora 4 s entre casos (`COACH_LLM_DELAY_MS`).
+
+Repetido `gemini-3.1-flash-lite` con pausas: **8 de 9, las ocho a la primera**,
+7,6 s de media. El único fallo fue un tiempo de espera agotado en el caso de
+revisión, que es el que manda el snapshot más grande.
+
+De esa tanda salieron tres correcciones, que suben el prompt a `v3`:
+
+| Observado                                                        | Cambio                                                        |
+| ---------------------------------------------------------------- | ------------------------------------------------------------- |
+| «se concentraron en alimentación», siendo la categoría «Mercado» | El prompt prohíbe traducir o sustituir un nombre de categoría |
+| «considera 1 movimientos», pese a la regla de v2                 | La regla ahora cita las formas incorrectas concretas          |
+| «sin presupuesto definido» para un 0 puesto a propósito          | `SnapshotBudget` suma `source`, que distingue las dos cosas   |
+
+El tercero era un dato que faltaba: con `budget: null` a secas, un cero
+deliberado y una categoría nunca presupuestada son indistinguibles.
+`docs/06-presupuestos.md` las distingue, así que ahora el snapshot también.
+
+**Pendiente antes de decidir:** volver a evaluar con `v3` y resolver si el
 fallo por saturación se trata con un reintento del proveedor. Hoy un `503` se
 devuelve tal cual, porque la regla es no reintentar fallos de proveedor para no
 duplicar la espera; un `503` que llega rápido es un caso distinto de un tiempo
