@@ -1,0 +1,62 @@
+# Accesibilidad
+
+> Auditoría del 2026-09-27. Objetivo: WCAG 2.2 AA en las superficies
+> prioritarias. No es una certificación.
+
+## Automatizado
+
+`axe-core` (dependencia de desarrollo) corre en la suite con
+`src/test/axe.ts`. Un control negativo (`src/test/axe-control.test.tsx`)
+comprueba que axe detecta infracciones en jsdom.
+
+| Superficie                                   | Prueba                    | Resultado        |
+| -------------------------------------------- | ------------------------- | ---------------- |
+| `/privacy`, `/terms`, `/cookies`, `/refunds` | `src/pages/a11y.test.tsx` | Sin infracciones |
+| Acceso y registro                            | `a11y.test.tsx`           | Sin infracciones |
+| Importador CSV (vacío y con archivo)         | `a11y.test.tsx`           | Sin infracciones |
+| Consentimiento de FinTrack Coach             | `a11y.test.tsx`           | Sin infracciones |
+| Ajustes                                      | `Settings.test.tsx`       | Sin infracciones |
+| Dashboard                                    | `Dashboard.test.tsx`      | Sin infracciones |
+| Movimientos y diálogo de nuevo movimiento    | `Transactions.test.tsx`   | Sin infracciones |
+
+`color-contrast` se desactiva en jsdom (no calcula estilos) y se verifica con
+los tokens:
+
+## Contraste (tokens de `src/index.css`)
+
+| Par                                 | Antes | Después | Cambio                            |
+| ----------------------------------- | ----- | ------- | --------------------------------- |
+| Texto blanco sobre primario (claro) | 3,82  | 4,84    | `--primary` `#e83e8c` → `#d6246f` |
+| Texto primario sobre fondo (claro)  | 3,65  | 4,62    | ídem                              |
+| Advertencia sobre fondo (claro)     | 4,02  | 5,19    | `--warning` → `#9a5b00`           |
+| Texto sobre `destructive` (oscuro)  | 2,69  | 7,39    | `--destructive-foreground` oscuro |
+| Borde de campos (claro)             | 1,28  | 3,47    | `--input` propio `#a67a8c`        |
+| Borde de campos (oscuro)            | < 2   | 3,53    | `--input` `#75658a`               |
+
+Sin cambios, ya cumplían: texto principal (16,1 / 18,8), texto secundario
+(6,3 / 10,8), `danger` y `success` en claro, primario en oscuro (5,0).
+
+## Cambios manuales
+
+- Enlace «Saltar al contenido» y `<main id="contenido">` en la app.
+- `header`, `nav`, `main` y `footer` en la app, el acceso y las páginas
+  legales; pie con `nav` «Información legal».
+- Título de pestaña por ruta (`useDocumentTitle`), incluido el acceso.
+- Un solo `h1` por página legal; secciones con `h2`.
+- Tablas del importador y de cookies con `scope`, `caption` o cabeceras de fila.
+- Resumen de la revisión del CSV con `role="status"`.
+- Consentimiento del Coach con `aria-live`, casilla con etiqueta visible y
+  descripción asociada; nunca marcada por defecto.
+- Botón «Guardar» del nombre en Ajustes → «Guardar nombre».
+- `lang="es"` ya estaba en `index.html`.
+
+Los diálogos usan Radix (`@radix-ui/react-dialog` y `alert-dialog`), que
+gestionan foco atrapado, Escape y retorno del foco.
+
+## Pendiente (requiere navegador real)
+
+- Recorrido completo con teclado y lector de pantalla (NVDA/VoiceOver) de
+  Dashboard, Hojas, `/import` y Ajustes con datos reales.
+- Contraste de las gráficas de Recharts y de los colores de categoría elegidos
+  por el usuario.
+- Zoom al 200 % y reflujo a 320 px en Hojas (la rejilla tiene scroll propio).
