@@ -88,6 +88,15 @@ cambio fallaban:
   lista siguen siendo su equivalente.
 - Cuentas saltaba de `h1` a `h3`; el nombre de cada cuenta es ahora `h2`.
 
+Con datos en Hojas, Presupuestos y Plan aparecieron dos más, también
+corregidos:
+
+- Celdas de fecha y monto de Hojas sin nombre accesible (sin texto de
+  ejemplo). Ahora llevan `aria-label` «Fecha» y «Monto».
+- Enlace «Ajustar presupuesto» sobre el aviso de exceso: 4,27:1. Ahora
+  `--primary-strong` y subrayado, que además lo distingue sin depender del
+  color.
+
 También: en móvil, las filas de Movimientos dejaban la descripción en una o
 dos letras; el importe y las acciones bajan ahora a una segunda línea.
 
