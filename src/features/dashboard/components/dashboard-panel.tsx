@@ -28,7 +28,7 @@ export function DashboardPanel({
     <section
       aria-labelledby={titleId}
       className={cn(
-        'animate-card-in flex flex-col rounded-2xl border border-border bg-card p-5 shadow-sm',
+        'animate-card-in flex flex-col rounded-2xl border border-border bg-card p-5 shadow-card',
         className,
       )}
       style={{ animationDelay: `${index * 40}ms` }}

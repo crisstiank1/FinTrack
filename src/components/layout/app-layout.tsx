@@ -16,11 +16,13 @@ import { AppNav, NAV_COMPACT_QUERY, NAV_WIDE_QUERY, type NavMode } from './app-n
  * Cabecera de cada modo. La de `wide` reproduce la fila de siempre: logo,
  * 24 px, navegación, y tema y sesión empujados a la derecha.
  */
+const HEADER_BASE =
+  'sticky top-0 z-30 border-b border-border/70 bg-background/80 backdrop-blur-xl backdrop-saturate-150'
+
 const HEADER_CLASS: Record<NavMode, string> = {
-  wide: 'flex items-center gap-4 border-b border-border px-6 py-4',
-  compact:
-    'relative flex flex-wrap items-center gap-x-4 gap-y-3 border-b border-border px-6 pb-3 pt-4',
-  narrow: 'relative flex items-center gap-2 border-b border-border px-4 py-3',
+  wide: cn(HEADER_BASE, 'flex items-center gap-4 px-6 py-3'),
+  compact: cn(HEADER_BASE, 'flex flex-wrap items-center gap-x-4 gap-y-3 px-6 pb-3 pt-4'),
+  narrow: cn(HEADER_BASE, 'flex items-center gap-2 px-4 py-3'),
 }
 
 const NAV_CLASS: Record<NavMode, string> = {

@@ -1,4 +1,6 @@
-@import "tailwindcss";
+@import 'tailwindcss';
+/* Inter servida desde el propio build: ninguna petición a terceros. */
+@import '@fontsource-variable/inter';
 
 @custom-variant dark (&:where(.dark, .dark *));
 
@@ -13,7 +15,20 @@
   --primary: #d6246f; /* 4,8:1 con texto blanco (WCAG AA); antes #e83e8c, 3,8:1 */
   --primary-hover: #a3124c;
   --primary-soft: #f8bbd0;
+  /* Texto sobre tintes de --primary (navegación activa, chips): 6,1:1. */
+  --primary-strong: #a3124c;
+  /* Degradado de marca rosa → morado: blanco encima ≥ 4,8:1 en todo el tramo. */
+  --brand-from: #d6246f;
+  --brand-to: #9d2bd4;
+  --shadow-card: 0 1px 2px rgb(43 23 32 / 0.04), 0 8px 24px -12px rgb(214 36 111 / 0.18);
+  --shadow-card-hover: 0 2px 4px rgb(43 23 32 / 0.05), 0 16px 32px -12px rgb(214 36 111 / 0.26);
+  --shadow-brand: 0 6px 16px -6px rgb(214 36 111 / 0.55);
+  --glow-1: rgb(214 36 111 / 0.1);
+  --glow-2: rgb(157 43 212 / 0.08);
   --success: #16805b;
+  /* Texto pequeño sobre tintes de estado (insignias): ≥ 5,3:1. */
+  --success-strong: #0e6a4a;
+  --danger-strong: #a8203c;
   --danger: #c62848;
   --warning: #9a5b00; /* 5,2:1 sobre el fondo; antes 4,0:1 */
   --info: #2563eb;
@@ -34,7 +49,7 @@
   /* Borde de campos: 3,5:1 sobre el fondo (WCAG 1.4.11); el borde decorativo sigue siendo --border. */
   --input: #a67a8c;
   --ring: var(--primary);
-  --radius: 0.625rem;
+  --radius: 0.75rem;
 }
 
 :root.dark {
@@ -48,7 +63,18 @@
   --primary: #a855f7;
   --primary-hover: #7e22ce;
   --primary-soft: #d8b4fe;
+  --primary-strong: #e9d5ff;
+  /* Texto oscuro encima ≥ 5:1 en todo el tramo. */
+  --brand-from: #a855f7;
+  --brand-to: #ec4899;
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.4), 0 12px 32px -16px rgb(168 85 247 / 0.28);
+  --shadow-card-hover: 0 2px 4px rgb(0 0 0 / 0.45), 0 20px 40px -16px rgb(168 85 247 / 0.38);
+  --shadow-brand: 0 6px 20px -6px rgb(168 85 247 / 0.6);
+  --glow-1: rgb(168 85 247 / 0.14);
+  --glow-2: rgb(236 72 153 / 0.08);
   --success: #4ade80;
+  --success-strong: #4ade80;
+  --danger-strong: #fb7185;
   --danger: #fb7185;
   --warning: #fbbf24;
   --info: #93c5fd;
@@ -79,8 +105,13 @@
   --color-primary: var(--primary);
   --color-primary-hover: var(--primary-hover);
   --color-primary-soft: var(--primary-soft);
+  --color-primary-strong: var(--primary-strong);
+  --color-brand-from: var(--brand-from);
+  --color-brand-to: var(--brand-to);
   --color-success: var(--success);
   --color-danger: var(--danger);
+  --color-success-strong: var(--success-strong);
+  --color-danger-strong: var(--danger-strong);
   --color-warning: var(--warning);
   --color-info: var(--info);
 
@@ -99,17 +130,40 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
 
+  --shadow-card: var(--shadow-card);
+  --shadow-card-hover: var(--shadow-card-hover);
+  --shadow-brand: var(--shadow-brand);
+
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);
   --radius-sm: calc(var(--radius) - 4px);
 
-  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'Inter Variable', 'Inter', ui-sans-serif, system-ui, sans-serif;
 }
 
 body {
   background-color: var(--background);
+  /* Dos halos de marca muy tenues en la parte superior; no afectan al contraste
+     del texto, que siempre descansa sobre tarjetas o sobre --background. */
+  background-image:
+    radial-gradient(56rem 28rem at 0% -8rem, var(--glow-1), transparent 70%),
+    radial-gradient(48rem 26rem at 100% -8rem, var(--glow-2), transparent 70%);
+  background-repeat: no-repeat;
   color: var(--foreground);
   font-family: var(--font-sans);
+  font-feature-settings: 'cv11', 'ss03';
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1,
+h2,
+h3 {
+  letter-spacing: -0.015em;
+}
+
+.tabular-nums {
+  letter-spacing: -0.01em;
 }
 
 ::selection {

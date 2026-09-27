@@ -63,7 +63,15 @@ Estilo: negro y morado profesional, alto contraste, especialmente para tablas, m
 - Mostrar ingresos/valores positivos con texto, signo `+`, icono y color de éxito.
 - Mostrar gastos/valores negativos con signo `−`, icono y color de peligro.
 - Usar contraste adecuado en ambos temas.
-- Tipografía: Inter o alternativa de sistema.
+- Tipografía: Inter Variable autoalojada (ver `docs/asset-attribution.md`); alternativa de sistema.
+- Degradado de marca rosa → morado (`--brand-from` / `--brand-to`) en el botón
+  principal, el saludo del Dashboard y la pantalla de acceso. El texto encima
+  cumple ≥ 4,8:1 en todo el tramo, en ambos temas.
+- Superficies: tarjetas `rounded-2xl` con sombra teñida de marca
+  (`shadow-card`, `shadow-card-hover`); cabecera fija y translúcida.
+- Texto sobre tintes de marca o de estado: `--primary-strong`,
+  `--success-strong` y `--danger-strong` (el color base no llega a 4,5:1 sobre
+  su propio tinte).
 - Usar `tabular-nums` en cifras financieras cuando sea posible.
 - Microanimaciones discretas y respeto a `prefers-reduced-motion`.
 - Priorizar legibilidad de datos por encima de decoración.

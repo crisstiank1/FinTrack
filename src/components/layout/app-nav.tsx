@@ -58,7 +58,7 @@ const NAV_ITEMS: readonly NavItem[] = [
 const PRIMARY_ITEMS = NAV_ITEMS.filter((item) => item.priority === 'primary')
 const SECONDARY_ITEMS = NAV_ITEMS.filter((item) => item.priority === 'secondary')
 
-const ITEM_BASE = 'rounded-md px-3 py-1.5 text-sm font-medium transition-colors'
+const ITEM_BASE = 'rounded-lg px-3 py-1.5 text-sm font-medium transition-colors duration-200'
 
 /**
  * La página actual no se distingue solo por color: además del fondo y el texto
@@ -66,8 +66,8 @@ const ITEM_BASE = 'rounded-md px-3 py-1.5 text-sm font-medium transition-colors'
  * así que no suma alto ni ancho al enlace.
  */
 const ITEM_ACTIVE =
-  'bg-primary-soft font-semibold text-primary shadow-[inset_0_-2px_0_currentColor]'
-const ITEM_INACTIVE = 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+  'bg-primary/12 font-semibold text-primary-strong shadow-[inset_0_-2px_0_currentColor]'
+const ITEM_INACTIVE = 'text-muted-foreground hover:bg-primary/8 hover:text-foreground'
 
 function itemClassName({ isActive }: { isActive: boolean }) {
   return cn(ITEM_BASE, isActive ? ITEM_ACTIVE : ITEM_INACTIVE)
@@ -218,7 +218,7 @@ export function AppNav({ mode, className }: AppNavProps) {
               className={cn(
                 ITEM_BASE,
                 'inline-flex items-center gap-1.5 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-                mode === 'narrow' && 'h-9 border border-border bg-background',
+                mode === 'narrow' && 'h-9 border border-border bg-card shadow-xs',
                 mode === 'compact' && isSecondaryActive ? ITEM_ACTIVE : ITEM_INACTIVE,
               )}
             >
@@ -239,13 +239,13 @@ export function AppNav({ mode, className }: AppNavProps) {
               id={panelId}
               hidden={!isOpen}
               className={cn(
-                'absolute top-full z-40 border border-border bg-card shadow-lg',
+                'absolute top-full z-40 border border-border bg-card shadow-card-hover',
                 // En `narrow` ocupa el ancho de la cabecera, que es su bloque
                 // contenedor; en `compact` crece hacia la izquierda desde «Más».
                 // Ninguno de los dos puede pasar del borde del documento.
                 mode === 'narrow'
                   ? 'inset-x-0 border-x-0 px-4 py-2'
-                  : 'right-0 mt-1 w-56 rounded-lg p-1',
+                  : 'right-0 mt-2 w-56 rounded-xl p-1.5',
               )}
             >
               {isOpen && (

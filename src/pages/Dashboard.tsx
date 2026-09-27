@@ -339,7 +339,16 @@ export default function Dashboard() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <PageTitle helpTitle="Dashboard" help={PAGE_HELP.dashboard}>
-            {displayName ? `Hola, ${displayName}` : 'Hola'}
+            {displayName ? (
+              <>
+                Hola, {/* Degradado de marca: ≥ 4,6:1 sobre el fondo en ambos temas. */}
+                <span className="bg-linear-to-r from-brand-from to-brand-to bg-clip-text text-transparent">
+                  {displayName}
+                </span>
+              </>
+            ) : (
+              'Hola'
+            )}
           </PageTitle>
           <p className="mt-0.5 text-sm text-muted-foreground">{DASHBOARD_DESCRIPTION}</p>
           <p className="mt-1 text-sm text-muted-foreground first-letter:uppercase">{monthLabel}</p>

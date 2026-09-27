@@ -36,10 +36,12 @@ en el propio código, sin recursos externos.
 
 ## Tipografía
 
-`--font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif`. **No se carga
-ninguna fuente**: se usa Inter solo si el sistema la tiene instalada; si no, la
-fuente del sistema. No hay peticiones a Google Fonts ni a otros CDN
-(`storage-inventory.test.ts` lo comprueba).
+Inter Variable (© The Inter Project Authors, licencia SIL Open Font License
+1.1) desde el paquete `@fontsource-variable/inter`. Los archivos `.woff2` se
+empaquetan con el build y se sirven desde el propio dominio: **no hay
+peticiones a Google Fonts ni a otros CDN** (`storage-inventory.test.ts` lo
+comprueba). El navegador solo descarga el subconjunto que usa la página
+(`unicode-range`); si no carga, se usa la fuente del sistema.
 
 ## Logos de terceros
 
