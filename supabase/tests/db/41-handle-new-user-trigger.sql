@@ -1,3 +1,5 @@
+-- Triggers tras el revoke de EXECUTE.
+--
 -- El alta de usuarios sigue creando el perfil aunque ningún rol de la API
 -- pueda ejecutar handle_new_user: PostgreSQL comprueba EXECUTE al crear el
 -- trigger, no al dispararlo. Se prueba con un rol SIN privilegios de
@@ -23,6 +25,44 @@ begin
   end if;
 end;
 $$;
+
+-- Los triggers `security invoker` también se disparan para un usuario
+-- autenticado aunque ningún rol de la API tenga EXECUTE sobre sus funciones.
+insert into public.accounts (id, user_id, name, type, currency_code)
+values ('99990000-0000-4000-8000-000000000009', '99999999-0000-4000-8000-000000000009', 'Banco', 'checking', 'COP');
+insert into public.categories (id, user_id, name, type)
+values ('99980000-0000-4000-8000-000000000009', '99999999-0000-4000-8000-000000000009', 'Mercado', 'expense');
+
+select set_config('request.jwt.claims', '{"sub":"99999999-0000-4000-8000-000000000009","role":"authenticated"}', false);
+set role authenticated;
+
+-- validate_transaction
+insert into public.transactions (user_id, account_id, category_id, type, amount_minor, transaction_date, description)
+values ('99999999-0000-4000-8000-000000000009', '99990000-0000-4000-8000-000000000009',
+        '99980000-0000-4000-8000-000000000009', 'expense', 1000, '2026-09-05', 'Prueba');
+
+-- validate_budget
+insert into public.budgets (user_id, category_id, effective_from, amount_minor)
+values ('99999999-0000-4000-8000-000000000009', '99980000-0000-4000-8000-000000000009', '2026-09-01', 50000);
+
+-- set_updated_at
+update public.profiles set display_name = 'Prueba' where id = '99999999-0000-4000-8000-000000000009';
+
+do $$
+begin
+  -- validate_transaction sigue rechazando una categoría de otro tipo.
+  begin
+    insert into public.transactions (user_id, account_id, category_id, type, amount_minor, transaction_date, description)
+    values ('99999999-0000-4000-8000-000000000009', '99990000-0000-4000-8000-000000000009',
+            '99980000-0000-4000-8000-000000000009', 'income', 1000, '2026-09-05', 'Tipo erróneo');
+  exception when others then
+    return;
+  end;
+  raise exception 'validate_transaction no se disparó';
+end;
+$$;
+
+reset role;
 
 delete from auth.users where id = '99999999-0000-4000-8000-000000000009';
 revoke all on auth.users from test_auth_admin;
