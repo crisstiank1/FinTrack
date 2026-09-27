@@ -171,4 +171,22 @@ describe('CsvImport', () => {
       expect.objectContaining({ amount_minor: '4599', account_id: 'acc-usd' }),
     ])
   })
+
+  it('cambiar la columna de fecha a una ambigua anula el formato elegido y bloquea', async () => {
+    renderPage()
+    // «Fecha» es inequívoca (día 25) y se preselecciona DMY; «Valor fecha» es ambigua.
+    await upload(
+      'Fecha;Valor fecha;Concepto;Valor\n25/09/2026;03/04/2026;Mercado;-45.000\n26/09/2026;05/06/2026;Pan;-2.000\n',
+    )
+    choose(/Cuenta de FinTrack/, 'acc-cop')
+    choose(/Un monto negativo es/, 'negative_is_expense')
+    choose(/Separador decimal/, ',')
+    expect((screen.getByLabelText('Formato de fecha') as HTMLSelectElement).value).toBe('DMY')
+
+    choose(/^Fecha$/, '1')
+
+    expect((screen.getByLabelText('Formato de fecha') as HTMLSelectElement).value).toBe('')
+    expect(screen.getByText(/encajan en más de un formato/)).toBeInTheDocument()
+    expect(importButton()).toBeDisabled()
+  })
 })

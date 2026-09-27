@@ -215,6 +215,33 @@ export default function CsvImport() {
     }
   }
 
+  /**
+   * Cambia una columna del mapeo. Si cambia la fecha o el monto, lo que el
+   * usuario confirmó para la columna anterior ya no vale: se vuelve a detectar
+   * el formato de fecha (vacío si la nueva columna es ambigua) y a proponer el
+   * separador decimal. Sin esto, un DMY elegido para una columna inequívoca se
+   * aplicaría en silencio a otra ambigua.
+   */
+  function changeColumn(key: keyof ColumnMapping, index: number | null) {
+    const next = { ...mapping, [key]: index }
+    setMapping(next)
+    if (!csv) return
+
+    if (key === 'date') {
+      const detection =
+        index === null ? null : detectDateFormat(csv.rows.map((row) => row[index] ?? ''))
+      setDateFormat(detection?.suggested ?? null)
+    }
+    if (key === 'amount' || key === 'debit' || key === 'credit') {
+      const columns = [next.amount, next.debit, next.credit].filter(
+        (column): column is number => column !== null,
+      )
+      setDecimalSeparator(
+        suggestDecimalSeparator(csv.rows.flatMap((row) => columns.map((column) => row[column]))),
+      )
+    }
+  }
+
   function columnSelect(key: keyof ColumnMapping, label: string, optional = false) {
     const id = `csv-map-${key}`
     return (
@@ -227,10 +254,7 @@ export default function CsvImport() {
           id={id}
           value={mapping[key] === null ? '' : String(mapping[key])}
           onChange={(event) =>
-            setMapping((current) => ({
-              ...current,
-              [key]: event.target.value === '' ? null : Number(event.target.value),
-            }))
+            changeColumn(key, event.target.value === '' ? null : Number(event.target.value))
           }
         >
           <option value="">Sin asignar</option>
