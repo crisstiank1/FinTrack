@@ -176,7 +176,7 @@ function ContributionCard({
   return (
     <section
       aria-labelledby={titleId}
-      className="animate-card-in rounded-2xl border border-border bg-card p-5 shadow-sm"
+      className="animate-card-in rounded-2xl border border-border bg-card p-5 shadow-card"
       style={{ animationDelay: `${index * 40}ms` }}
     >
       <div className="flex items-center gap-2">

@@ -340,7 +340,7 @@ export default function Sheets() {
           Cargando hojas…
         </p>
       ) : sheets.length === 0 ? (
-        <div className="mt-6 rounded-lg border border-dashed p-10 text-center">
+        <div className="mt-6 rounded-2xl border border-dashed border-border bg-card/60 p-10 text-center">
           <FileSpreadsheet className="mx-auto size-10 text-muted-foreground" aria-hidden="true" />
           <h2 className="mt-3 text-lg font-semibold text-foreground">Crea tu primera hoja</h2>
           <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">

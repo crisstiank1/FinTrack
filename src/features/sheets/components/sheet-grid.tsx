@@ -472,10 +472,10 @@ export function SheetGrid({
           en móvil. */}
       <div
         data-testid="sheet-grid-scroll"
-        className="relative mt-4 overflow-x-auto rounded-lg border bg-card"
+        className="relative mt-4 overflow-x-auto rounded-2xl border border-border bg-card shadow-card"
       >
         <table className="w-full text-sm">
-          <thead className="border-b bg-muted/50">
+          <thead className="border-b border-border bg-surface-elevated">
             {table.getHeaderGroups().map((headerGroup) => (
               <tr key={headerGroup.id}>
                 {headerGroup.headers.map((header) => (

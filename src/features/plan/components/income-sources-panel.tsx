@@ -62,7 +62,7 @@ export function IncomeSourcesPanel({
       </div>
 
       {sources.length === 0 ? (
-        <div className="mt-3 rounded-xl border border-dashed border-border bg-card p-6 text-center">
+        <div className="mt-3 rounded-2xl border border-dashed border-border bg-card/60 p-6 text-center">
           <p className="text-sm text-foreground first-letter:uppercase">
             Tu plan de {monthLabel} está listo.
           </p>
@@ -75,7 +75,7 @@ export function IncomeSourcesPanel({
           {sources.map((source) => (
             <li
               key={source.id}
-              className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card p-3"
+              className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card p-3 shadow-xs transition-shadow duration-200 hover:shadow-card"
             >
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium text-foreground">{source.name}</p>
