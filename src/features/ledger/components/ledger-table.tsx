@@ -17,7 +17,7 @@ interface LedgerTableProps {
  */
 export function LedgerTable({ table }: LedgerTableProps) {
   return (
-    <div className="hidden overflow-x-auto rounded-xl border border-border sm:block">
+    <div className="hidden overflow-x-auto rounded-2xl border border-border bg-card shadow-card sm:block">
       <table className="w-full border-collapse text-sm">
         <thead className="sticky top-0 z-10 bg-surface-elevated">
           {table.getHeaderGroups().map((headerGroup) => (
@@ -77,7 +77,10 @@ export function LedgerTable({ table }: LedgerTableProps) {
 
         <tbody>
           {table.getRowModel().rows.map((row) => (
-            <tr key={row.id} className="border-b border-border last:border-0 hover:bg-muted/50">
+            <tr
+              key={row.id}
+              className="border-b border-border transition-colors last:border-0 hover:bg-primary/4"
+            >
               {row.getVisibleCells().map((cell) => (
                 <td
                   key={cell.id}

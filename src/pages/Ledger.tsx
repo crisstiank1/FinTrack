@@ -371,7 +371,7 @@ export default function Ledger() {
         {balanceIsMixed && (
           <p
             role="status"
-            className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground"
+            className="rounded-2xl border border-border bg-card p-4 text-sm text-muted-foreground shadow-card"
           >
             El saldo acumulado solo se calcula con cuentas de una misma moneda. Filtra por una
             moneda o una cuenta para verlo.
@@ -379,7 +379,10 @@ export default function Ledger() {
         )}
 
         {page.isError ? (
-          <div role="alert" className="rounded-xl border border-border bg-card p-8 text-center">
+          <div
+            role="alert"
+            className="rounded-2xl border border-border bg-card p-8 text-center shadow-card"
+          >
             <p className="text-sm text-muted-foreground">
               No pudimos cargar los movimientos. Revisa tu conexión e inténtalo de nuevo.
             </p>
@@ -388,11 +391,11 @@ export default function Ledger() {
             </Button>
           </div>
         ) : page.isPending ? (
-          <p className="rounded-xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">
+          <p className="rounded-2xl border border-border bg-card p-8 text-center text-sm text-muted-foreground shadow-card">
             Cargando movimientos...
           </p>
         ) : totalCount === 0 ? (
-          <div className="rounded-xl border border-dashed border-border p-8 text-center">
+          <div className="rounded-2xl border border-dashed border-border bg-card/60 p-8 text-center">
             <p className="text-sm text-muted-foreground">
               Ningún movimiento coincide con estos filtros.
             </p>

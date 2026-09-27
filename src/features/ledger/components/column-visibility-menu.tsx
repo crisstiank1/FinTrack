@@ -56,7 +56,7 @@ export function ColumnVisibilityMenu({ table }: ColumnVisibilityMenuProps) {
         close(true)
       }}
     >
-      <summary className="inline-flex h-9 cursor-pointer list-none items-center gap-2 rounded-md border border-border bg-background px-4 text-sm font-medium outline-none hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
+      <summary className="inline-flex h-9 cursor-pointer list-none items-center gap-2 rounded-lg border border-border bg-card px-4 text-sm font-medium shadow-xs outline-none hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">
         <Columns3 className="size-4" aria-hidden="true" />
         Columnas
       </summary>
@@ -67,7 +67,7 @@ export function ColumnVisibilityMenu({ table }: ColumnVisibilityMenuProps) {
         sus 16 rem se salían por el borde izquierdo de la pantalla: ahí se ancla a
         la izquierda y se limita al ancho disponible.
       */}
-      <div className="absolute left-0 z-20 mt-2 max-h-[70vh] w-64 max-w-[calc(100vw-2rem)] overflow-y-auto rounded-lg border border-border bg-popover p-2 shadow-lg sm:left-auto sm:right-0">
+      <div className="absolute left-0 z-20 mt-2 max-h-[70vh] w-64 max-w-[calc(100vw-2rem)] overflow-y-auto rounded-xl border border-border bg-popover p-2 shadow-card-hover sm:left-auto sm:right-0">
         <ul className="flex flex-col">
           {columns.map((column) => (
             <li key={column.id}>
@@ -85,8 +85,8 @@ export function ColumnVisibilityMenu({ table }: ColumnVisibilityMenuProps) {
         </ul>
 
         <p className="mt-1 border-t border-border px-2 pt-2 text-xs text-muted-foreground">
-          "Saldo acumulado" necesita todo el historial de movimientos, así que
-          activarlo carga más datos.
+          "Saldo acumulado" necesita todo el historial de movimientos, así que activarlo carga más
+          datos.
         </p>
       </div>
     </details>

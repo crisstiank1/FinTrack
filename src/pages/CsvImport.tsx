@@ -280,7 +280,10 @@ export default function CsvImport() {
         <li>El archivo se lee en tu navegador y no se guarda.</li>
       </ul>
 
-      <section className="mt-6 flex flex-col gap-2" aria-labelledby="csv-step-file">
+      <section
+        className="mt-6 flex flex-col gap-2 rounded-2xl border border-border bg-card p-5 shadow-card sm:p-6"
+        aria-labelledby="csv-step-file"
+      >
         <h2 id="csv-step-file" className="text-lg font-semibold">
           1. Archivo
         </h2>
@@ -290,7 +293,7 @@ export default function CsvImport() {
           type="file"
           accept=".csv,text/csv,.txt"
           onChange={handleFile}
-          className="text-sm file:mr-3 file:rounded-md file:border file:border-input file:bg-background file:px-3 file:py-2"
+          className="w-full cursor-pointer rounded-xl border border-dashed border-input bg-surface-elevated/60 p-3 text-sm text-muted-foreground transition-colors hover:border-primary/60 file:mr-3 file:cursor-pointer file:rounded-lg file:border file:border-border file:bg-card file:px-4 file:py-2 file:text-sm file:font-medium file:text-foreground file:shadow-xs hover:file:bg-primary/8 hover:file:text-primary-strong"
         />
         {isReading && (
           <p className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -313,11 +316,14 @@ export default function CsvImport() {
 
       {csv && (
         <>
-          <section className="mt-6" aria-labelledby="csv-step-preview">
+          <section
+            className="mt-6 rounded-2xl border border-border bg-card p-5 shadow-card sm:p-6"
+            aria-labelledby="csv-step-preview"
+          >
             <h2 id="csv-step-preview" className="text-lg font-semibold">
               2. Vista previa
             </h2>
-            <div className="mt-2 overflow-x-auto rounded-md border border-border">
+            <div className="mt-3 overflow-x-auto rounded-xl border border-border">
               <table className="w-full text-left text-sm">
                 <thead className="bg-muted/50">
                   <tr>
@@ -343,7 +349,10 @@ export default function CsvImport() {
             </div>
           </section>
 
-          <section className="mt-6 grid gap-4 sm:grid-cols-2" aria-labelledby="csv-step-mapping">
+          <section
+            className="mt-6 grid gap-4 rounded-2xl border border-border bg-card p-5 shadow-card sm:p-6 sm:grid-cols-2"
+            aria-labelledby="csv-step-mapping"
+          >
             <h2 id="csv-step-mapping" className="text-lg font-semibold sm:col-span-2">
               3. Cuenta y columnas
             </h2>
@@ -388,7 +397,10 @@ export default function CsvImport() {
             {columnSelect('balance', 'Saldo', true)}
           </section>
 
-          <section className="mt-6 grid gap-4 sm:grid-cols-3" aria-labelledby="csv-step-format">
+          <section
+            className="mt-6 grid gap-4 rounded-2xl border border-border bg-card p-5 shadow-card sm:p-6 sm:grid-cols-3"
+            aria-labelledby="csv-step-format"
+          >
             <h2 id="csv-step-format" className="text-lg font-semibold sm:col-span-3">
               4. Formato
             </h2>
@@ -487,7 +499,10 @@ export default function CsvImport() {
             </div>
           </section>
 
-          <section className="mt-6" aria-labelledby="csv-step-review">
+          <section
+            className="mt-6 rounded-2xl border border-border bg-card p-5 shadow-card sm:p-6"
+            aria-labelledby="csv-step-review"
+          >
             <h2 id="csv-step-review" className="text-lg font-semibold">
               5. Revisión
             </h2>
@@ -504,7 +519,7 @@ export default function CsvImport() {
                   errores · {counts.duplicates} posibles duplicados
                   {existingQuery.isFetching && ' · comprobando duplicados...'}
                 </p>
-                <div className="mt-2 max-h-[28rem] overflow-auto rounded-md border border-border">
+                <div className="mt-3 max-h-[28rem] overflow-auto rounded-xl border border-border">
                   <table className="w-full text-left text-sm">
                     <thead className="sticky top-0 bg-muted">
                       <tr>
