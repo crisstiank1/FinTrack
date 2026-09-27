@@ -272,6 +272,8 @@ export default function Dashboard() {
       reportSaveError(error)
       throw error
     }
+    // El movimiento ya existe: si la plantilla falla, se reintenta sola.
+    if (values.repeatMonthly) await createTemplateAfterMovement(values)
   }
 
   /**
