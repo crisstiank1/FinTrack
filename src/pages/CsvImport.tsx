@@ -1,5 +1,5 @@
 import { useMemo, useState, type ChangeEvent } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { FileUp, Loader2 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -55,6 +55,7 @@ function todayIso(): string {
 export default function CsvImport() {
   const { user } = useAuth()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const accountsQuery = useAccounts()
   const categoriesQuery = useCategories()
 
@@ -200,6 +201,7 @@ export default function CsvImport() {
         importSheetName(fileName, todayIso()),
         selected.map((row) => toDraftCells(row, account.id, fileName)),
       )
+      await queryClient.invalidateQueries({ queryKey: ['sheets', user.id] })
       toast.success(`${created} borradores creados`, {
         description: 'Revísalos, asigna categorías y regístralos desde Hojas.',
       })
