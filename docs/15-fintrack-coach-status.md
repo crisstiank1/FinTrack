@@ -25,16 +25,20 @@ Plan: `docs/12-fintrack-coach.md`. Detalle por fase: `docs/13-coach-fase-0.md`,
 
 ## Commits relevantes
 
-| Commit    | Fecha      | Qué                                                     |
-| --------- | ---------- | ------------------------------------------------------- |
-| `ebfa524` | 2026-09-17 | Fase 1: dominio compartido (`monthKeyInTimeZone`, etc.) |
-| `1200aae` | 2026-09-17 | Fase 2: frontera segura de `finance-chat`               |
-| `45b1136` | 2026-09-18 | Exponente por moneda (centavos para USD, ARS…)          |
-| `1ffe7d0` | 2026-09-21 | CI verifica la Edge Function con `deno check`           |
-| `9df97d3` | 2026-09-21 | Fase 3: ruta de IA detrás del consentimiento            |
-| `5c9a6de` | 2026-09-22 | Prompt `fintrack-coach-v3`                              |
-| `fa9fdb3` | 2026-09-23 | Fase 4a: migración de consentimiento, cuota e historial |
-| —         | 2026-09-27 | Fase 4b: `feat: enforce coach consent and usage limits` |
+| Commit    | Fecha      | Qué                                                                      |
+| --------- | ---------- | ------------------------------------------------------------------------ |
+| `ebfa524` | 2026-09-17 | Fase 1: dominio compartido (`monthKeyInTimeZone`, etc.)                  |
+| `1200aae` | 2026-09-17 | Fase 2: frontera segura de `finance-chat`                                |
+| `45b1136` | 2026-09-18 | Exponente por moneda (centavos para USD, ARS…)                           |
+| `1ffe7d0` | 2026-09-21 | CI verifica la Edge Function con `deno check`                            |
+| `9df97d3` | 2026-09-21 | Fase 3: ruta de IA detrás del consentimiento                             |
+| `5c9a6de` | 2026-09-22 | Prompt `fintrack-coach-v3`                                               |
+| `fa9fdb3` | 2026-09-23 | Fase 4a: migración de consentimiento, cuota e historial                  |
+| `134499a` | 2026-09-27 | Fase 4b: consentimiento real y cuota persistente                         |
+| `7298c77` | 2026-09-27 | Versión de consentimiento vigente y política de modelos                  |
+| `42cd35b` | 2026-09-27 | Política de privacidad pública en `/privacy`                             |
+| `22f2eab` | 2026-09-27 | `docs/16-coach-fase-4.md`: retención, purga y rollback                   |
+| `b10df9d` | 2026-09-27 | Arnés SQL (`scripts/test-db.sh`) que también prueba la cuota concurrente |
 
 ---
 
@@ -174,6 +178,16 @@ de la función SQL; la atomicidad real se comprobó aparte contra PostgreSQL,
 porque CI no levanta una base de datos.
 
 ---
+
+### Validaciones del cierre (2026-09-27)
+
+| Comprobación                         | Resultado                                                                                                   |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| `bun run test`                       | 97 archivos, 1723 pruebas en verde                                                                          |
+| `bun run typecheck`, `lint`, `build` | Sin errores (2 avisos previos de ESLint)                                                                    |
+| `bun run check:functions`            | Correcto; incluye `model-policy.ts`                                                                         |
+| `scripts/test-db.sh` (PostgreSQL 16) | Todas las migraciones aplican en limpio; SQL y concurrencia en verde; 40 consumos simultáneos de cuota → 15 |
+| `/privacy` en Chromium a 390 px      | Renderiza sin errores ni scroll horizontal                                                                  |
 
 ## Hallazgos y correcciones no planificadas
 
