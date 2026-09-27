@@ -90,7 +90,13 @@ export function TransactionRow({
           >
             <Copy className="size-4" aria-hidden="true" />
           </Button>
-          <Button type="button" variant="ghost" size="icon" onClick={onDelete} aria-label="Eliminar movimiento">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={onDelete}
+            aria-label="Eliminar movimiento"
+          >
             <Trash2 className="size-4" aria-hidden="true" />
           </Button>
         </div>
