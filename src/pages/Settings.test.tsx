@@ -42,6 +42,12 @@ vi.mock('@/features/profile/hooks', () => ({
   useUpdateDisplayName: () => ({ mutateAsync: updateDisplayName, isPending: false }),
 }))
 
+vi.mock('@/features/recurring/hooks', () => ({
+  useRecurringTemplates: () => ({ data: [] }),
+  useSetTemplateActive: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useDeleteTemplate: () => ({ mutateAsync: vi.fn(), isPending: false }),
+}))
+
 vi.mock('@/features/accounts/hooks', () => ({
   useAccounts: () => useAccounts(),
 }))

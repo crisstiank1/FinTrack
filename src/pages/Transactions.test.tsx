@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -16,11 +17,12 @@ const updateTransfer = vi.fn()
 const usePrimaryCurrency = vi.fn()
 const useAccounts = vi.fn()
 const mutation = () => ({ mutateAsync: vi.fn(), isPending: false })
+const createTransactionMock = vi.fn()
 
 vi.mock('@/features/transactions/hooks', () => ({
   useTransactions: (filters: unknown) => useTransactions(filters),
   useTransferCounterparts: (transactions: unknown) => useTransferCounterparts(transactions),
-  useCreateTransaction: () => mutation(),
+  useCreateTransaction: () => ({ mutateAsync: createTransactionMock, isPending: false }),
   useUpdateTransaction: () => mutation(),
   useCreateTransfer: () => ({ mutateAsync: createTransfer, isPending: false }),
   useUpdateTransfer: () => ({ mutateAsync: updateTransfer, isPending: false }),
@@ -38,12 +40,21 @@ vi.mock('@/features/accounts/hooks', () => ({
   useAccounts: () => useAccounts(),
 }))
 
+const createTemplateAfterMovement = vi.fn(async () => true)
+vi.mock('@/features/recurring/hooks', () => ({
+  useCreateTemplateAfterMovement: () => createTemplateAfterMovement,
+  useRecurringProjectionStatus: () => ({ monthKey: '2026-09', pending: [], ready: true }),
+  useProjectRecurring: () => ({ mutateAsync: vi.fn(), isPending: false }),
+}))
+
 vi.mock('@/features/profile/hooks', () => ({
   usePrimaryCurrency: () => usePrimaryCurrency(),
 }))
 
 vi.mock('@/features/categories/hooks', () => ({
-  useCategories: () => ({ data: [] }),
+  useCategories: () => ({
+    data: [{ id: 'cat-rent', name: 'Arriendo', type: 'expense', is_archived: false }],
+  }),
 }))
 
 vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }))
@@ -533,5 +544,59 @@ describe('Transactions — ayuda de la pantalla (M18)', () => {
     expect(screen.getByRole('region', { name: 'Movimientos' })).toHaveTextContent(
       PAGE_HELP.transactions,
     )
+  })
+})
+
+describe('Transactions — repetir cada mes', () => {
+  async function fillAndSubmit(repeat: boolean) {
+    const user = userEvent.setup()
+    renderTransactions('/transactions?month=2026-08')
+    fireEvent.click(screen.getByRole('button', { name: 'Nuevo movimiento' }))
+    const dialog = within(screen.getByRole('dialog'))
+
+    await user.type(dialog.getByLabelText('Descripción'), 'Arriendo')
+    await user.type(dialog.getByLabelText('Monto'), '1500000')
+    await user.selectOptions(dialog.getByLabelText('Cuenta'), 'acc-bank')
+    await user.selectOptions(dialog.getByLabelText('Categoría'), 'cat-rent')
+    if (repeat) await user.click(dialog.getByLabelText('Repetir cada mes'))
+    await user.click(dialog.getByRole('button', { name: 'Registrar movimiento' }))
+  }
+
+  beforeEach(() => {
+    createTransactionMock.mockReset()
+    createTemplateAfterMovement.mockClear()
+  })
+
+  it('crea el movimiento con el flujo normal y después la plantilla', async () => {
+    createTransactionMock.mockResolvedValue({ id: 'tx-1' })
+    await fillAndSubmit(true)
+
+    await waitFor(() => expect(createTemplateAfterMovement).toHaveBeenCalledTimes(1))
+    expect(createTransactionMock).toHaveBeenCalledTimes(1)
+    expect(createTransactionMock).toHaveBeenCalledWith(
+      expect.objectContaining({ amount_minor: 1500000, account_id: 'acc-bank', type: 'expense' }),
+    )
+    expect(createTemplateAfterMovement).toHaveBeenCalledWith(
+      expect.objectContaining({ repeatMonthly: true, amount: 1500000, categoryId: 'cat-rent' }),
+    )
+    expect(createTransactionMock.mock.invocationCallOrder[0]).toBeLessThan(
+      createTemplateAfterMovement.mock.invocationCallOrder[0],
+    )
+  })
+
+  it('sin marcar la casilla no crea plantilla', async () => {
+    createTransactionMock.mockResolvedValue({ id: 'tx-1' })
+    await fillAndSubmit(false)
+
+    await waitFor(() => expect(createTransactionMock).toHaveBeenCalledTimes(1))
+    expect(createTemplateAfterMovement).not.toHaveBeenCalled()
+  })
+
+  it('si el movimiento falla, no se crea la plantilla', async () => {
+    createTransactionMock.mockRejectedValue(new Error('boom'))
+    await fillAndSubmit(true)
+
+    await waitFor(() => expect(createTransactionMock).toHaveBeenCalledTimes(1))
+    expect(createTemplateAfterMovement).not.toHaveBeenCalled()
   })
 })

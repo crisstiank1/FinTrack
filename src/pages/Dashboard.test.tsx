@@ -46,6 +46,13 @@ vi.mock('@/features/categories/hooks', () => ({
   useCategories: () => useCategories(),
   useCreateCategory: () => ({ mutateAsync: createCategoryMutate, isPending: false }),
 }))
+const createTemplateAfterMovement = vi.fn(async () => true)
+vi.mock('@/features/recurring/hooks', () => ({
+  useCreateTemplateAfterMovement: () => createTemplateAfterMovement,
+  useRecurringProjectionStatus: () => ({ monthKey: '2026-09', pending: [], ready: true }),
+  useProjectRecurring: () => ({ mutateAsync: vi.fn(), isPending: false }),
+}))
+
 vi.mock('@/features/profile/hooks', () => ({
   usePrimaryCurrency: () => usePrimaryCurrency(),
   useDisplayName: () => useDisplayName(),
