@@ -156,7 +156,8 @@ que el backend del Coach mencione esas tablas o `conversationId`.
 pero Supabase concede EXECUTE a `anon` y `authenticated` por privilegios por
 defecto, así que cualquier sesión podía llamar `purge_ai_data(0, 0)` y borrar
 contadores e historial de todos. `20260927130000_restringir_funciones_coach.sql`
-revoca con nombre; **pendiente de aplicar en el proyecto**.
+revoca con nombre a `public`, `anon` y `authenticated` y fija `search_path = ''`;
+**pendiente de aplicar en el proyecto** (`docs/23-procedimiento-aplicacion-remota.md`).
 
 Operación verificable: `30-coach-consent-and-purge.sql` comprueba que borra
 solo lo vencido (mensajes de más de 90 días, conversaciones vacías, contadores

@@ -25,8 +25,12 @@ en cuanto sea posible, aunque el Coach no esté activo.
 
 ## Orden de pasos manuales
 
-1. Revisar y aplicar las dos migraciones en un entorno seguro (primero
-   staging si existe).
+Procedimiento detallado (backup, aplicación, verificación de permisos, tipos,
+smoke tests y rollback): `docs/23-procedimiento-aplicacion-remota.md`.
+Auditoría de funciones: `docs/22-auditoria-security-definer.md`.
+
+1. **Urgente:** aplicar las dos migraciones siguiendo el procedimiento
+   (primero staging si existe). `…130000` corrige un fallo crítico de permisos.
 2. Regenerar `src/types/database.types.ts` desde el proyecto y comparar con los
    tipos escritos a mano para `recurring_templates`,
    `recurring_template_projections` y las columnas nuevas de `sheet_drafts`.

@@ -237,8 +237,11 @@ Ninguno en curso para el Coach. La interfaz de consentimiento y revocación ya
 existe en Ajustes (`src/features/coach-consent/`). Pendientes, cada uno con
 revisión propia:
 
-1. Programar la purga (`pg_cron`) y aplicar
-   `20260927130000_restringir_funciones_coach.sql`.
+1. **Bloqueante:** aplicar `20260927130000_restringir_funciones_coach.sql`
+   (fallo crítico de permisos en `purge_ai_data`, auditoría en
+   `docs/22-auditoria-security-definer.md`, procedimiento en
+   `docs/23-procedimiento-aplicacion-remota.md`) y programar la purga
+   (`pg_cron`). Nada más del Coach avanza hasta cerrar esto.
 2. Historial y `conversationId` (`docs/16-coach-fase-4.md` §7).
 3. Interfaz de chat.
 4. Activación: facturación del proveedor, secretos y despliegue, con
