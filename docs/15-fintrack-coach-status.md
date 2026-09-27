@@ -189,8 +189,7 @@ porque CI no levanta una base de datos.
    necesita su entrada en el mapa de imports; sin ella, `check:functions` falla.
 4. **Referencia rota en la migración.** Su cabecera cita
    `docs/16-coach-fase-4.md` para el rollback manual y el procedimiento de
-   purga, y ese documento no existe. No se toca la migración aplicada; queda
-   como decisión abierta.
+   purga, y ese documento no existía. Creado el 2026-09-27.
 
 ## Bloqueos externos
 
@@ -200,36 +199,33 @@ porque CI no levanta una base de datos.
   proveedor antes de abrir la ruta a usuarios reales.
 - **Política de privacidad** publicada, antes de pedir consentimiento visible.
 
+## Decisiones tomadas en el cierre de la Fase 4
+
+| Decisión                                  | Resolución                                                                        |
+| ----------------------------------------- | --------------------------------------------------------------------------------- |
+| Versión del consentimiento                | Debe coincidir con `CURRENT_AI_CONSENT_VERSION` (`2026-09-27`)                    |
+| Orden cuota/contexto                      | Contexto ligero antes de la cuota; aclaraciones no consumen                       |
+| Reintento por validación                  | Cuenta dentro de la misma unidad                                                  |
+| Fallo del snapshot tras conceder la cuota | La unidad se consume; sin devolución                                              |
+| Parámetros del proveedor                  | Temperatura 0,1; 400 tokens; modelos preview, `latest`, imagen y audio rechazados |
+| Documento de retención, purga y rollback  | `docs/16-coach-fase-4.md`                                                         |
+| Política de privacidad                    | Pública en `/privacy`; fuente en `docs/17-politica-de-privacidad.md`              |
+
 ## Decisiones abiertas
 
-1. **Versión del consentimiento.** Hoy cualquier versión no vacía cuenta como
-   consentimiento. Cuando exista el texto definitivo, conviene exigir que
-   `ai_consent_version` coincida con la versión vigente para volver a pedirlo si
-   cambia.
-2. **Orden cuota/contexto** (hallazgo 2): confirmar.
-3. **Reintento por validación**: hoy es una segunda llamada al proveedor dentro
-   de la misma unidad de cuota. Confirmar que así debe contarse.
-4. **Fallo del snapshot tras consumir cuota**: si la lectura de datos falla
-   después de conceder la unidad, esa unidad se pierde sin llamada al
-   proveedor. Es raro y se aceptó para no construir el snapshot antes de la
-   cuota.
-5. **Programación de la purga** (`pg_cron` o programador externo) y el
-   documento `docs/16-coach-fase-4.md` que cita la migración.
-6. **Límite de 15/hora**: constante en código; decidir si pasa a secreto.
-
-## Política de privacidad — contenido requerido
-
-Antes de redactarla hay que confirmar proveedor y facturación. Deberá explicar:
-qué datos analiza el Coach y cuáles no se envían; que requiere consentimiento
-explícito y cómo revocarlo; que se usan datos agregados; que en v1 no se envían
-descripciones de movimientos; cómo se retiene y elimina el historial (90 días de
-mensajes, 7 días de contadores); y que el Coach es una herramienta de
-planificación y educación financiera, no asesoramiento profesional financiero,
-tributario, legal ni de inversión.
+1. **Programación de la purga**: `pg_cron` o programador externo.
+2. **Límite de 15/hora**: constante en código; decidir si pasa a secreto.
+3. **Canal de contacto** y revisión legal de la política antes de activar.
 
 ## Próximo paso autorizado
 
-Ninguno en curso. El siguiente candidato es la revisión de **historial y
-`conversationId`**, que cambia el contrato de entrada y requiere aprobación
-propia. No se ha aceptado `conversationId`, no se guardan mensajes y no existe
+Ninguno en curso para el Coach. Pendientes, cada uno con revisión propia:
+
+1. Interfaz de consentimiento y revocación en Ajustes.
+2. Historial y `conversationId` (`docs/16-coach-fase-4.md` §7).
+3. Interfaz de chat.
+4. Activación: facturación del proveedor, secretos y despliegue, con
+   instrucción explícita.
+
+No se ha aceptado `conversationId`, no se guardan mensajes y no existe
 interfaz de chat ni de consentimiento.
