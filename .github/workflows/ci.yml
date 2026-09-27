@@ -45,3 +45,34 @@ jobs:
       # de comprobar lo mismo.
       - name: Verificar Edge Functions (Deno)
         run: bun run check:functions
+
+  # Aplica todas las migraciones sobre un PostgreSQL vacío y ejecuta las
+  # pruebas SQL: RLS, propiedad, idempotencia de la proyección recurrente y
+  # concurrencia real (varias sesiones a la vez) de la proyección y la cuota
+  # del Coach. Usa stubs mínimos de Supabase (roles y auth.uid()); no toca el
+  # proyecto remoto.
+  validar-base-de-datos:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: fintrack_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Clonar repositorio
+        uses: actions/checkout@v4
+
+      - name: Migraciones y pruebas SQL
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/fintrack_test
+        run: scripts/test-db.sh
