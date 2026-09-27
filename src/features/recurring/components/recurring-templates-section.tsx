@@ -62,7 +62,14 @@ export function RecurringTemplatesSection({ accounts, categories }: Props) {
         Se proyectan cada mes como borradores para revisar. Nunca se registran solos.
       </p>
 
-      {templates.length === 0 ? (
+      {templatesQuery.isPending ? (
+        <p className="mt-4 text-sm text-muted-foreground">Cargando movimientos recurrentes...</p>
+      ) : templatesQuery.isError ? (
+        <p role="alert" className="mt-4 text-sm text-destructive">
+          No se pudieron cargar tus movimientos recurrentes. Recarga la página para intentarlo de
+          nuevo.
+        </p>
+      ) : templates.length === 0 ? (
         <p className="mt-4 text-sm text-muted-foreground">
           Aún no tienes. Marca «Repetir cada mes» al registrar un ingreso o un gasto.
         </p>

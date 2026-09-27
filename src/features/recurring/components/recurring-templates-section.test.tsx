@@ -89,4 +89,18 @@ describe('RecurringTemplatesSection', () => {
     render(<RecurringTemplatesSection accounts={accounts} categories={categories} />)
     expect(screen.getByText(/Marca «Repetir cada mes»/)).toBeInTheDocument()
   })
+
+  it('mientras carga no dice que no hay plantillas', () => {
+    templates.mockReturnValue({ data: undefined, isPending: true, isError: false })
+    render(<RecurringTemplatesSection accounts={accounts} categories={categories} />)
+    expect(screen.getByText('Cargando movimientos recurrentes...')).toBeInTheDocument()
+    expect(screen.queryByText(/Aún no tienes/)).not.toBeInTheDocument()
+  })
+
+  it('si la consulta falla lo dice en vez de mostrar el estado vacío', () => {
+    templates.mockReturnValue({ data: undefined, isPending: false, isError: true })
+    render(<RecurringTemplatesSection accounts={accounts} categories={categories} />)
+    expect(screen.getByRole('alert')).toHaveTextContent(/No se pudieron cargar/)
+    expect(screen.queryByText(/Aún no tienes/)).not.toBeInTheDocument()
+  })
 })
