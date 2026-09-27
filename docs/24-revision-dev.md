@@ -49,7 +49,11 @@ escapadas; Escape, cierre e inicio de sesión; 13 rutas a 1280 px, 390 px y
 Notas sin cambio: aviso «script tag» de `next-themes` solo en desarrollo (el
 build de producción no lo muestra); la fecha del consentimiento se ve como
 «26 de septiembre (política 2026-09-27)» en Colombia porque la versión está
-fechada en UTC; a 320 px el total dentro del donut queda justo al borde.
+fechada en UTC.
+
+El total dentro del donut de gastos rozaba el anillo (esquinas del texto a
+55 px del centro, hueco de 52 px); ahora se limita al hueco y parte entre
+moneda y cifra (46 px), commit `b2d5cb5`.
 
 ## Garantía de propiedad entre borrador y plantilla recurrente
 
