@@ -54,7 +54,7 @@ export function AccountCard({ account, balanceMinor, index, onEdit, onArchive }:
 
       <div className="mt-4">
         <p className="text-sm text-muted-foreground">{typeLabel}</p>
-        <h3 className="text-lg font-semibold text-foreground">{account.name}</h3>
+        <h2 className="text-lg font-semibold text-foreground">{account.name}</h2>
         <p className="mt-1 text-2xl font-semibold tabular-nums text-foreground">
           {formatAmount(balanceMinor, account.currency_code)}
         </p>

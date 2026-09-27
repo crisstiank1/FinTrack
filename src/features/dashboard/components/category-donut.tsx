@@ -29,7 +29,7 @@ export function CategoryDonut({ slices, currencyCode }: CategoryDonutProps) {
       <div className="relative mx-auto h-44 w-44 shrink-0">
         <div className="absolute inset-0 z-10" aria-hidden="true">
           <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
+            <PieChart accessibilityLayer={false}>
               <Pie
                 data={slices}
                 dataKey="amountMinor"
@@ -37,6 +37,9 @@ export function CategoryDonut({ slices, currencyCode }: CategoryDonutProps) {
                 innerRadius="64%"
                 outerRadius="92%"
                 paddingAngle={2}
+                // Oculto a lectores de pantalla (la lista es su equivalente):
+                // tampoco debe recibir el foco con Tab.
+                rootTabIndex={-1}
                 stroke="none"
                 // Empieza arriba y avanza en sentido horario, así la porción
                 // mayor (las rebanadas llegan ordenadas) queda a las 12.
