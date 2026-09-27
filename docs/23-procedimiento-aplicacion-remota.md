@@ -30,6 +30,10 @@ después `…130000`.
 - `psql` para la verificación de permisos.
 - Una cuenta de prueba (no personal) para los smoke tests autenticados.
 - Ventana sin uso intenso: la migración `…120000` altera `sheet_drafts`.
+- **PostgreSQL 15 o posterior** en el proyecto: `…120000` usa
+  `on delete set null (source_template_id)`. Comprobar con
+  `select current_setting('server_version_num')::int >= 150000;` (debe dar
+  `true`). Si no, parar: la migración fallaría.
 
 ## 1. Backup previo
 
