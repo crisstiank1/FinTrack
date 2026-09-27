@@ -8,6 +8,7 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { authErrorMessage } from '@/features/auth/auth-error-message'
 import { GoogleIcon } from '@/features/auth/components/google-icon'
 import { redirectAfterAuth } from '@/features/auth/redirect-after-auth'
 import { registerSchema, type RegisterValues } from '@/features/auth/schemas'
@@ -39,7 +40,7 @@ export function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
     })
 
     if (error) {
-      toast.error('No se pudo crear la cuenta', { description: error.message })
+      toast.error('No se pudo crear la cuenta', { description: authErrorMessage(error) })
       return
     }
 
@@ -59,7 +60,7 @@ export function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
     })
 
     if (error) {
-      toast.error('No se pudo continuar con Google', { description: error.message })
+      toast.error('No se pudo continuar con Google', { description: authErrorMessage(error) })
       setGoogleLoading(false)
     }
   }
