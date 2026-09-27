@@ -10,12 +10,12 @@
   --surface-elevated: #fff0f6;
   --muted-foreground: #765362;
   --border: #f1d8e2;
-  --primary: #e83e8c;
-  --primary-hover: #c2185b;
+  --primary: #d6246f; /* 4,8:1 con texto blanco (WCAG AA); antes #e83e8c, 3,8:1 */
+  --primary-hover: #a3124c;
   --primary-soft: #f8bbd0;
   --success: #16805b;
   --danger: #c62848;
-  --warning: #b26b00;
+  --warning: #9a5b00; /* 5,2:1 sobre el fondo; antes 4,0:1 */
   --info: #2563eb;
 
   /* Alias para compatibilidad con componentes shadcn/ui */
@@ -31,7 +31,8 @@
   --accent-foreground: var(--foreground);
   --destructive: var(--danger);
   --destructive-foreground: #ffffff;
-  --input: var(--border);
+  /* Borde de campos: 3,5:1 sobre el fondo (WCAG 1.4.11); el borde decorativo sigue siendo --border. */
+  --input: #a67a8c;
   --ring: var(--primary);
   --radius: 0.625rem;
 }
@@ -63,8 +64,8 @@
   --accent: var(--primary-soft);
   --accent-foreground: #0d0712;
   --destructive: var(--danger);
-  --destructive-foreground: #ffffff;
-  --input: var(--border);
+  --destructive-foreground: #0d0712; /* 7,4:1 sobre --danger oscuro; el blanco daba 2,7:1 */
+  --input: #75658a; /* 3,5:1 sobre la superficie */
   --ring: var(--primary);
 }
 
