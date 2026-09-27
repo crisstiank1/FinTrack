@@ -34,6 +34,9 @@ const Plan = lazy(() => import('@/pages/Plan'))
 /** Hojas arrastra TanStack Table; su chunk aparte no penaliza al resto de rutas. */
 const Sheets = lazy(() => import('@/pages/Sheets'))
 
+/** El importador CSV solo se usa de vez en cuando; va en su propio chunk. */
+const CsvImport = lazy(() => import('@/pages/CsvImport'))
+
 export function AppRouter() {
   return (
     <BrowserRouter>
@@ -101,6 +104,18 @@ export function AppRouter() {
                   fallback={<p className="p-6 text-sm text-muted-foreground">Cargando hojas...</p>}
                 >
                   <Sheets />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/import"
+              element={
+                <Suspense
+                  fallback={
+                    <p className="p-6 text-sm text-muted-foreground">Cargando importador...</p>
+                  }
+                >
+                  <CsvImport />
                 </Suspense>
               }
             />

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Columns3, FileSpreadsheet, Loader2, Plus, Trash2 } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import { Columns3, FileSpreadsheet, FileUp, Loader2, Plus, Trash2 } from 'lucide-react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 
 import { PAGE_HELP } from '@/components/shared/page-help'
@@ -216,8 +216,12 @@ function ColumnsDialog({
 
 export default function Sheets() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
 
-  const [selectedSheetId, setSelectedSheetId] = useState<string | null>(null)
+  // `?sheet=` lo pone el importador CSV para abrir la hoja que acaba de crear.
+  const [selectedSheetId, setSelectedSheetId] = useState<string | null>(() =>
+    searchParams.get('sheet'),
+  )
   const [newSheetOpen, setNewSheetOpen] = useState(false)
   const [newSheetName, setNewSheetName] = useState('')
   const [newSheetError, setNewSheetError] = useState<string | null>(null)
@@ -315,6 +319,10 @@ export default function Sheets() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <Button type="button" variant="outline" onClick={() => navigate('/import')}>
+            <FileUp className="size-4" aria-hidden="true" />
+            Importar CSV
+          </Button>
           <Button
             type="button"
             variant="outline"
