@@ -42,7 +42,8 @@ export interface SheetGridProps {
   accounts: Tables<'accounts'>[]
   categories: Tables<'categories'>[]
   isRegistering: boolean
-  onSave: (draftId: string, cells: DraftCells) => void
+  /** Puede devolver una promesa: registrar la espera antes de llamar a la RPC. */
+  onSave: (draftId: string, cells: DraftCells) => void | Promise<void>
   onAddRow: () => void
   onRemoveRow: (draftId: string) => void
   onRegister: (draftIds: string[]) => Promise<RegisterSummary>
@@ -211,16 +212,29 @@ export function SheetGrid({
     })
   }
 
-  /** Autoguardado al salir de la celda: solo si hay cambios respecto a lo guardado. */
-  function saveRow(draftId: string) {
+  /**
+   * Guarda la fila si tiene cambios respecto a lo guardado. Devuelve la promesa
+   * del guardado para quien necesite esperarlo; si falla, la fila vuelve a
+   * contar como pendiente para que el siguiente intento la guarde otra vez.
+   */
+  function flushRow(draftId: string): Promise<void> {
     const state = stateRef.current
     const draft = state.draftsById.get(draftId)
-    if (!draft) return
+    if (!draft) return Promise.resolve()
     const merged = { ...(draft.cells as DraftCells), ...(state.edits[draftId] ?? {}) }
     const signature = JSON.stringify(merged)
-    if (savedCellsRef.current[draftId] === signature) return
+    const previous = savedCellsRef.current[draftId]
+    if (previous === signature) return Promise.resolve()
     savedCellsRef.current[draftId] = signature
-    onSaveRef.current(draftId, merged)
+    return Promise.resolve(onSaveRef.current(draftId, merged)).catch((error: unknown) => {
+      if (savedCellsRef.current[draftId] === signature) savedCellsRef.current[draftId] = previous
+      throw error
+    })
+  }
+
+  /** Autoguardado al salir de la celda. El error ya lo notifica quien guarda. */
+  function saveRow(draftId: string) {
+    flushRow(draftId).catch(() => {})
   }
 
   function amountHelper(draftId: string): string | undefined {
@@ -385,6 +399,15 @@ export function SheetGrid({
 
   async function handleConfirmRegister() {
     setConfirmOpen(false)
+    // La validación de arriba usa las ediciones locales, pero la RPC lee lo
+    // guardado. Una celda cambiada sin salir de ella (o cuyo guardado aún está
+    // en vuelo) se guarda y se espera antes de registrar; si no, la RPC vería
+    // la fila vieja y respondería que sigue incompleta.
+    try {
+      await Promise.all(validDraftIds.map((draftId) => flushRow(draftId)))
+    } catch {
+      return
+    }
     const result = await onRegister(validDraftIds)
     setSummary(result)
   }

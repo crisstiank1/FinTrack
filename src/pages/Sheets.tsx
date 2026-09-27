@@ -293,17 +293,16 @@ export default function Sheets() {
     }
   }
 
-  function handleSave(draftId: string, cells: DraftCells) {
-    updateDraftCellsMutation.mutate(
-      { draftId, cells },
-      {
-        onError: (error) => {
-          toast.error('No se pudo guardar la fila', {
-            description: error instanceof Error ? error.message : undefined,
-          })
-        },
-      },
-    )
+  async function handleSave(draftId: string, cells: DraftCells): Promise<void> {
+    try {
+      await updateDraftCellsMutation.mutateAsync({ draftId, cells })
+    } catch (error) {
+      toast.error('No se pudo guardar la fila', {
+        description: error instanceof Error ? error.message : undefined,
+      })
+      // Se relanza para que el registro no siga con la fila sin guardar.
+      throw error
+    }
   }
 
   return (

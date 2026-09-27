@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -256,6 +256,94 @@ describe('SheetGrid — registro con confirmación', () => {
 
     await user.click(screen.getByRole('button', { name: 'Ver movimientos' }))
     expect(onViewMovements).toHaveBeenCalledTimes(1)
+  })
+
+  it('guarda y espera las ediciones pendientes antes de registrar', async () => {
+    // Una categoría elegida sin salir de la celda aún no está en el servidor.
+    // Registrar debe guardarla primero: la RPC lee la fila guardada, no la
+    // edición local, y sin esto respondería «0 registrados».
+    const order: string[] = []
+    let releaseSave = () => {}
+    const onSave = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          order.push('save:start')
+          releaseSave = () => {
+            order.push('save:end')
+            resolve()
+          }
+        }),
+    )
+    const onRegister = vi.fn(async (): Promise<RegisterSummary> => {
+      order.push('register')
+      return { requested: 1, registered: 1, remaining: 0 }
+    })
+    render(
+      <SheetGrid
+        drafts={[draft('d-1', { ...VALID_CELLS, category_id: '' }, 0)]}
+        columnDefs={[]}
+        accounts={ACCOUNTS}
+        categories={CATEGORIES}
+        isRegistering={false}
+        onSave={onSave}
+        onAddRow={vi.fn()}
+        onRemoveRow={vi.fn()}
+        onRegister={onRegister}
+        onViewMovements={vi.fn()}
+      />,
+    )
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'Categoría' }), {
+      target: { value: '33333333-3333-4333-8333-333333333333' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar 1 movimiento' }))
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1))
+    expect(onSave).toHaveBeenCalledWith(
+      'd-1',
+      expect.objectContaining({ category_id: '33333333-3333-4333-8333-333333333333' }),
+    )
+    expect(onRegister).not.toHaveBeenCalled()
+
+    releaseSave()
+    await waitFor(() => expect(onRegister).toHaveBeenCalledWith(['d-1']))
+    expect(order).toEqual(['save:start', 'save:end', 'register'])
+  })
+
+  it('si falla el guardado pendiente, no registra', async () => {
+    const onSave = vi.fn(async () => {
+      throw new Error('red caída')
+    })
+    const onRegister = vi.fn(async (): Promise<RegisterSummary> => ({
+      requested: 1,
+      registered: 1,
+      remaining: 0,
+    }))
+    render(
+      <SheetGrid
+        drafts={[draft('d-1', { ...VALID_CELLS, category_id: '' }, 0)]}
+        columnDefs={[]}
+        accounts={ACCOUNTS}
+        categories={CATEGORIES}
+        isRegistering={false}
+        onSave={onSave}
+        onAddRow={vi.fn()}
+        onRemoveRow={vi.fn()}
+        onRegister={onRegister}
+        onViewMovements={vi.fn()}
+      />,
+    )
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'Categoría' }), {
+      target: { value: '33333333-3333-4333-8333-333333333333' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Registrar 1 movimiento' }))
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1))
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(onRegister).not.toHaveBeenCalled()
   })
 
   it('con todas las filas válidas, la confirmación omite la frase de los incompletos', async () => {
