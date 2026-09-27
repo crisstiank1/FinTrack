@@ -2,7 +2,9 @@ name: Integración Continua (CI)
 
 on:
   push:
-    branches: [ main ]
+    # `dev` también: así las migraciones y las pruebas SQL corren en cada push
+    # de integración, antes de abrir el PR hacia main.
+    branches: [ main, dev ]
   pull_request:
     branches: [ main ]
 
