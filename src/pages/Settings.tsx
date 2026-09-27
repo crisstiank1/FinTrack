@@ -221,7 +221,10 @@ export default function Settings() {
         </Button>
       </div>
 
-      <section className="mt-8" aria-labelledby="settings-profile-title">
+      <section
+        className="mt-8 rounded-2xl border border-border bg-card p-4 shadow-card sm:p-6"
+        aria-labelledby="settings-profile-title"
+      >
         <h2 id="settings-profile-title" className="text-lg font-semibold text-foreground">
           Perfil
         </h2>
@@ -243,7 +246,7 @@ export default function Settings() {
         )}
       </section>
 
-      <section className="mt-8">
+      <section className="mt-6 rounded-2xl border border-border bg-card p-4 shadow-card sm:p-6">
         <h2 className="text-lg font-semibold text-foreground">Moneda principal</h2>
         <p className="text-sm text-muted-foreground">
           En qué moneda se presentan tus totales en todas las pantallas. Tus cuentas conservan su
@@ -274,7 +277,7 @@ export default function Settings() {
 
       <CoachConsentSection />
 
-      <section className="mt-8">
+      <section className="mt-6 rounded-2xl border border-border bg-card p-4 shadow-card sm:p-6">
         <h2 className="text-lg font-semibold text-foreground">Privacidad</h2>
         <p className="text-sm text-muted-foreground">
           Qué datos guarda FinTrack y cómo funcionará FinTrack Coach.{' '}
@@ -287,7 +290,13 @@ export default function Settings() {
       {isLoading && <p className="mt-8 text-sm text-muted-foreground">Cargando categorías...</p>}
 
       {!isLoading && categories && categories.length > 0 && (
-        <div className="mt-8">
+        <section
+          className="mt-6 rounded-2xl border border-border bg-card p-4 shadow-card sm:p-6"
+          aria-labelledby="settings-categories-title"
+        >
+          <h2 id="settings-categories-title" className="mb-4 text-lg font-semibold text-foreground">
+            Categorías
+          </h2>
           <CategoryList
             categories={categories}
             onEdit={(category) => {
@@ -296,7 +305,7 @@ export default function Settings() {
             }}
             onArchive={(category) => setArchivingCategory(category)}
           />
-        </div>
+        </section>
       )}
 
       {!isLoading && (

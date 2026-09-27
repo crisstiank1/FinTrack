@@ -41,7 +41,10 @@ export function CoachConsentSection() {
   }
 
   return (
-    <section className="mt-8" aria-labelledby="settings-coach-title">
+    <section
+      className="mt-6 rounded-2xl border border-border bg-card p-4 shadow-card sm:p-6"
+      aria-labelledby="settings-coach-title"
+    >
       <h2 id="settings-coach-title" className="text-lg font-semibold text-foreground">
         FinTrack Coach
       </h2>

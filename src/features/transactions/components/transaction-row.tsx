@@ -49,7 +49,7 @@ export function TransactionRow({
   return (
     // En pantallas estrechas importe y acciones bajan a una segunda línea en
     // vez de dejar la descripción reducida a una o dos letras.
-    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 rounded-xl border border-border bg-card px-4 py-3 transition-shadow duration-200 hover:shadow-card">
+    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 bg-card px-4 py-3 transition-colors duration-200 hover:bg-primary/4">
       <div className="flex min-w-0 flex-1 basis-56 items-center gap-3">
         <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary-strong">
           <Icon className="size-4" aria-hidden="true" />

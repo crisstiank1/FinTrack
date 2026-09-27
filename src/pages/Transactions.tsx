@@ -266,7 +266,7 @@ export default function Transactions() {
         </div>
       </div>
 
-      <div className="mt-4">
+      <div className="mt-4 rounded-2xl border border-border bg-card p-4 shadow-card">
         <TransactionFiltersBar
           filters={filters}
           accounts={accounts}
@@ -275,11 +275,12 @@ export default function Transactions() {
         />
       </div>
 
-      <div className="mt-6 flex flex-col gap-2">
-        {isLoading && <p className="text-sm text-muted-foreground">Cargando movimientos...</p>}
+      {/* Una sola tarjeta con separadores, como la tabla del Libro. */}
+      <div className="mt-6 flex flex-col divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card shadow-card empty:hidden">
+        {isLoading && <p className="p-4 text-sm text-muted-foreground">Cargando movimientos...</p>}
 
         {!isLoading && transactions?.length === 0 && (
-          <div className="rounded-xl border border-dashed border-border p-8 text-center">
+          <div className="p-8 text-center">
             <p className="text-sm text-muted-foreground">
               No hay movimientos para este período. Registra tu primer ingreso o gasto.
             </p>

@@ -64,7 +64,11 @@ export function ClassificationPanel({
   const titleId = useId()
 
   return (
-    <section id="clasificacion-gastos" aria-labelledby={titleId} className="mt-12">
+    <section
+      id="clasificacion-gastos"
+      aria-labelledby={titleId}
+      className="mt-6 scroll-mt-24 rounded-2xl border border-border bg-card p-4 shadow-card sm:p-6"
+    >
       <h2 id={titleId} className="text-lg font-semibold text-foreground">
         Clasificación de gastos
       </h2>

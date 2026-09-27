@@ -54,7 +54,10 @@ export function RecurringTemplatesSection({ accounts, categories }: Props) {
   }
 
   return (
-    <section className="mt-8" aria-labelledby="settings-recurring-title">
+    <section
+      className="mt-6 rounded-2xl border border-border bg-card p-4 shadow-card sm:p-6"
+      aria-labelledby="settings-recurring-title"
+    >
       <h2 id="settings-recurring-title" className="text-lg font-semibold text-foreground">
         Movimientos recurrentes
       </h2>
