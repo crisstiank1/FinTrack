@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react'
 
+import { Link } from 'react-router-dom'
+
 import { Logo } from '@/components/shared/logo'
 import { cn } from '@/lib/utils'
 
@@ -13,11 +15,14 @@ export function AuthShell({ formSide, children }: AuthShellProps) {
   const brandOrder = formSide === 'left' ? 'lg:order-2' : 'lg:order-1'
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4 py-10 text-foreground">
+    <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-background px-4 py-10 text-foreground">
       <div className="grid w-full max-w-4xl overflow-hidden rounded-2xl border border-border bg-card shadow-xl lg:grid-cols-2">
         <div
           key={formSide}
-          className={cn('animate-auth-panel-in flex flex-col justify-center p-8 sm:p-10', formOrder)}
+          className={cn(
+            'animate-auth-panel-in flex flex-col justify-center p-8 sm:p-10',
+            formOrder,
+          )}
         >
           {children}
         </div>
@@ -31,6 +36,12 @@ export function AuthShell({ formSide, children }: AuthShellProps) {
           <BrandingPanel />
         </div>
       </div>
+      <Link
+        to="/privacy"
+        className="text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground"
+      >
+        Política de privacidad
+      </Link>
     </div>
   )
 }

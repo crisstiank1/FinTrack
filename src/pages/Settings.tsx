@@ -265,6 +265,16 @@ export default function Settings() {
         </div>
       </section>
 
+      <section className="mt-8">
+        <h2 className="text-lg font-semibold text-foreground">Privacidad</h2>
+        <p className="text-sm text-muted-foreground">
+          Qué datos guarda FinTrack y cómo funcionará FinTrack Coach.{' '}
+          <a href="/privacy" className="underline underline-offset-4">
+            Leer la política de privacidad
+          </a>
+        </p>
+      </section>
+
       {isLoading && <p className="mt-8 text-sm text-muted-foreground">Cargando categorías...</p>}
 
       {!isLoading && categories && categories.length > 0 && (

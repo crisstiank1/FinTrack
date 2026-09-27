@@ -8,6 +8,7 @@ import Accounts from '@/pages/Accounts'
 import Auth from '@/pages/Auth'
 import AuthCallback from '@/pages/AuthCallback'
 import Onboarding from '@/pages/Onboarding'
+import Privacy from '@/pages/Privacy'
 import ResetPassword from '@/pages/ResetPassword'
 import Settings from '@/pages/Settings'
 import Transactions from '@/pages/Transactions'
@@ -40,6 +41,8 @@ export function AppRouter() {
         <Route path="/auth" element={<Auth />} />
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="/reset-password" element={<ResetPassword />} />
+        {/* Pública: se lee antes de crear cuenta y antes de aceptar el Coach. */}
+        <Route path="/privacy" element={<Privacy />} />
         <Route element={<ProtectedRoute />}>
           <Route path="/onboarding" element={<Onboarding />} />
           <Route element={<AppLayout />}>
