@@ -238,7 +238,8 @@ existe en Ajustes (`src/features/coach-consent/`). Pendientes, cada uno con
 revisión propia:
 
 1. **Bloqueante:** aplicar `20260927130000_restringir_funciones_coach.sql`
-   (fallo crítico de permisos en `purge_ai_data`, auditoría en
+   (fallo crítico de permisos en `purge_ai_data`; incluye deny-by-default para
+   funciones futuras; auditoría en
    `docs/22-auditoria-security-definer.md`, procedimiento en
    `docs/23-procedimiento-aplicacion-remota.md`) y programar la purga
    (`pg_cron`). Nada más del Coach avanza hasta cerrar esto.

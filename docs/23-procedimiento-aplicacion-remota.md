@@ -13,10 +13,10 @@ hoy cualquier sesión puede ejecutar `purge_ai_data`
 cualquier otra funcionalidad del Coach, y antes de historial o
 `conversationId`.
 
-| Migración                                         | Contenido                                                                                                                     | Toca datos                                    |
-| ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
-| `20260927120000_crear_plantillas_recurrentes.sql` | Tablas `recurring_templates`, `recurring_template_projections`; columnas en `sheet_drafts`; RPC `project_recurring_templates` | Solo añade (columnas nulas en `sheet_drafts`) |
-| `20260927130000_restringir_funciones_coach.sql`   | Revoca EXECUTE y fija `search_path = ''` en las tres funciones `security definer`                                             | No                                            |
+| Migración                                         | Contenido                                                                                                                                  | Toca datos                                    |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------- |
+| `20260927120000_crear_plantillas_recurrentes.sql` | Tablas `recurring_templates`, `recurring_template_projections`; columnas en `sheet_drafts`; RPC `project_recurring_templates`              | Solo añade (columnas nulas en `sheet_drafts`) |
+| `20260927130000_restringir_funciones_coach.sql`   | Revoca EXECUTE en las 14 funciones de `public` (mínimo necesario), fija `search_path = ''` y activa deny-by-default para funciones futuras | No                                            |
 
 `supabase db push` aplica las pendientes en orden de fecha: primero `…120000`,
 después `…130000`.
@@ -65,12 +65,49 @@ Debe mostrar hasta `20260923120000` aplicada en remoto y `20260927120000`,
 `20260927130000` solo en local. Si aparece cualquier otra diferencia, parar e
 investigar antes de continuar.
 
+## 2b. Identificar el rol que crea las funciones
+
+`ALTER DEFAULT PRIVILEGES` se aplica al rol que ejecuta la migración y al
+propietario de las funciones existentes (`docs/22-auditoria-security-definer.md`
+§3). Antes de aplicar, anotar ambos:
+
+```sql
+select current_user as rol_de_sesion,
+       pg_get_userbyid(p.proowner) as propietario_funciones
+from pg_proc p
+where p.oid = 'public.purge_ai_data(integer, integer)'::regprocedure;
+
+select pg_get_userbyid(defaclrole) as rol,
+       coalesce(defaclnamespace::regnamespace::text, '(global)') as esquema,
+       defaclacl
+from pg_default_acl
+where defaclobjtype = 'f'
+order by 1, 2;
+```
+
+Ejecutar la primera consulta **con el mismo método** con que se aplicarán las
+migraciones. Si `supabase db push` no permite consultas, basta con la segunda:
+después de aplicar debe aparecer una fila global y otra de `public` para el
+propietario, sin `anon`, `authenticated` ni `=X` (PUBLIC).
+
 ## 3. Aplicar
 
 ```bash
 supabase db push --linked --dry-run   # revisar que solo aparecen las dos
 supabase db push --linked
 ```
+
+Durante la aplicación de `…130000` deben aparecer avisos como:
+
+```text
+NOTICE:  deny-by-default configurado para funciones creadas por <rol>
+```
+
+uno por cada rol configurado. Un `WARNING: No se pudo configurar
+deny-by-default para <rol>` no aborta la migración (los revokes son lo
+urgente), pero hará fallar la verificación del paso 4: resolverlo antes de
+continuar, ejecutando el bloque `do` de la migración con un rol que pertenezca
+al indicado.
 
 Si la CLI informa de un error, **no reintentar a ciegas**: pasar al apartado 7.
 
@@ -86,7 +123,7 @@ psql "<CADENA_DE_CONEXION_DEL_PROYECTO>" -v ON_ERROR_STOP=1 \
 Resultado esperado:
 
 ```text
-NOTICE:  Permisos de funciones correctos: 3 funciones security definer auditadas.
+NOTICE:  Permisos de funciones correctos: 14 funciones auditadas; deny-by-default activo para <rol>.
 ```
 
 Cualquier `ERROR: Permisos de funciones incorrectos` lista exactamente qué
@@ -181,13 +218,15 @@ issue ni chat.
 
 ## 7. Rollback
 
-| Situación                                           | Acción                                                                                                                                                                                                                                                                                                                                                                   |
-| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `db push` falla en `…120000`                        | Comprobar con `supabase migration list --linked` si quedó registrada y, con la consulta del paso 1.3 y `\d public.recurring_templates`, si quedó algo creado. Si no quedó nada, corregir en `dev`, pasar CI y repetir; si quedó a medias, aplicar el bloque de reversión de la migración y `supabase migration repair --status reverted 20260927120000` antes de repetir |
-| `db push` falla en `…130000` tras aplicar `…120000` | `…120000` queda aplicada y es independiente. Revisar el error; **no** dejar el proyecto sin la corrección de seguridad más tiempo del necesario                                                                                                                                                                                                                          |
-| Tras aplicar, el alta de usuarios no crea el perfil | Muy improbable (probado). Revertir **solo** la parte de `handle_new_user`: `alter function public.handle_new_user() set search_path = public;` y verificar. No volver a conceder EXECUTE sobre `purge_ai_data`                                                                                                                                                           |
-| Hay que retirar la funcionalidad de recurrentes     | Bloque de reversión comentado al final de `…120000` (borra las tablas de plantillas y proyecciones; los borradores quedan como borradores normales). Después: `supabase migration repair --status reverted 20260927120000`                                                                                                                                               |
-| Daño de datos inesperado                            | Restaurar desde el backup del paso 1 (PITR o volcado)                                                                                                                                                                                                                                                                                                                    |
+| Situación                                                                                                        | Acción                                                                                                                                                                                                                                                                                                                                                                   |
+| ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `db push` falla en `…120000`                                                                                     | Comprobar con `supabase migration list --linked` si quedó registrada y, con la consulta del paso 1.3 y `\d public.recurring_templates`, si quedó algo creado. Si no quedó nada, corregir en `dev`, pasar CI y repetir; si quedó a medias, aplicar el bloque de reversión de la migración y `supabase migration repair --status reverted 20260927120000` antes de repetir |
+| `db push` falla en `…130000` tras aplicar `…120000`                                                              | `…120000` queda aplicada y es independiente. Revisar el error; **no** dejar el proyecto sin la corrección de seguridad más tiempo del necesario                                                                                                                                                                                                                          |
+| Tras aplicar, el alta de usuarios no crea el perfil                                                              | Muy improbable (probado). Revertir **solo** la parte de `handle_new_user`: `alter function public.handle_new_user() set search_path = public;` y verificar. No volver a conceder EXECUTE sobre `purge_ai_data`                                                                                                                                                           |
+| Un trigger falla con «permission denied for function» (no esperado: PostgreSQL no comprueba EXECUTE al disparar) | Conceder solo esa función a quien la necesite, p. ej. `grant execute on function public.validate_budget() to authenticated;`, y registrar el caso en `docs/22`                                                                                                                                                                                                           |
+| Una RPC nueva de una migración posterior no es invocable                                                         | Es el comportamiento esperado de deny-by-default: añadir en esa migración `grant execute … to authenticated` y su fila en `40-function-privileges.sql`                                                                                                                                                                                                                   |
+| Hay que retirar la funcionalidad de recurrentes                                                                  | Bloque de reversión comentado al final de `…120000` (borra las tablas de plantillas y proyecciones; los borradores quedan como borradores normales). Después: `supabase migration repair --status reverted 20260927120000`                                                                                                                                               |
+| Daño de datos inesperado                                                                                         | Restaurar desde el backup del paso 1 (PITR o volcado)                                                                                                                                                                                                                                                                                                                    |
 
 Revertir `…130000` completa **no** es una opción de rollback aceptable: reabre
 la vulnerabilidad.
