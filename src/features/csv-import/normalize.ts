@@ -168,7 +168,15 @@ export function cleanDescription(raw: string): string {
   )
 }
 
-export function normalizeRows(rows: readonly string[][], options: ImportOptions): ImportRow[] {
+/**
+ * @param lines Línea del archivo de cada fila (`ParsedCsv.lines`). Sin ella se
+ *   asume una fila por línea tras el encabezado.
+ */
+export function normalizeRows(
+  rows: readonly string[][],
+  options: ImportOptions,
+  lines?: readonly number[],
+): ImportRow[] {
   if (validateOptions(options).length > 0) return []
 
   const account = options.account!
@@ -249,7 +257,7 @@ export function normalizeRows(rows: readonly string[][], options: ImportOptions)
     const category = type ? options.defaultCategories?.[type] : null
 
     return {
-      sourceLine: index + 2,
+      sourceLine: lines?.[index] ?? index + 2,
       date,
       description,
       amountMinor,

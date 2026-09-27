@@ -145,7 +145,7 @@ export default function CsvImport() {
   }
   const configIssues = csv ? validateOptions(options) : []
   const normalized = useMemo(
-    () => (csv && configIssues.length === 0 ? normalizeRows(csv.rows, options) : []),
+    () => (csv && configIssues.length === 0 ? normalizeRows(csv.rows, options, csv.lines) : []),
     // `options` se reconstruye en cada render; sus partes son las dependencias.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [

@@ -37,6 +37,12 @@ export interface ParsedCsv {
   headers: string[]
   /** Filas de datos, rellenadas o recortadas al número de encabezados. */
   rows: string[][]
+  /**
+   * Línea del archivo en la que empieza cada fila de `rows` (la primera línea
+   * es la 1). Las líneas en blanco se saltan pero cuentan, para que un error
+   * se señale en la línea que el usuario ve en su editor.
+   */
+  lines: number[]
   delimiter: CsvDelimiter
   encoding: CsvEncoding
 }
@@ -103,33 +109,52 @@ export function parseCsvText(text: string, encoding: CsvEncoding = 'utf-8'): Rea
   // Un NUL no aparece en un CSV de texto; sí en un .xlsx o un PDF renombrado.
   if (clean.includes('\u0000')) return { ok: false, code: 'looks_binary' }
 
-  const result = Papa.parse<string[]>(clean, {
+  // Dos pasadas. La detección de separador de PapaParse falla con líneas en
+  // blanco, así que se detecta saltándolas; después se parsea con ese
+  // separador fijo y sin saltar nada, para poder numerar las líneas reales.
+  const delimiter = Papa.parse<string[]>(clean, {
     delimitersToGuess: [...SUPPORTED_DELIMITERS],
     skipEmptyLines: 'greedy',
-  })
+    preview: 50,
+  }).meta.delimiter as CsvDelimiter
 
-  const delimiter = result.meta.delimiter as CsvDelimiter
-  const lines = result.data.filter((line) => Array.isArray(line))
-  if (lines.length === 0) return { ok: false, code: 'empty' }
+  const result = Papa.parse<string[]>(clean, { delimiter, skipEmptyLines: false })
 
-  const width = lines[0].length
+  // Registros no vacíos con la línea en que empiezan. Un registro ocupa una
+  // línea más las que abran los saltos dentro de un campo entre comillas.
+  const records: { cells: string[]; line: number }[] = []
+  let line = 1
+  for (const raw of result.data) {
+    if (!Array.isArray(raw)) continue
+    const cells = raw.map((cell) => String(cell ?? ''))
+    if (cells.some((cell) => cell.trim() !== '')) records.push({ cells, line })
+    line += 1 + cells.reduce((sum, cell) => sum + (cell.match(/\n/g)?.length ?? 0), 0)
+  }
+  if (records.length === 0) return { ok: false, code: 'empty' }
+
+  const width = records[0].cells.length
   if (width > MAX_COLUMNS) return { ok: false, code: 'too_many_columns' }
   if (width < 2 || !(SUPPORTED_DELIMITERS as readonly string[]).includes(delimiter)) {
     return { ok: false, code: 'unsupported_delimiter' }
   }
 
-  const headers = lines[0].map((header, index) => {
-    const trimmed = String(header ?? '').trim()
+  const headers = records[0].cells.map((header, index) => {
+    const trimmed = header.trim()
     return trimmed === '' ? `Columna ${index + 1}` : trimmed
   })
 
-  const dataLines = lines.slice(1)
-  if (dataLines.length === 0) return { ok: false, code: 'no_data_rows' }
-  if (dataLines.length > MAX_DATA_ROWS) return { ok: false, code: 'too_many_rows' }
+  const dataRecords = records.slice(1)
+  if (dataRecords.length === 0) return { ok: false, code: 'no_data_rows' }
+  if (dataRecords.length > MAX_DATA_ROWS) return { ok: false, code: 'too_many_rows' }
 
-  const rows = dataLines.map((line) => headers.map((_, index) => String(line[index] ?? '').trim()))
+  const rows = dataRecords.map((record) =>
+    headers.map((_, index) => (record.cells[index] ?? '').trim()),
+  )
 
-  return { ok: true, csv: { headers, rows, delimiter, encoding } }
+  return {
+    ok: true,
+    csv: { headers, rows, lines: dataRecords.map((record) => record.line), delimiter, encoding },
+  }
 }
 
 /** Lee un `File` del navegador de principio a fin. */

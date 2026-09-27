@@ -64,6 +64,22 @@ describe('lectura del archivo', () => {
     expect(csv.headers).toEqual(['F. Operación', 'Columna 2', 'Importe COP'])
   })
 
+  it('conserva el número de línea real aunque haya líneas en blanco', () => {
+    const csv = parsed('\nFecha;Concepto;Valor\n25/09/2026;A;-1\n\n\n26/09/2026;B;-2\n')
+    expect(csv.lines).toEqual([3, 6])
+
+    const rows = normalizeRows(csv.rows, options(), csv.lines)
+    expect(rows.map((row) => row.sourceLine)).toEqual([3, 6])
+  })
+
+  it('cuenta los saltos de línea dentro de un campo entre comillas', () => {
+    const csv = parsed(
+      'Fecha;Concepto;Valor\n25/09/2026;"Pago\nen dos líneas";-1\n26/09/2026;B;-2\n',
+    )
+    expect(csv.rows[0][1]).toBe('Pago\nen dos líneas')
+    expect(csv.lines).toEqual([2, 4])
+  })
+
   it('quita el BOM y rellena filas cortas', () => {
     const csv = parsed('﻿Fecha;Concepto;Valor\n05/09/2026;Mercado\n')
     expect(csv.headers[0]).toBe('Fecha')
