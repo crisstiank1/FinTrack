@@ -29,6 +29,7 @@ import { createClient } from '@supabase/supabase-js'
 
 import { readAIConsent } from '@/features/coach/consent'
 import { handleCoachHttpRequest, jsonResponse } from '@/features/coach/http'
+import { isAllowedCoachModel } from '@/features/coach/llm/model-policy'
 import { createOpenAICompatibleProvider } from '@/features/coach/llm/openai-compatible'
 import { consumeAIQuota } from '@/features/coach/quota'
 import type { CoachAI } from '@/features/coach/request'
@@ -47,6 +48,9 @@ function readAI(): CoachAI | undefined {
   const apiKey = Deno.env.get('COACH_LLM_API_KEY')
 
   if (!baseUrl || !model || !apiKey) return undefined
+  // Un modelo preview, un alias `-latest` o uno de imagen/audio deja la ruta
+  // inerte, igual que un secreto que falta.
+  if (!isAllowedCoachModel(model)) return undefined
 
   return {
     provider: createOpenAICompatibleProvider({

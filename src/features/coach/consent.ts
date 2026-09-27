@@ -20,19 +20,33 @@ export interface ConsentColumns {
 }
 
 /**
- * ¿La fila del perfil registra un consentimiento explícito?
+ * Versión vigente del texto de consentimiento del Coach.
+ *
+ * Es la fecha de la política de privacidad que el usuario acepta (`/privacy`).
+ * Cambiar el texto obliga a cambiar este valor, y un consentimiento guardado
+ * con una versión anterior deja de valer: el usuario tiene que volver a
+ * aceptarlo, porque aceptó algo distinto de lo que hoy se hace con sus datos.
+ */
+export const CURRENT_AI_CONSENT_VERSION = '2026-09-27'
+
+/**
+ * ¿La fila del perfil registra un consentimiento explícito y vigente?
  *
  * El esquema guarda el consentimiento como fecha y versión del texto aceptado,
- * no como un booleano: sin versión no se sabría qué aceptó el usuario. Por eso
- * "consentimiento explícito" es que **las dos** estén presentes y no vacías. La
- * restricción `profiles_ai_consent_pair_check` ya impide que vaya una sin la
- * otra; aquí se comprueban las dos igualmente, para que la decisión no dependa
- * de que esa restricción siga existiendo.
+ * no como un booleano. Solo cuenta si:
  *
- * Todo lo demás —fila ausente, `null`, cadena vacía, un tipo inesperado— es
+ * - `ai_consent_at` es una fecha no vacía, y
+ * - `ai_consent_version` coincide **exactamente** con la versión vigente.
+ *
+ * Revocar es poner las dos columnas a `null` (no hay columna de revocación
+ * aparte), así que una revocación cae en el primer punto. Todo lo demás —fila
+ * ausente, `null`, cadena vacía, una versión antigua, un tipo inesperado— es
  * **no**.
  */
-export function hasExplicitConsent(row: Partial<ConsentColumns> | null | undefined): boolean {
+export function hasExplicitConsent(
+  row: Partial<ConsentColumns> | null | undefined,
+  currentVersion: string = CURRENT_AI_CONSENT_VERSION,
+): boolean {
   if (!row) return false
 
   const at = row.ai_consent_at
@@ -41,8 +55,9 @@ export function hasExplicitConsent(row: Partial<ConsentColumns> | null | undefin
   return (
     typeof at === 'string' &&
     at.trim() !== '' &&
+    !Number.isNaN(Date.parse(at)) &&
     typeof version === 'string' &&
-    version.trim() !== ''
+    version === currentVersion
   )
 }
 

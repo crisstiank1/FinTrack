@@ -23,6 +23,7 @@
     "../../src/features/coach/http": "../../src/features/coach/http.ts",
     "@/features/coach/consent": "../../src/features/coach/consent.ts",
     "@/features/coach/quota": "../../src/features/coach/quota.ts",
+    "@/features/coach/llm/model-policy": "../../src/features/coach/llm/model-policy.ts",
     "@/features/coach/llm/openai-compatible": "../../src/features/coach/llm/openai-compatible.ts",
     "@/features/budgets/categories": "../../src/features/budgets/categories.ts",
     "@/features/budgets/resolution": "../../src/features/budgets/resolution.ts",

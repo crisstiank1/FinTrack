@@ -191,6 +191,14 @@ describe('respuesta financiera', () => {
     expect(transactionColumns).not.toMatch(/description|notes/)
   })
 
+  it('pide temperatura baja y un tope de 400 tokens', async () => {
+    const { provider, requests } = fakeProvider([VALID])
+
+    await ask('¿En qué gasté más este mes?', ai(provider, true))
+
+    expect(requests[0]).toMatchObject({ temperature: 0.1, maxTokens: 400 })
+  })
+
   it('lo que se envía al proveedor no contiene identificadores', async () => {
     const { provider, requests } = fakeProvider([VALID])
 

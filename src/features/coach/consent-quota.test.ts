@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { hasExplicitConsent, readAIConsent } from './consent'
+import { CURRENT_AI_CONSENT_VERSION, hasExplicitConsent, readAIConsent } from './consent'
 import type { CoachSupabaseClient } from './context'
 import { handleCoachHttpRequest } from './http'
 import { LLMProviderError, type LLMProvider } from './llm/provider'
@@ -28,7 +28,10 @@ import { handleCoachRequest, type CoachAI } from './request'
 const NOW = new Date('2026-09-21T15:20:00Z')
 const USER = 'user-jwt'
 
-const CONSENTED = { ai_consent_at: '2026-09-20T10:00:00Z', ai_consent_version: 'v1' }
+const CONSENTED = {
+  ai_consent_at: '2026-09-27T10:00:00Z',
+  ai_consent_version: CURRENT_AI_CONSENT_VERSION,
+}
 
 type ProfileMode =
   | { kind: 'row'; consent: Record<string, unknown> }
@@ -176,6 +179,20 @@ const snapshotReads = (log: string[]) =>
 /* -------------------------------------------------------------------------- */
 
 describe('hasExplicitConsent', () => {
+  it('rechaza una versión distinta de la vigente, antigua o con espacios', () => {
+    for (const version of ['v1', '2026-09-01', `${CURRENT_AI_CONSENT_VERSION} `, '']) {
+      expect(
+        hasExplicitConsent({ ai_consent_at: CONSENTED.ai_consent_at, ai_consent_version: version }),
+      ).toBe(false)
+    }
+    expect(
+      hasExplicitConsent({
+        ai_consent_at: 'no es fecha',
+        ai_consent_version: CURRENT_AI_CONSENT_VERSION,
+      }),
+    ).toBe(false)
+  })
+
   it('solo acepta fecha y versión presentes y no vacías', () => {
     expect(hasExplicitConsent(CONSENTED)).toBe(true)
 
@@ -211,6 +228,13 @@ describe('readAIConsent', () => {
     ['columnas ausentes (undefined)', { kind: 'row', consent: {} }],
     ['valor false', { kind: 'row', consent: { ai_consent_at: false, ai_consent_version: false } }],
     ['perfil inexistente', { kind: 'missing' }],
+    [
+      'versión antigua',
+      {
+        kind: 'row',
+        consent: { ai_consent_at: '2026-09-01T00:00:00Z', ai_consent_version: '2026-01-01' },
+      },
+    ],
     ['error al leer el perfil', { kind: 'error' }],
     ['excepción del cliente', { kind: 'throws' }],
   ] as [string, ProfileMode][])('%s → false', async (_label, profile) => {
@@ -224,6 +248,13 @@ describe('sin consentimiento', () => {
     ['undefined', { kind: 'row', consent: {} }],
     ['false', { kind: 'row', consent: { ai_consent_at: false, ai_consent_version: false } }],
     ['perfil inexistente', { kind: 'missing' }],
+    [
+      'versión antigua',
+      {
+        kind: 'row',
+        consent: { ai_consent_at: '2026-09-01T00:00:00Z', ai_consent_version: '2026-01-01' },
+      },
+    ],
     ['error de perfil', { kind: 'error' }],
     ['excepción', { kind: 'throws' }],
   ] as [string, ProfileMode][])(

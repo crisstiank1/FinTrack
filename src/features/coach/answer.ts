@@ -22,14 +22,18 @@ import { parseModelContent, validateModelContent, type Violation } from './valid
 /** Un reintento. Más, y el coste y la latencia crecen sin mejorar la tasa de acierto. */
 const MAX_ATTEMPTS = 2
 
-/** Suficiente para un título, un resumen y siete frases breves. */
-const MAX_TOKENS = 700
+/**
+ * Tope de salida. Basta para un título, un resumen y unas pocas frases
+ * breves con referencias; una respuesta que no quepa es más larga de lo que
+ * la interfaz del Coach va a mostrar.
+ */
+export const MAX_TOKENS = 400
 
 /**
  * Baja: la tarea es redactar datos dados, no crear. Una temperatura alta solo
  * aumenta la probabilidad de que invente una cifra y gaste el reintento.
  */
-const TEMPERATURE = 0.2
+export const TEMPERATURE = 0.1
 
 export interface GenerateAnswerInput {
   provider: LLMProvider

@@ -54,6 +54,10 @@ describe('createOpenAICompatibleProvider', () => {
       response_format: { type: 'json_object' },
     })
     expect(body.messages).toEqual(request.messages)
+    // Sin búsqueda, grounding ni herramientas: el modelo solo ve el snapshot.
+    expect(Object.keys(body).sort()).toEqual(
+      ['max_tokens', 'messages', 'model', 'response_format', 'temperature'].sort(),
+    )
   })
 
   it('omite response_format cuando el modelo no lo admite', async () => {
