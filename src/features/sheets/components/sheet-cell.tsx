@@ -41,6 +41,8 @@ export interface GridCellProps {
   error?: string
   placeholder?: string
   maxLength?: number
+  /** Nombre accesible cuando la celda no tiene texto de ejemplo (fecha, monto). */
+  label?: string
 }
 
 /** Caja de texto (o fecha) de una celda de la rejilla. */
@@ -51,6 +53,7 @@ export function InputCell({
   error,
   placeholder,
   maxLength,
+  label,
   type = 'text',
 }: GridCellProps & { type?: 'text' | 'date' }) {
   return (
@@ -61,6 +64,7 @@ export function InputCell({
         value={value}
         placeholder={placeholder}
         maxLength={maxLength}
+        aria-label={label}
         aria-invalid={error ? true : undefined}
         onChange={(event) => onChange(event.target.value)}
         onBlur={onBlur}
@@ -112,6 +116,7 @@ export function AmountCell({
   onBlur,
   error,
   helper,
+  label,
   currency = 'COP',
 }: GridCellProps & { helper?: string; currency?: string }) {
   return (
@@ -119,6 +124,8 @@ export function AmountCell({
       <CurrencyInput
         className="h-9"
         currency={currency}
+        aria-label={label}
+        aria-invalid={error ? true : undefined}
         value={value ? Number(value) : 0}
         onChange={(numeric) => onChange(numeric ? String(numeric) : '')}
         onBlur={onBlur}

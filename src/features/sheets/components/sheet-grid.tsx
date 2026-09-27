@@ -263,6 +263,7 @@ export function SheetGrid({
         return (
           <InputCell
             type="date"
+            label="Fecha"
             value={mergedFor(draftId)[field] ?? ''}
             onChange={(value) => commitEdit(draftId, field, value)}
             onBlur={() => saveRow(draftId)}
@@ -331,6 +332,7 @@ export function SheetGrid({
           : undefined
         return (
           <AmountCell
+            label="Monto"
             value={mergedFor(draftId)[field] ?? ''}
             onChange={(value) => commitEdit(draftId, field, value)}
             onBlur={() => saveRow(draftId)}

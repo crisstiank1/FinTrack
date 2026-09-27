@@ -258,6 +258,13 @@ describe('SheetGrid — registro con confirmación', () => {
     expect(onViewMovements).toHaveBeenCalledTimes(1)
   })
 
+  it('las celdas de fecha y monto tienen nombre accesible', () => {
+    // Sin texto de ejemplo, axe las marcaba como campos sin etiqueta.
+    renderGrid({ drafts: [draft('d-1', {}, 0)] })
+    expect(screen.getByLabelText('Fecha')).toHaveAttribute('type', 'date')
+    expect(screen.getByLabelText('Monto')).toBeInTheDocument()
+  })
+
   it('el contenedor con scroll está posicionado para recortar los textos sr-only', () => {
     // Sin `relative`, el «Acciones» sr-only (absoluto) escapaba del scroll y
     // ensanchaba toda la página 148 px a 390 px de ancho.
