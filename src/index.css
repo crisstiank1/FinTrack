@@ -25,6 +25,8 @@
   --shadow-brand: 0 6px 16px -6px rgb(214 36 111 / 0.55);
   --glow-1: rgb(214 36 111 / 0.1);
   --glow-2: rgb(157 43 212 / 0.08);
+  /* Velo detrás de diálogos. */
+  --overlay: rgb(43 23 32 / 0.35);
   --success: #16805b;
   /* Texto pequeño sobre tintes de estado (insignias): ≥ 5,3:1. */
   --success-strong: #0e6a4a;
@@ -72,6 +74,7 @@
   --shadow-brand: 0 6px 20px -6px rgb(168 85 247 / 0.6);
   --glow-1: rgb(168 85 247 / 0.14);
   --glow-2: rgb(236 72 153 / 0.08);
+  --overlay: rgb(0 0 0 / 0.6);
   --success: #4ade80;
   --success-strong: #4ade80;
   --danger-strong: #fb7185;
@@ -154,6 +157,8 @@ body {
   font-feature-settings: 'cv11', 'ss03';
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* Casillas, radios y barras nativas con el color de marca. */
+  accent-color: var(--primary);
 }
 
 h1,

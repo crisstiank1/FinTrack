@@ -105,7 +105,7 @@ export function HelpHint({ title, children, label, align = 'start', className }:
         aria-labelledby={titleId}
         hidden={!isOpen}
         className={cn(
-          'absolute top-full z-30 mt-2 w-72 max-w-[calc(100vw-2rem)] rounded-lg border border-border bg-popover p-3 text-left shadow-lg',
+          'absolute top-full z-30 mt-2 w-72 max-w-[calc(100vw-2rem)] rounded-xl border border-border bg-popover p-4 text-left shadow-card-hover',
           align === 'start' ? 'left-0' : 'right-0',
         )}
       >
