@@ -1,7 +1,12 @@
 # Política de privacidad — fuente y mantenimiento
 
 La política pública vive en `src/pages/Privacy.tsx`, ruta `/privacy`, sin
-sesión. Se enlaza desde la pantalla de acceso y desde Ajustes.
+sesión. Junto a `/terms`, `/cookies` y `/refunds` se enlaza desde el pie de
+todas las pantallas (`SiteFooter`), desde el registro y desde Ajustes.
+
+Los plazos de 90 días (mensajes) y 7 días (contadores) se retiraron del texto
+público: `purge_ai_data` existe pero no está programada, así que no son
+verificables hasta que la purga sea operativa.
 
 ## Versión
 
@@ -22,8 +27,11 @@ consentimientos anteriores dejan de valer.
 | Qué se envía                                         | `snapshot.ts`, `prompt.ts`, `ai-path.test.ts`          |
 | No se envían descripciones, notas ni identificadores | `loadSnapshotData` nombra columnas; pruebas de envío   |
 | Sin búsqueda ni herramientas                         | `openai-compatible.test.ts` fija las claves del cuerpo |
-| Contador por hora, 7 días                            | `consume_ai_quota`, `purge_ai_data`                    |
-| Historial 90 días, hoy no se guarda                  | `purge_ai_data`; `boundaries.test.ts`                  |
+| Contador solo por hora; plazos no publicados aún     | `consume_ai_quota`; purga no programada (`docs/16`)    |
+| Hoy no se guarda historial                           | `boundaries.test.ts`                                   |
+| Proveedores: Supabase, Google OAuth, Cloudflare      | Cliente Supabase, `signInWithOAuth`, alojamiento       |
+| Gemini solo condicional                              | Coach no habilitado; sin secretos ni UI de chat        |
+| Solo almacenamiento necesario                        | `storage-inventory.test.ts`                            |
 | No crea movimientos automáticamente                  | CSV y recurrentes solo crean borradores                |
 
 ## Lo que la página no afirma

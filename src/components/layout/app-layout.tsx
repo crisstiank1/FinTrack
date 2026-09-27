@@ -8,6 +8,7 @@ import { useMediaQuery } from '@/hooks/use-media-query'
 import { cn } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
 
+import { SiteFooter } from './site-footer'
 import { AppNav, NAV_COMPACT_QUERY, NAV_WIDE_QUERY, type NavMode } from './app-nav'
 
 /**
@@ -71,11 +72,18 @@ export function AppLayout() {
   const blocks = mode === 'compact' ? [logo, actions, nav] : [logo, nav, actions]
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="flex min-h-screen flex-col bg-background text-foreground">
+      <a
+        href="#contenido"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-background focus:px-3 focus:py-2 focus:ring-2 focus:ring-ring"
+      >
+        Saltar al contenido
+      </a>
       <header className={HEADER_CLASS[mode]}>{blocks}</header>
-      <main>
+      <main id="contenido" tabIndex={-1} className="flex-1 focus:outline-none">
         <Outlet />
       </main>
+      <SiteFooter />
     </div>
   )
 }

@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react'
 
-import { Link } from 'react-router-dom'
-
+import { SiteFooter } from '@/components/layout/site-footer'
 import { Logo } from '@/components/shared/logo'
 import { cn } from '@/lib/utils'
 
@@ -16,7 +15,7 @@ export function AuthShell({ formSide, children }: AuthShellProps) {
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-background px-4 py-10 text-foreground">
-      <div className="grid w-full max-w-4xl overflow-hidden rounded-2xl border border-border bg-card shadow-xl lg:grid-cols-2">
+      <main className="grid w-full max-w-4xl overflow-hidden rounded-2xl border border-border bg-card shadow-xl lg:grid-cols-2">
         <div
           key={formSide}
           className={cn(
@@ -35,13 +34,8 @@ export function AuthShell({ formSide, children }: AuthShellProps) {
         >
           <BrandingPanel />
         </div>
-      </div>
-      <Link
-        to="/privacy"
-        className="text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground"
-      >
-        Política de privacidad
-      </Link>
+      </main>
+      <SiteFooter className="w-full max-w-4xl border-t-0 px-0 text-center [&_ul]:justify-center" />
     </div>
   )
 }

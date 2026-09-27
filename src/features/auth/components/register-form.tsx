@@ -67,9 +67,12 @@ export function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
   if (emailSent) {
     return (
       <div className="flex flex-col gap-2 text-center">
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Confirma tu correo</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+          Confirma tu correo
+        </h1>
         <p className="text-sm text-muted-foreground">
-          Te enviamos un enlace de confirmación. Revisa tu bandeja de entrada para activar tu cuenta.
+          Te enviamos un enlace de confirmación. Revisa tu bandeja de entrada para activar tu
+          cuenta.
         </p>
       </div>
     )
@@ -79,7 +82,9 @@ export function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1.5">
         <h1 className="text-2xl font-semibold tracking-tight text-foreground">Crea tu cuenta</h1>
-        <p className="text-sm text-muted-foreground">Empieza a organizar tus finanzas en minutos.</p>
+        <p className="text-sm text-muted-foreground">
+          Empieza a organizar tus finanzas en minutos.
+        </p>
       </div>
 
       <Button
@@ -133,7 +138,9 @@ export function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
           />
           <p
             id="register-password-hint"
-            className={errors.password ? 'text-sm text-destructive' : 'text-xs text-muted-foreground'}
+            className={
+              errors.password ? 'text-sm text-destructive' : 'text-xs text-muted-foreground'
+            }
           >
             {errors.password ? errors.password.message : 'Mínimo 8 caracteres'}
           </p>
@@ -146,7 +153,9 @@ export function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
             type="password"
             autoComplete="new-password"
             aria-invalid={!!errors.confirmPassword}
-            aria-describedby={errors.confirmPassword ? 'register-confirm-password-error' : undefined}
+            aria-describedby={
+              errors.confirmPassword ? 'register-confirm-password-error' : undefined
+            }
             {...register('confirmPassword')}
           />
           {errors.confirmPassword && (
@@ -160,11 +169,26 @@ export function RegisterForm({ onSwitchToLogin }: RegisterFormProps) {
           {isSubmitting && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
           Crear cuenta
         </Button>
+        <p className="text-xs text-muted-foreground">
+          Antes de crear tu cuenta, revisa los{' '}
+          <a href="/terms" className="underline underline-offset-4">
+            Términos de uso
+          </a>{' '}
+          y la{' '}
+          <a href="/privacy" className="underline underline-offset-4">
+            Política de privacidad
+          </a>
+          .
+        </p>
       </form>
 
       <p className="text-center text-sm text-muted-foreground">
         ¿Ya tienes cuenta?{' '}
-        <button type="button" onClick={onSwitchToLogin} className="font-medium text-primary hover:underline">
+        <button
+          type="button"
+          onClick={onSwitchToLogin}
+          className="font-medium text-primary hover:underline"
+        >
           Iniciar sesión
         </button>
       </p>
