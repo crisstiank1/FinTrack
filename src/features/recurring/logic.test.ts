@@ -4,6 +4,7 @@ import {
   parseProjectionResult,
   pendingTemplates,
   projectLabel,
+  skipAction,
   skipReason,
   summarizeProjection,
   templateFromMovement,
@@ -132,6 +133,14 @@ describe('resultado de la proyección', () => {
     expect(skipReason('skipped_archived_account')).toBe('su cuenta está archivada')
     expect(skipReason('skipped_archived_category')).toBe('su categoría está archivada')
     expect(skipReason('invalid_template')).toBe('la plantilla ya no es válida')
+  })
+
+  it('sugiere una acción para cada omisión', () => {
+    expect(skipAction('created')).toBeNull()
+    expect(skipAction('skipped_existing')).toBeNull()
+    expect(skipAction('skipped_archived_account')).toMatch(/Reactiva la cuenta/)
+    expect(skipAction('skipped_archived_category')).toMatch(/Reactiva la categoría/)
+    expect(skipAction('invalid_template')).toMatch(/Elimina la plantilla/)
   })
 
   it('texto del botón en singular y plural', () => {

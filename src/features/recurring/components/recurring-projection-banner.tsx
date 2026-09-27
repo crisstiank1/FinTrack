@@ -5,8 +5,14 @@ import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 
-import { useProjectRecurring, useRecurringProjectionStatus } from '../hooks'
-import { projectLabel, skipReason, summarizeProjection, type ProjectionResult } from '../logic'
+import { useProjectRecurring, useRecurringProjectionStatus, useRecurringTemplates } from '../hooks'
+import {
+  projectLabel,
+  skipAction,
+  skipReason,
+  summarizeProjection,
+  type ProjectionResult,
+} from '../logic'
 
 /**
  * Aviso del Dashboard: aparece solo si hay plantillas activas sin proyectar
@@ -16,6 +22,7 @@ import { projectLabel, skipReason, summarizeProjection, type ProjectionResult } 
 export function RecurringProjectionBanner() {
   const { monthKey, pending, ready } = useRecurringProjectionStatus()
   const project = useProjectRecurring()
+  const templatesQuery = useRecurringTemplates()
   const [lastResult, setLastResult] = useState<ProjectionResult | null>(null)
 
   async function handleProject() {
@@ -44,13 +51,19 @@ export function RecurringProjectionBanner() {
           omitidos.
         </p>
         {skipped.length > 0 && (
-          <p className="mt-1 text-muted-foreground">
-            {skipped.length === 1
-              ? 'Una plantilla se omitió'
-              : `${skipped.length} plantillas se omitieron`}{' '}
-            porque {[...new Set(skipped.map((item) => skipReason(item.status)))].join(' o ')}.
-            Reactiva la cuenta o categoría, o desactiva la plantilla.
-          </p>
+          <ul className="mt-2 flex flex-col gap-1 text-muted-foreground">
+            {skipped.map((item) => {
+              const name =
+                templatesQuery.data?.find((template) => template.id === item.template_id)
+                  ?.description ?? 'Plantilla'
+              return (
+                <li key={item.template_id}>
+                  <span className="font-medium text-foreground">«{name}»</span> no se proyectó
+                  porque {skipReason(item.status)}. {skipAction(item.status)}
+                </li>
+              )
+            })}
+          </ul>
         )}
         {lastResult.sheet_id && (
           <Link

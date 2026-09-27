@@ -51,6 +51,7 @@ const createTemplateAfterMovement = vi.fn(async () => true)
 vi.mock('@/features/recurring/hooks', () => ({
   useCreateTemplateAfterMovement: () => createTemplateAfterMovement,
   useRecurringProjectionStatus: () => ({ monthKey: '2026-09', pending: [], ready: true }),
+  useRecurringTemplates: () => ({ data: [] }),
   useProjectRecurring: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }))
 

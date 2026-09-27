@@ -144,6 +144,18 @@ export function skipReason(status: ProjectionStatus): string | null {
   return status === 'created' || status === 'skipped_existing' ? null : SKIP_TEXT[status]
 }
 
+const SKIP_ACTION: Record<Exclude<ProjectionStatus, 'created' | 'skipped_existing'>, string> = {
+  skipped_archived_account: 'Reactiva la cuenta en Cuentas o desactiva la plantilla en Ajustes.',
+  skipped_archived_category:
+    'Reactiva la categoría en Ajustes, o desactiva la plantilla y crea otra con una categoría activa.',
+  invalid_template: 'Elimina la plantilla en Ajustes y créala de nuevo desde un movimiento.',
+}
+
+/** Qué puede hacer el usuario con una plantilla omitida. */
+export function skipAction(status: ProjectionStatus): string | null {
+  return status === 'created' || status === 'skipped_existing' ? null : SKIP_ACTION[status]
+}
+
 /** «Proyectar 1 movimiento recurrente…» / «Proyectar 3 movimientos recurrentes…». */
 export function projectLabel(count: number): string {
   return count === 1

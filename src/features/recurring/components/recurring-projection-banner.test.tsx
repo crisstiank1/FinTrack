@@ -8,6 +8,12 @@ const status = vi.fn()
 const mutateAsync = vi.fn()
 
 vi.mock('../hooks', () => ({
+  useRecurringTemplates: () => ({
+    data: [
+      { id: 't3', description: 'Gimnasio' },
+      { id: 't4', description: 'Streaming' },
+    ],
+  }),
   useRecurringProjectionStatus: () => status(),
   useProjectRecurring: () => ({ mutateAsync, isPending: false }),
 }))
@@ -61,15 +67,25 @@ describe('RecurringProjectionBanner', () => {
         { template_id: 't1', status: 'created', draft_id: 'd1', date: '2026-09-30' },
         { template_id: 't2', status: 'skipped_existing' },
         { template_id: 't3', status: 'skipped_archived_account' },
+        { template_id: 't4', status: 'skipped_archived_category' },
       ],
     })
     renderBanner()
 
     fireEvent.click(screen.getByRole('button', { name: /Proyectar 1 movimiento/ }))
 
-    expect(await screen.findByText(/1 borradores creados, 1 ya existían y 1/)).toBeInTheDocument()
+    expect(await screen.findByText(/1 borradores creados, 1 ya existían y 2/)).toBeInTheDocument()
     expect(mutateAsync).toHaveBeenCalledWith('2026-09')
-    expect(screen.getByText(/su cuenta está archivada/)).toBeInTheDocument()
+
+    // Cada omisión dice qué plantilla, por qué y qué hacer.
+    const gym = screen.getByText('«Gimnasio»').closest('li')!
+    expect(gym).toHaveTextContent('su cuenta está archivada')
+    expect(gym).toHaveTextContent(
+      'Reactiva la cuenta en Cuentas o desactiva la plantilla en Ajustes.',
+    )
+    const streaming = screen.getByText('«Streaming»').closest('li')!
+    expect(streaming).toHaveTextContent('su categoría está archivada')
+    expect(streaming).toHaveTextContent(/Reactiva la categoría en Ajustes/)
     expect(screen.getByRole('link', { name: 'Revisar y registrar en Hojas' })).toHaveAttribute(
       'href',
       '/sheets?sheet=sheet-7',
