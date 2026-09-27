@@ -158,7 +158,7 @@ export function AllocationBreakdown({
       )}
 
       {/* Escritorio */}
-      <div className="mt-3 hidden overflow-x-auto rounded-xl border border-border sm:block">
+      <div className="relative mt-3 hidden overflow-x-auto rounded-xl border border-border sm:block">
         <table className="w-full border-collapse text-sm">
           <caption className="sr-only">
             Reparto del ingreso planeado de {monthLabel} por grupo, con lo realmente ocurrido en

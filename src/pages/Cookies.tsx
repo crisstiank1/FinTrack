@@ -28,7 +28,7 @@ export default function Cookies() {
       summary="FinTrack solo usa almacenamiento estrictamente necesario para funcionar. No usa cookies de analítica, publicidad ni seguimiento."
     >
       <LegalSection title="Qué guardamos en tu navegador">
-        <div className="overflow-x-auto rounded-md border border-border">
+        <div className="relative overflow-x-auto rounded-md border border-border">
           <table className="w-full text-left text-sm">
             <caption className="sr-only">Tecnologías de almacenamiento que usa FinTrack</caption>
             <thead className="bg-muted/50">

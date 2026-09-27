@@ -203,7 +203,7 @@ export function BudgetReconciliationPanel({
                 {/* Cuadre. Dos columnas caben en 375 px, así que la misma tabla
                 sirve en móvil sin desbordar la página. */}
                 <div>
-                  <div className="overflow-x-auto rounded-xl border border-border">
+                  <div className="relative overflow-x-auto rounded-xl border border-border">
                     <table className="w-full border-collapse text-sm">
                       <caption className="sr-only">
                         Cuadre del presupuesto de {monthLabel}: presupuesto por categorías, aportes

@@ -258,6 +258,15 @@ describe('SheetGrid — registro con confirmación', () => {
     expect(onViewMovements).toHaveBeenCalledTimes(1)
   })
 
+  it('el contenedor con scroll está posicionado para recortar los textos sr-only', () => {
+    // Sin `relative`, el «Acciones» sr-only (absoluto) escapaba del scroll y
+    // ensanchaba toda la página 148 px a 390 px de ancho.
+    renderGrid({ drafts: [draft('d-1', VALID_CELLS, 0)] })
+    const scroll = screen.getByTestId('sheet-grid-scroll')
+    expect(scroll).toHaveClass('relative', 'overflow-x-auto')
+    expect(scroll.querySelector('.sr-only')).not.toBeNull()
+  })
+
   it('guarda y espera las ediciones pendientes antes de registrar', async () => {
     // Una categoría elegida sin salir de la celda aún no está en el servidor.
     // Registrar debe guardarla primero: la RPC lee la fila guardada, no la

@@ -467,7 +467,13 @@ export function SheetGrid({
         </p>
       )}
 
-      <div className="mt-4 overflow-x-auto rounded-lg border bg-card">
+      {/* `relative`: los textos `sr-only` de la cabecera son absolutos; sin un
+          contenedor posicionado escapan del scroll y ensanchan toda la página
+          en móvil. */}
+      <div
+        data-testid="sheet-grid-scroll"
+        className="relative mt-4 overflow-x-auto rounded-lg border bg-card"
+      >
         <table className="w-full text-sm">
           <thead className="border-b bg-muted/50">
             {table.getHeaderGroups().map((headerGroup) => (
