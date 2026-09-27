@@ -165,6 +165,22 @@ begin
     0,
     'B no tiene plantillas que proyectar'
   );
+
+  -- B no puede colgar un borrador suyo de una plantilla de A, aunque conozca
+  -- su id: la clave foránea se comprueba sin RLS y debe exigir el mismo dueño.
+  insert into public.sheets (id, user_id, name)
+  values ('5b000000-0000-4000-8000-000000000002', 'bbbbbbbb-0000-4000-8000-000000000002', 'Hoja B');
+  perform t.expect_error($q$
+    insert into public.sheet_drafts (user_id, sheet_id, position, cells, source_template_id, generated_for_month)
+    values ('bbbbbbbb-0000-4000-8000-000000000002', '5b000000-0000-4000-8000-000000000002', 0, '{}',
+            'e1000000-0000-4000-8000-000000000001', '2026-01')
+  $q$, 'borrador de B apuntando a la plantilla de A');
+
+  -- Tampoco puede registrar una proyección sobre la plantilla de A.
+  perform t.expect_error($q$
+    insert into public.recurring_template_projections (user_id, template_id, generated_for_month)
+    values ('bbbbbbbb-0000-4000-8000-000000000002', 'e1000000-0000-4000-8000-000000000001', '2026-01')
+  $q$, 'proyección de B sobre la plantilla de A');
 end;
 $$;
 
@@ -380,5 +396,28 @@ begin
 end;
 $$;
 reset role;
+
+-- ---------------------------------------------------------------------------
+-- 9. Borrar un usuario con plantillas, proyecciones y borradores funciona
+-- ---------------------------------------------------------------------------
+
+delete from auth.users where id = 'aaaaaaaa-0000-4000-8000-000000000001';
+
+do $$
+begin
+  perform t.eq(
+    (select count(*)::integer from public.recurring_templates
+     where user_id = 'aaaaaaaa-0000-4000-8000-000000000001'),
+    0,
+    'plantillas borradas en cascada'
+  );
+  perform t.eq(
+    (select count(*)::integer from public.sheet_drafts
+     where user_id = 'aaaaaaaa-0000-4000-8000-000000000001'),
+    0,
+    'borradores borrados en cascada'
+  );
+end;
+$$;
 
 drop schema t cascade;

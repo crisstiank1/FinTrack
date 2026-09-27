@@ -175,10 +175,12 @@ create table public.recurring_template_projections (
 
   primary key (template_id, generated_for_month),
 
+  -- Inmediata: rechaza en la propia sentencia una proyección sobre la
+  -- plantilla de otro usuario. El borrado en cascada de un usuario funciona
+  -- igual (10-recurring-templates.sql, apartado 9).
   constraint recurring_template_projections_template_same_user_fkey
     foreign key (template_id, user_id) references public.recurring_templates (id, user_id)
     on delete cascade
-    deferrable initially deferred
 );
 
 create index recurring_template_projections_user_month_idx
@@ -215,11 +217,24 @@ alter table public.sheet_drafts
   add constraint sheet_drafts_generated_for_month_check check (
     generated_for_month is null or generated_for_month ~ '^[0-9]{4}-(0[1-9]|1[0-2])$'
   ),
+  -- Propiedad declarativa: un borrador solo puede citar una plantilla de su
+  -- mismo usuario. Una clave foránea se comprueba sin pasar por RLS, así que
+  -- con una simple sobre `id` un usuario podría colgar su borrador de la
+  -- plantilla de otro conociendo su UUID. Compuesta, igual que el resto del
+  -- esquema.
+  --
   -- Si se borra la plantilla, el borrador sigue siendo un borrador válido:
-  -- solo pierde la referencia (y su mes, por el par de arriba).
+  -- `set null (source_template_id)` anula solo la referencia —nunca
+  -- `user_id`— y el trigger de abajo anula el mes. La lista de columnas en
+  -- `set null` requiere PostgreSQL 15 o posterior.
+  --
+  -- Inmediata, no diferida: `set null` no deja estados intermedios inválidos
+  -- al borrar un usuario (lo prueba 10-recurring-templates.sql), y así un
+  -- intento de citar una plantilla ajena falla en la propia sentencia.
   add constraint sheet_drafts_source_template_fkey
-    foreign key (source_template_id) references public.recurring_templates (id)
-    on delete set null;
+    foreign key (source_template_id, user_id)
+    references public.recurring_templates (id, user_id)
+    on delete set null (source_template_id);
 
 -- `on delete set null` solo anula `source_template_id`; el par exige anular
 -- también el mes. Este trigger lo hace antes de que se compruebe el check.

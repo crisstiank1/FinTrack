@@ -661,10 +661,10 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: 'sheet_drafts_source_template_fkey'
-            columns: ['source_template_id']
+            columns: ['source_template_id', 'user_id']
             isOneToOne: false
             referencedRelation: 'recurring_templates'
-            referencedColumns: ['id']
+            referencedColumns: ['id', 'user_id']
           },
           {
             foreignKeyName: 'sheet_drafts_sheet_id_fkey'

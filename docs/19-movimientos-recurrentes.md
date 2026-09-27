@@ -74,8 +74,11 @@ create unique index sheet_drafts_template_month_key
 Los borradores manuales (`source_template_id` nulo) quedan fuera del índice.
 En PostgreSQL los `NULL` no chocan en un índice único normal, pero el parcial
 deja explícita la intención y es el destino exacto del `on conflict` de la RPC.
-Si se borra la plantilla, el borrador queda como borrador normal: la FK hace
-`set null` y un trigger anula también el mes.
+La FK es compuesta, `(source_template_id, user_id) → recurring_templates (id, user_id)`:
+un borrador no puede citar la plantilla de otro usuario (las FK se comprueban
+sin RLS). Si se borra la plantilla, el borrador queda como borrador normal: la
+FK hace `set null (source_template_id)` —requiere PostgreSQL 15+— y un trigger
+anula también el mes. Las FK de proyecciones y borradores son inmediatas.
 
 ## RPC `project_recurring_templates(p_month text)`
 
