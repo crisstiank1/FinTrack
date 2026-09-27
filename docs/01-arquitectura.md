@@ -8,6 +8,7 @@
 ## Stack obligatorio
 
 ### Frontend
+
 - **React**
 - **TypeScript** con configuración estricta
 - **Vite**
@@ -23,11 +24,13 @@
 - **date-fns**
 
 ### Librerías de dominio
+
 - **dinero.js** — manejo de divisas y montos financieros.
 - **sonner** — notificaciones de UI (integrado vía shadcn/ui).
 - **papaparse** — parseo y exportación de CSV (importación y exportación del Libro financiero).
 
 ### Backend y datos
+
 - **Supabase Auth**
 - **Supabase PostgreSQL**
 - **Supabase JavaScript client**
@@ -35,6 +38,7 @@
 - **Supabase CLI** — migraciones SQL versionadas y generación de tipos. Instalada como dependencia de desarrollo del proyecto.
 
 ### Calidad
+
 - **ESLint**
 - **Prettier**
 - **Vitest**
@@ -42,6 +46,7 @@
 - **Playwright** — flujos end-to-end importantes.
 
 ### No usar
+
 - JavaScript sin TypeScript.
 - `any`.
 - Redux, salvo que se solicite explícitamente y se justifique.
@@ -86,7 +91,8 @@ bun run build          # build de producción
 bun run preview        # preview del build
 bun run lint           # ESLint
 bun run test           # Vitest
-bunx tsc --noEmit      # verificación de tipos
+bun run typecheck      # verificación de tipos (tsc -b; tsc --noEmit en la raíz no revisa nada)
+bun run check:functions # verificación de la Edge Function (deno check)
 
 # Agregar dependencias
 bun add <paquete>                  # producción

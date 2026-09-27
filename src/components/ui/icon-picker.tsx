@@ -23,10 +23,10 @@ export function IconPicker({ value, onChange }: IconPickerProps) {
             title={key}
             onClick={() => onChange(key)}
             className={cn(
-              'flex size-9 items-center justify-center rounded-md border transition-colors',
+              'flex size-9 items-center justify-center rounded-lg border transition-colors',
               selected
-                ? 'border-primary bg-primary-soft text-primary'
-                : 'border-border bg-background text-muted-foreground hover:bg-accent hover:text-accent-foreground',
+                ? 'border-primary bg-primary/12 text-primary-strong ring-1 ring-primary'
+                : 'border-border bg-card text-muted-foreground hover:bg-primary/8 hover:text-foreground',
             )}
           >
             <Icon className="size-4" aria-hidden="true" />

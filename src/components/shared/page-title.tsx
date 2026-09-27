@@ -21,7 +21,7 @@ interface PageTitleProps {
 export function PageTitle({ children, helpTitle, help }: PageTitleProps) {
   return (
     <div className="relative flex items-center gap-1">
-      <h1 className="text-2xl font-semibold text-foreground">{children}</h1>
+      <h1 className="text-2xl font-bold text-foreground sm:text-[1.75rem]">{children}</h1>
       <HelpHint title={helpTitle} className="static">
         {help}
       </HelpHint>

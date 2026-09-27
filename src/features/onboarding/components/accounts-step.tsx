@@ -53,7 +53,7 @@ export function AccountsStep({ defaultValues, currencyCode, onBack, onNext }: Ac
   return (
     <form className="flex flex-col gap-6" onSubmit={handleSubmit(submit)} noValidate>
       <div className="flex flex-col gap-1.5">
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">Tu primera cuenta</h1>
+        <h1 className="text-2xl font-bold text-foreground">Tu primera cuenta</h1>
         <p className="text-sm text-muted-foreground">Agrega las cuentas donde manejas tu dinero.</p>
       </div>
 
@@ -61,7 +61,10 @@ export function AccountsStep({ defaultValues, currencyCode, onBack, onNext }: Ac
         {fields.map((field, index) => {
           const accountCurrency = watch(`accounts.${index}.currencyCode` as const)
           return (
-            <div key={field.id} className="rounded-lg border border-border p-4">
+            <div
+              key={field.id}
+              className="rounded-2xl border border-border bg-surface-elevated/40 p-4"
+            >
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium text-foreground">Cuenta {index + 1}</span>
                 {fields.length > 1 && (

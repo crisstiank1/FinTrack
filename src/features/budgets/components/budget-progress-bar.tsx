@@ -87,7 +87,7 @@ export function BudgetProgressBar({
             ? `Presupuesto superado: ${spent} gastados de ${budget}`
             : `${formatBudgetPercent(ratio)} de ${budget}`
         }
-        className="h-2 w-full overflow-hidden rounded-full bg-muted"
+        className="h-2.5 w-full overflow-hidden rounded-full bg-muted"
       >
         <div
           className={cn('h-full rounded-full transition-[width] duration-500', TONE_BAR[tone])}

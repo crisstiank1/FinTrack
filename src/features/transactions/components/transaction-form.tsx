@@ -26,6 +26,8 @@ interface TransactionFormProps {
   onSubmit: (values: TransactionFormValues) => void | Promise<void>
   submitLabel?: string
   isSubmitting?: boolean
+  /** Muestra «Repetir cada mes». Solo tiene sentido al crear un movimiento. */
+  allowRepeat?: boolean
 }
 
 export function TransactionForm({
@@ -36,6 +38,7 @@ export function TransactionForm({
   onSubmit,
   submitLabel = 'Guardar',
   isSubmitting,
+  allowRepeat = false,
 }: TransactionFormProps) {
   const {
     register,
@@ -223,6 +226,25 @@ export function TransactionForm({
         <Label htmlFor="transaction-notes">Notas (opcional)</Label>
         <Input id="transaction-notes" placeholder="Detalles adicionales" {...register('notes')} />
       </div>
+
+      {allowRepeat && !isEditing && (
+        <div className="flex items-start gap-2">
+          <input
+            id="transaction-repeat"
+            type="checkbox"
+            className="mt-1 size-4"
+            aria-describedby="transaction-repeat-help"
+            {...register('repeatMonthly')}
+          />
+          <div className="flex flex-col">
+            <Label htmlFor="transaction-repeat">Repetir cada mes</Label>
+            <p id="transaction-repeat-help" className="text-xs text-muted-foreground">
+              Cada mes se creará un borrador igual, el mismo día, para que lo revises y lo
+              registres. No se registra nada automáticamente.
+            </p>
+          </div>
+        </div>
+      )}
 
       <Button type="submit" disabled={isSubmitting}>
         {isSubmitting && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}

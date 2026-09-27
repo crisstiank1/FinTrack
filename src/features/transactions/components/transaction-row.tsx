@@ -47,9 +47,11 @@ export function TransactionRow({
       : 'text-danger'
 
   return (
-    <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-4 py-3">
-      <div className="flex min-w-0 items-center gap-3">
-        <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-surface-elevated text-muted-foreground">
+    // En pantallas estrechas importe y acciones bajan a una segunda línea en
+    // vez de dejar la descripción reducida a una o dos letras.
+    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 bg-card px-4 py-3 transition-colors duration-200 hover:bg-primary/4">
+      <div className="flex min-w-0 flex-1 basis-56 items-center gap-3">
+        <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary-strong">
           <Icon className="size-4" aria-hidden="true" />
         </div>
         <div className="min-w-0">
@@ -65,10 +67,13 @@ export function TransactionRow({
         </div>
       </div>
 
-      <div className="flex shrink-0 items-center gap-2">
+      <div className="ml-auto flex shrink-0 items-center gap-2">
         <span className={`text-sm font-semibold tabular-nums ${amountColor}`}>
           {sign} {formatAmount(transaction.amount_minor, currencyCode)}
         </span>
+        {/* Botones de solo icono: el nombre accesible incluye el movimiento, porque
+            cada fila repite los mismos tres y un lector de pantalla no sabría a
+            cuál se refiere «Eliminar movimiento». */}
         <div className="flex gap-1">
           {canEdit && (
             <Button
@@ -76,7 +81,7 @@ export function TransactionRow({
               variant="ghost"
               size="icon"
               onClick={onEdit}
-              aria-label={isTransfer ? 'Editar transferencia' : 'Editar movimiento'}
+              aria-label={`${isTransfer ? 'Editar transferencia' : 'Editar movimiento'} «${transaction.description}»`}
             >
               <Pencil className="size-4" aria-hidden="true" />
             </Button>
@@ -86,11 +91,17 @@ export function TransactionRow({
             variant="ghost"
             size="icon"
             onClick={onDuplicate}
-            aria-label="Duplicar movimiento"
+            aria-label={`Duplicar movimiento «${transaction.description}»`}
           >
             <Copy className="size-4" aria-hidden="true" />
           </Button>
-          <Button type="button" variant="ghost" size="icon" onClick={onDelete} aria-label="Eliminar movimiento">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={onDelete}
+            aria-label={`Eliminar movimiento «${transaction.description}»`}
+          >
             <Trash2 className="size-4" aria-hidden="true" />
           </Button>
         </div>

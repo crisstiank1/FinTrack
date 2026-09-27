@@ -145,12 +145,12 @@ export function AllocationBreakdown({
         <div
           role="img"
           aria-label={`Reparto del ingreso planeado de ${monthLabel}: ${barLabel}`}
-          className="mt-3 flex h-3 w-full overflow-hidden rounded-full bg-muted"
+          className="mt-3 flex h-3.5 w-full gap-0.5 overflow-hidden rounded-full"
         >
           {segments.map((row) => (
             <span
               key={row.group}
-              className={GROUP_COLORS[row.group]}
+              className={cn('first:rounded-l-full last:rounded-r-full', GROUP_COLORS[row.group])}
               style={{ width: `${(row.percentBp ?? 0) / 100}%` }}
             />
           ))}
@@ -158,7 +158,7 @@ export function AllocationBreakdown({
       )}
 
       {/* Escritorio */}
-      <div className="mt-3 hidden overflow-x-auto rounded-xl border border-border sm:block">
+      <div className="relative mt-3 hidden overflow-x-auto rounded-2xl border border-border bg-card shadow-card sm:block">
         <table className="w-full border-collapse text-sm">
           <caption className="sr-only">
             Reparto del ingreso planeado de {monthLabel} por grupo, con lo realmente ocurrido en

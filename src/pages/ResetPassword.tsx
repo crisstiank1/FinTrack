@@ -20,10 +20,10 @@ export default function ResetPassword() {
   }, [])
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4 py-10 text-foreground">
-      <div className="w-full max-w-sm rounded-2xl border border-border bg-card p-8 shadow-xl sm:p-10">
+    <main className="flex min-h-screen items-center justify-center bg-background px-4 py-10 text-foreground">
+      <div className="w-full max-w-sm rounded-3xl border border-border bg-card p-8 shadow-card-hover sm:p-10">
         {mode === 'request' ? <RequestResetForm /> : <UpdatePasswordForm />}
       </div>
-    </div>
+    </main>
   )
 }

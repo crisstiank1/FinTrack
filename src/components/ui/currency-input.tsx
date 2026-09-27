@@ -68,6 +68,14 @@ const CurrencyInput = React.forwardRef<HTMLInputElement, CurrencyInputProps>(
           setFocused(true)
           const input = event.target
           requestAnimationFrame(() => {
+            // Llegar con Tab selecciona todo el importe: se respeta para que
+            // lo que se escriba lo reemplace. Antes el cursor saltaba al final
+            // y editar 85.400 tecleando 90000 daba 8.540.090.000.
+            const selectsAll =
+              input.value.length > 0 &&
+              input.selectionStart === 0 &&
+              input.selectionEnd === input.value.length
+            if (selectsAll) return
             input.setSelectionRange(input.value.length, input.value.length)
           })
         }}

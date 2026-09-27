@@ -24,13 +24,11 @@ export function ConfirmationStep({
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1.5">
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-          Todo listo, {profile?.displayName}
-        </h1>
+        <h1 className="text-2xl font-bold text-foreground">Todo listo, {profile?.displayName}</h1>
         <p className="text-sm text-muted-foreground">Revisa el resumen antes de empezar.</p>
       </div>
 
-      <div className="flex flex-col gap-3 rounded-lg border border-border p-4">
+      <div className="flex flex-col gap-3 rounded-2xl border border-border bg-surface-elevated/40 p-4">
         <SummaryRow label="Moneda principal" value={profile?.currencyCode ?? ''} />
         <SummaryRow label="Cuentas" value={`${accounts.length}`} />
         {accounts.map((account) => (

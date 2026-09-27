@@ -26,7 +26,7 @@ export function LedgerSummary({ totals, count, isError, currencyCode }: LedgerSu
     return (
       <p
         role="status"
-        className="rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground"
+        className="rounded-2xl border border-border bg-card p-4 text-sm text-muted-foreground shadow-card"
       >
         No pudimos calcular el resumen. La tabla y la exportación siguen funcionando.
       </p>
@@ -56,11 +56,11 @@ export function LedgerSummary({ totals, count, isError, currencyCode }: LedgerSu
   ]
 
   return (
-    <dl className="grid grid-cols-2 gap-3 rounded-xl border border-border bg-card p-4 lg:grid-cols-4">
+    <dl className="grid grid-cols-2 gap-3 rounded-2xl border border-border bg-card p-4 shadow-card sm:p-5 lg:grid-cols-4 lg:[&>div:not(:first-child)]:border-l lg:[&>div:not(:first-child)]:border-border lg:[&>div:not(:first-child)]:pl-4">
       {items.map((item) => (
         <div key={item.label}>
           <dt className="text-xs font-medium text-muted-foreground">{item.label}</dt>
-          <dd className={cn('mt-0.5 text-lg font-semibold tabular-nums', item.tone)}>
+          <dd className={cn('mt-0.5 text-lg font-bold tabular-nums', item.tone)}>
             {item.values.length === 1
               ? item.values[0]
               : item.values.map((value) => (

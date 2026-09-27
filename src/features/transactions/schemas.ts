@@ -6,10 +6,18 @@ export const transactionSchema = z.object({
   type: z.enum(['income', 'expense']),
   accountId: z.string().min(1, 'Selecciona una cuenta'),
   categoryId: z.string().min(1, 'Selecciona una categoría'),
-  amount: z.coerce.number().int('El monto debe ser un número entero').positive('El monto debe ser mayor a 0'),
+  amount: z.coerce
+    .number()
+    .int('El monto debe ser un número entero')
+    .positive('El monto debe ser mayor a 0'),
   transactionDate: z.string().min(1, 'Selecciona una fecha'),
   description: z.string().min(1, 'Ingresa una descripción').max(120, 'Máximo 120 caracteres'),
   notes: z.string().max(500, 'Máximo 500 caracteres').optional(),
+  /**
+   * Solo al crear: además del movimiento, programa una plantilla recurrente que
+   * se proyectará como borrador cada mes. No crea movimientos futuros.
+   */
+  repeatMonthly: z.boolean().optional(),
 })
 export type TransactionFormValues = z.infer<typeof transactionSchema>
 

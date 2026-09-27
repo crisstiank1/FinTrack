@@ -923,7 +923,7 @@ export default function Plan() {
       {isError && (
         <div
           role="alert"
-          className="mt-8 flex flex-col items-center rounded-2xl border border-border bg-card p-10 text-center"
+          className="mt-8 flex flex-col items-center rounded-2xl border border-border bg-card p-10 text-center shadow-card"
         >
           <h2 className="text-lg font-semibold text-foreground">No pudimos cargar tu plan</h2>
           <p className="mt-1 max-w-md text-sm text-muted-foreground">
@@ -976,7 +976,7 @@ export default function Plan() {
           )}
 
           {!hasPlan && !model.hasMovements ? (
-            <div className="mt-8 rounded-2xl border border-dashed border-border bg-card p-10 text-center">
+            <div className="mt-8 rounded-2xl border border-dashed border-border bg-card/60 p-10 text-center">
               <h2 className="text-lg font-semibold text-foreground first-letter:uppercase">
                 {monthLabel} todavía no tiene nada que comparar
               </h2>

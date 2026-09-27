@@ -53,13 +53,13 @@ function SummaryCard({ label, value, caption, tone, index }: SummaryCardProps) {
   return (
     <section
       aria-labelledby={labelId}
-      className="animate-card-in flex flex-col justify-between rounded-2xl border border-border bg-card p-5 shadow-sm"
+      className="animate-card-in flex flex-col justify-between rounded-2xl border border-border bg-card p-5 shadow-card transition-shadow duration-200 hover:shadow-card-hover"
       style={{ animationDelay: `${index * 40}ms` }}
     >
       <h3 id={labelId} className="text-sm font-medium text-muted-foreground">
         {label}
       </h3>
-      <p className={cn('mt-3 text-2xl font-semibold tabular-nums', TONE_STYLES[tone])}>{value}</p>
+      <p className={cn('mt-3 text-2xl font-bold tabular-nums', TONE_STYLES[tone])}>{value}</p>
       <p className="mt-2 text-xs text-muted-foreground">{caption}</p>
     </section>
   )

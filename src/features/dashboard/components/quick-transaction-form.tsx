@@ -126,7 +126,11 @@ export function QuickTransactionForm({
   // Las cuentas llegan después del primer render: si la que venía por defecto
   // no existía todavía, se elige en cuanto aparece.
   useEffect(() => {
-    if (!accountId && defaultAccountId && selectableAccounts.some((a) => a.id === defaultAccountId)) {
+    if (
+      !accountId &&
+      defaultAccountId &&
+      selectableAccounts.some((a) => a.id === defaultAccountId)
+    ) {
       setValue('accountId', defaultAccountId)
     }
   }, [accountId, defaultAccountId, selectableAccounts, setValue])
@@ -165,6 +169,8 @@ export function QuickTransactionForm({
       transactionDate: values.transactionDate,
       categoryId: '',
       amount: 0,
+      // La repetición mensual es una decisión por movimiento: nunca se arrastra.
+      repeatMonthly: false,
     })
   }
 
@@ -285,6 +291,22 @@ export function QuickTransactionForm({
         ) : (
           <p className="text-xs text-muted-foreground">{EMPTY_NOTE_HINT}</p>
         )}
+      </div>
+
+      <div className="flex items-start gap-2">
+        <input
+          id="quick-repeat"
+          type="checkbox"
+          className="mt-1 size-4"
+          aria-describedby="quick-repeat-help"
+          {...register('repeatMonthly')}
+        />
+        <div className="flex flex-col">
+          <Label htmlFor="quick-repeat">Repetir cada mes</Label>
+          <p id="quick-repeat-help" className="text-xs text-muted-foreground">
+            Cada mes se creará un borrador igual para que lo revises. Nada se registra solo.
+          </p>
+        </div>
       </div>
 
       <Button type="submit" disabled={isSubmitting}>

@@ -8,8 +8,12 @@ import Accounts from '@/pages/Accounts'
 import Auth from '@/pages/Auth'
 import AuthCallback from '@/pages/AuthCallback'
 import Onboarding from '@/pages/Onboarding'
+import Cookies from '@/pages/Cookies'
+import Privacy from '@/pages/Privacy'
+import Refunds from '@/pages/Refunds'
 import ResetPassword from '@/pages/ResetPassword'
 import Settings from '@/pages/Settings'
+import Terms from '@/pages/Terms'
 import Transactions from '@/pages/Transactions'
 
 /**
@@ -33,6 +37,9 @@ const Plan = lazy(() => import('@/pages/Plan'))
 /** Hojas arrastra TanStack Table; su chunk aparte no penaliza al resto de rutas. */
 const Sheets = lazy(() => import('@/pages/Sheets'))
 
+/** El importador CSV solo se usa de vez en cuando; va en su propio chunk. */
+const CsvImport = lazy(() => import('@/pages/CsvImport'))
+
 export function AppRouter() {
   return (
     <BrowserRouter>
@@ -40,6 +47,11 @@ export function AppRouter() {
         <Route path="/auth" element={<Auth />} />
         <Route path="/auth/callback" element={<AuthCallback />} />
         <Route path="/reset-password" element={<ResetPassword />} />
+        {/* Pública: se lee antes de crear cuenta y antes de aceptar el Coach. */}
+        <Route path="/privacy" element={<Privacy />} />
+        <Route path="/terms" element={<Terms />} />
+        <Route path="/cookies" element={<Cookies />} />
+        <Route path="/refunds" element={<Refunds />} />
         <Route element={<ProtectedRoute />}>
           <Route path="/onboarding" element={<Onboarding />} />
           <Route element={<AppLayout />}>
@@ -98,6 +110,18 @@ export function AppRouter() {
                   fallback={<p className="p-6 text-sm text-muted-foreground">Cargando hojas...</p>}
                 >
                   <Sheets />
+                </Suspense>
+              }
+            />
+            <Route
+              path="/import"
+              element={
+                <Suspense
+                  fallback={
+                    <p className="p-6 text-sm text-muted-foreground">Cargando importador...</p>
+                  }
+                >
+                  <CsvImport />
                 </Suspense>
               }
             />

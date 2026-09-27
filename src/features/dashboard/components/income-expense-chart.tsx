@@ -37,7 +37,14 @@ export function IncomeExpenseChart({ trend, currencyCode }: IncomeExpenseChartPr
 
       <div className="h-56 min-h-56" aria-hidden="true">
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={trend} margin={{ top: 4, right: 4, bottom: 0, left: 4 }} barGap={4}>
+          {/* Sin capa de teclado: el gráfico está oculto a lectores de pantalla (la
+              tabla es su equivalente) y no debe recibir el foco. */}
+          <BarChart
+            data={trend}
+            margin={{ top: 4, right: 4, bottom: 0, left: 4 }}
+            barGap={2}
+            accessibilityLayer={false}
+          >
             <CartesianGrid vertical={false} stroke={theme.grid} strokeDasharray="3 3" />
             <XAxis
               dataKey="label"

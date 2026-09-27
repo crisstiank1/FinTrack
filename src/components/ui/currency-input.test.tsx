@@ -52,6 +52,23 @@ describe('CurrencyInput', () => {
     expect(onChange).toHaveBeenLastCalledWith(4599)
   })
 
+  it('al entrar con todo seleccionado, escribir reemplaza el importe', async () => {
+    const onChange = vi.fn()
+    const user = userEvent.setup()
+    render(<ControlledCurrencyInput onChange={onChange} initial={85400} />)
+
+    const input = screen.getByLabelText('Saldo inicial') as HTMLInputElement
+    // Lo que hace el navegador al llegar con Tab: foco y selección completa.
+    input.focus()
+    input.setSelectionRange(0, input.value.length)
+    await new Promise((resolve) => requestAnimationFrame(() => resolve(null)))
+    expect([input.selectionStart, input.selectionEnd]).toEqual([0, input.value.length])
+
+    await user.keyboard('90000')
+    expect(input).toHaveValue('90.000')
+    expect(onChange).toHaveBeenLastCalledWith(90000)
+  })
+
   it('muestra centavos en el valor llega de fuera (editar un movimiento)', () => {
     render(<ControlledCurrencyInput onChange={vi.fn()} currency="USD" initial={4599} />)
 

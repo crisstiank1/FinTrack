@@ -319,7 +319,7 @@ Texto de rechazo genérico:
 
 ## Prompt de sistema
 
-Versionado como `fintrack-coach-v1`. El identificador se guarda en los metadatos
+Versionado; hoy va por `fintrack-coach-v2`. El identificador se guarda en los metadatos
 de cada mensaje para poder atribuir regresiones a un cambio de prompt.
 
 ```text

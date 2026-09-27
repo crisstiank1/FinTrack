@@ -184,6 +184,16 @@ export interface SnapshotBudget {
   spent: number
   remaining: number | null
   status: BudgetStatusKind
+  /**
+   * De dónde salió el presupuesto del mes.
+   *
+   * Distingue las dos cosas que comparten `budget: null`: un 0 puesto a
+   * propósito —`source` no nulo— y una categoría que nunca se presupuestó
+   * —`source` nulo—. Sin este campo, el modelo describe el 0 deliberado como
+   * "sin presupuesto definido", que es justo lo que `docs/06-presupuestos.md`
+   * distingue.
+   */
+  source: 'exception' | 'template' | null
 }
 
 /** Variación por categoría, ya sin identificador. */
@@ -221,6 +231,15 @@ export interface CoachContextSnapshot {
   categoryDeltas?: Record<string, SnapshotCategoryDelta>
   /** Indexados `b1`, `b2`… */
   budgets?: Record<string, SnapshotBudget>
+  /**
+   * Moneda en la que están los presupuestos. Aparece siempre que se pidieron.
+   *
+   * `budgets` no guarda moneda: sus importes se entienden en la moneda de
+   * presentación, igual que en `/budgets`. Si el análisis es en otra moneda, los
+   * presupuestos **no se calculan** —compararían gasto en USD contra un tope en
+   * COP— y este campo le dice al modelo por qué faltan.
+   */
+  budgetsCurrency?: string
   cashflow?: Pick<CashflowStatus, 'incomeMinor' | 'expenseMinor' | 'netSavingsMinor' | 'alert'>
   exclusions: CurrencyExclusionSummary
 }

@@ -15,16 +15,21 @@ export function CategoriesStep({ onBack, onNext }: CategoriesStepProps) {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1.5">
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-          Categorías listas para ti
-        </h1>
+        <h1 className="text-2xl font-bold text-foreground">Categorías listas para ti</h1>
         <p className="text-sm text-muted-foreground">
           Crearemos estas categorías predeterminadas. Podrás editarlas o crear las tuyas después
           desde Ajustes.
         </p>
       </div>
 
-      <div className="flex max-h-72 flex-col gap-4 overflow-y-auto pr-1">
+      {/* Con scroll propio: enfocable y con nombre para poder recorrerla con el
+          teclado (flechas, Re Pág/Av Pág). */}
+      <div
+        role="region"
+        aria-label="Categorías predeterminadas"
+        tabIndex={0}
+        className="flex max-h-72 flex-col gap-4 overflow-y-auto rounded-lg pr-1 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+      >
         <CategoryPreviewGroup title="Ingresos" items={income} />
         <CategoryPreviewGroup title="Gastos esenciales" items={essential} />
         <CategoryPreviewGroup title="Gastos flexibles" items={flexible} />
