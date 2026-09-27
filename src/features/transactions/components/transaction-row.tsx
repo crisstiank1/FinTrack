@@ -69,6 +69,9 @@ export function TransactionRow({
         <span className={`text-sm font-semibold tabular-nums ${amountColor}`}>
           {sign} {formatAmount(transaction.amount_minor, currencyCode)}
         </span>
+        {/* Botones de solo icono: el nombre accesible incluye el movimiento, porque
+            cada fila repite los mismos tres y un lector de pantalla no sabría a
+            cuál se refiere «Eliminar movimiento». */}
         <div className="flex gap-1">
           {canEdit && (
             <Button
@@ -76,7 +79,7 @@ export function TransactionRow({
               variant="ghost"
               size="icon"
               onClick={onEdit}
-              aria-label={isTransfer ? 'Editar transferencia' : 'Editar movimiento'}
+              aria-label={`${isTransfer ? 'Editar transferencia' : 'Editar movimiento'} «${transaction.description}»`}
             >
               <Pencil className="size-4" aria-hidden="true" />
             </Button>
@@ -86,7 +89,7 @@ export function TransactionRow({
             variant="ghost"
             size="icon"
             onClick={onDuplicate}
-            aria-label="Duplicar movimiento"
+            aria-label={`Duplicar movimiento «${transaction.description}»`}
           >
             <Copy className="size-4" aria-hidden="true" />
           </Button>
@@ -95,7 +98,7 @@ export function TransactionRow({
             variant="ghost"
             size="icon"
             onClick={onDelete}
-            aria-label="Eliminar movimiento"
+            aria-label={`Eliminar movimiento «${transaction.description}»`}
           >
             <Trash2 className="size-4" aria-hidden="true" />
           </Button>

@@ -360,6 +360,33 @@ describe('Transactions — moneda de cada fila', () => {
   })
 })
 
+describe('Transactions — nombres accesibles de las acciones de fila', () => {
+  it('cada botón de solo icono nombra su movimiento y no se repite entre filas', () => {
+    useTransactions.mockReturnValue({
+      data: [
+        row({ id: 't-1', type: 'expense', amount_minor: 1000, description: 'Mercado' }),
+        row({ id: 't-2', type: 'expense', amount_minor: 2000, description: 'Farmacia' }),
+      ],
+      isLoading: false,
+    })
+
+    renderTransactions('/transactions?month=2026-08')
+
+    for (const name of ['Mercado', 'Farmacia']) {
+      expect(
+        screen.getByRole('button', { name: `Editar movimiento «${name}»` }),
+      ).toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: `Duplicar movimiento «${name}»` }),
+      ).toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: `Eliminar movimiento «${name}»` }),
+      ).toBeInTheDocument()
+    }
+    expect(screen.queryByRole('button', { name: 'Eliminar movimiento' })).not.toBeInTheDocument()
+  })
+})
+
 describe('Transactions — transferencias entre monedas', () => {
   const transferRows = [
     row({
@@ -478,15 +505,17 @@ describe('Transactions — editar transferencias (M8)', () => {
 
     renderTransactions('/transactions?month=2026-08')
 
-    expect(screen.queryByRole('button', { name: 'Editar transferencia' })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /^Editar transferencia «/ }),
+    ).not.toBeInTheDocument()
     // Duplicar y eliminar siguen disponibles: no dependen de la otra pata.
-    expect(screen.getAllByRole('button', { name: 'Duplicar movimiento' })).toHaveLength(2)
+    expect(screen.getAllByRole('button', { name: /^Duplicar movimiento «/ })).toHaveLength(2)
   })
 
   it('abre la transferencia completa desde la pata que entra, en su sentido original', () => {
     renderTransactions('/transactions?month=2026-08')
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Editar transferencia' })[1])
+    fireEvent.click(screen.getAllByRole('button', { name: /^Editar transferencia «/ })[1])
 
     const dialog = within(screen.getByRole('dialog'))
     expect(dialog.getByText('Editar transferencia')).toBeInTheDocument()
@@ -499,7 +528,7 @@ describe('Transactions — editar transferencias (M8)', () => {
   it('guarda las dos patas con su grupo y cada importe en su moneda', async () => {
     renderTransactions('/transactions?month=2026-08')
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Editar transferencia' })[0])
+    fireEvent.click(screen.getAllByRole('button', { name: /^Editar transferencia «/ })[0])
     const dialog = within(screen.getByRole('dialog'))
     fireEvent.change(dialog.getByLabelText('Monto recibido (USD)'), { target: { value: '30' } })
 
@@ -525,7 +554,7 @@ describe('Transactions — editar transferencias (M8)', () => {
   it('«Transferir» abre el formulario vacío aunque se acabe de editar una', () => {
     renderTransactions('/transactions?month=2026-08')
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Editar transferencia' })[0])
+    fireEvent.click(screen.getAllByRole('button', { name: /^Editar transferencia «/ })[0])
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /cerrar/i }))
     fireEvent.click(screen.getByRole('button', { name: 'Transferir' }))
 
