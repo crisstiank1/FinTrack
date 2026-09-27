@@ -62,12 +62,20 @@ gestionan foco atrapado, Escape y retorno del foco.
 - Movimientos: los botones de solo icono de cada fila nombran su movimiento
   («Eliminar movimiento «Mercado»»); antes eran idénticos en todas las filas.
 
-## Pendiente (requiere navegador real)
+## Pruebas en navegador (Chromium, stack local)
 
-- Recorrido completo con teclado y lector de pantalla (NVDA/VoiceOver) de
-  Dashboard, Hojas, `/import` y Ajustes con datos reales.
+- Un solo `h1`, `main`, pie y título por ruta en 13 rutas, a 1280 y 390 px.
+- Reflujo a 320 px sin scroll horizontal de la página en todas las rutas. Se
+  corrigieron dos causas: la cabecera `sr-only` de las tablas escapaba del
+  contenedor con scroll (ahora `relative`) y los botones de cabecera no
+  ajustaban línea (ahora `flex-wrap`).
+- Botón flotante del Dashboard: no tapa los enlaces del pie al final de la
+  página (390 y 320 px).
+- Escape cierra el diálogo de nuevo movimiento; modo oscuro aplicado.
+
+## Pendiente
+
+- Lector de pantalla (NVDA/VoiceOver) con datos reales.
 - Contraste de las gráficas de Recharts y de los colores de categoría elegidos
   por el usuario.
-- Zoom al 200 % y reflujo a 320 px en Hojas (la rejilla tiene scroll propio).
-- Botón flotante del Dashboard (< 1024 px): comprobar que no tapa los enlaces
-  del pie al final de la página.
+- Zoom al 200 %.

@@ -22,6 +22,35 @@ Ahora cada botón nombra su movimiento («Eliminar movimiento «Mercado»»).
 Prueba: `src/pages/Transactions.test.tsx`, «nombres accesibles de las acciones
 de fila». Commit `6e64ebd`.
 
+## Bugs encontrados en las pruebas de navegador
+
+Recorrido completo con una cuenta nueva en Chromium contra un stack local de
+Supabase (PostgreSQL 17, las 11 migraciones, RLS real), sin tocar el proyecto
+remoto.
+
+| #   | Bug                                                                                                                                     | Corrección                                                                                             | Prueba                                      | Commit    |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ | ------------------------------------------- | --------- |
+| 6   | En Hojas, registrar justo después de editar una celda (sin salir de ella o con el guardado en curso) daba «0 registrados, N pendientes» | Se guardan y esperan las ediciones pendientes antes de registrar; si el guardado falla, no se registra | `src/features/sheets/sheet-drafts.test.tsx` | `150abc0` |
+| 7   | Hojas en móvil: 148 px de scroll horizontal de la página por la cabecera `sr-only` «Acciones» fuera del contenedor con scroll           | `relative` en los contenedores `overflow-x-auto` (Hojas, Plan, Cookies)                                | `sheet-drafts.test.tsx`                     | `a579524` |
+| 8   | A 320 px, Dashboard, Movimientos, Cuentas y Ajustes tenían scroll horizontal (botones de cabecera sin ajuste de línea)                  | `flex-wrap` en las cabeceras; el botón de retirar el consentimiento puede partir la línea              | Navegador (jsdom no calcula el layout)      | `29f1073` |
+
+Verificado en el navegador (sin errores de consola ni HTTP inesperados):
+registro y onboarding; movimiento rápido con «Repetir cada mes»; aviso de
+proyección → borrador → registro sin duplicados; importación CSV (líneas
+reales, duplicado excluido, transferencia a revisar, aviso de fórmula);
+transferencia COP → USD y KPIs del Dashboard exactos; consentimiento del Coach
+(concesión y revocación versionadas); `finance-chat` en Deno con un LLM
+simulado (401 sin JWT, cuota solo en respuestas financieras, payload sin
+descripciones ni nombres, 429 con `Retry-After`); RPC con `anon` y
+`authenticated` rechazadas (`42501`); exportación del Libro con fórmulas
+escapadas; Escape, cierre e inicio de sesión; 13 rutas a 1280 px, 390 px y
+320 px; botón flotante del Dashboard sin tapar el pie; modo oscuro.
+
+Notas sin cambio: aviso «script tag» de `next-themes` solo en desarrollo (el
+build de producción no lo muestra); la fecha del consentimiento se ve como
+«26 de septiembre (política 2026-09-27)» en Colombia porque la versión está
+fechada en UTC; a 320 px el total dentro del donut queda justo al borde.
+
 ## Garantía de propiedad entre borrador y plantilla recurrente
 
 - `sheet_drafts (source_template_id, user_id)` → `recurring_templates (id, user_id)`:
@@ -79,15 +108,15 @@ Auditoría de funciones: `docs/22-auditoria-security-definer.md`.
 Ninguno de estos puntos se pudo verificar sin el proyecto real ni un
 navegador con sesión:
 
-| Superficie           | Qué falta                                                                                                                                    |
-| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| Migraciones          | Aplicación en remoto y verificación de permisos                                                                                              |
-| Registro de usuarios | Alta real tras el revoke de `handle_new_user` (probado en local con un rol sin privilegios)                                                  |
-| `/import`            | Importación de principio a fin con RLS real; extractos bancarios reales anonimizados; recorrido móvil y con teclado                          |
-| Recurrentes          | Dashboard (aviso y proyección), Ajustes (plantillas), «Repetir cada mes» en los dos formularios, registro de borradores proyectados en Hojas |
-| Coach                | Consentimiento y revocación en Ajustes contra `profiles` real; smoke test de `finance-chat` sin secretos (ruta inerte)                       |
-| Accesibilidad        | Lector de pantalla y teclado en navegador; botón flotante del Dashboard frente al pie en móvil; gráficas                                     |
-| Cloudflare           | Confirmar que no inyecta analítica ni scripts                                                                                                |
+| Superficie           | Qué falta                                                                                                            |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Migraciones          | Aplicación en remoto y verificación de permisos                                                                      |
+| Registro de usuarios | Alta en el proyecto remoto tras el revoke de `handle_new_user` (verificada en el stack local de Supabase)            |
+| `/import`            | Extractos bancarios reales anonimizados; recorrido con teclado (el flujo completo con RLS real se verificó en local) |
+| Recurrentes          | Repetir en el proyecto remoto el recorrido ya verificado en local                                                    |
+| Coach                | Smoke test de `finance-chat` desplegado (verificado en local con un LLM simulado, sin secretos reales)               |
+| Accesibilidad        | Lector de pantalla (NVDA/VoiceOver) y zoom al 200 %; contraste de las gráficas                                       |
+| Cloudflare           | Confirmar que no inyecta analítica ni scripts                                                                        |
 
 ## Bloqueadores antes de producción
 
