@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import { PAGE_HELP } from '@/components/shared/page-help'
 import { PageTitle } from '@/components/shared/page-title'
 import { useAccounts } from '@/features/accounts/hooks'
+import { CoachConsentSection } from '@/features/coach-consent/coach-consent-section'
 import { RecurringTemplatesSection } from '@/features/recurring/components/recurring-templates-section'
 import { ConfirmDialog } from '@/components/shared/confirm-dialog'
 import { Button } from '@/components/ui/button'
@@ -270,6 +271,8 @@ export default function Settings() {
         accounts={accountsQuery.data ?? []}
         categories={categories ?? []}
       />
+
+      <CoachConsentSection />
 
       <section className="mt-8">
         <h2 className="text-lg font-semibold text-foreground">Privacidad</h2>

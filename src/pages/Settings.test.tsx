@@ -42,6 +42,11 @@ vi.mock('@/features/profile/hooks', () => ({
   useUpdateDisplayName: () => ({ mutateAsync: updateDisplayName, isPending: false }),
 }))
 
+vi.mock('@/features/coach-consent/hooks', () => ({
+  useCoachConsent: () => ({ data: { status: 'none' }, isPending: false, isError: false }),
+  useSetCoachConsent: () => ({ mutateAsync: vi.fn(), isPending: false }),
+}))
+
 vi.mock('@/features/recurring/hooks', () => ({
   useRecurringTemplates: () => ({ data: [] }),
   useSetTemplateActive: () => ({ mutateAsync: vi.fn(), isPending: false }),
