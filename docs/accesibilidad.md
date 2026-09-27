@@ -59,6 +59,8 @@ gestionan foco atrapado, Escape y retorno del foco.
   («Eliminar «Arriendo»»), estados de carga y de error en vez del vacío.
 - Resultado de la proyección: cada plantilla omitida con nombre, motivo y
   acción sugerida.
+- Movimientos: los botones de solo icono de cada fila nombran su movimiento
+  («Eliminar movimiento «Mercado»»); antes eran idénticos en todas las filas.
 
 ## Pendiente (requiere navegador real)
 
@@ -69,5 +71,3 @@ gestionan foco atrapado, Escape y retorno del foco.
 - Zoom al 200 % y reflujo a 320 px en Hojas (la rejilla tiene scroll propio).
 - Botón flotante del Dashboard (< 1024 px): comprobar que no tapa los enlaces
   del pie al final de la página.
-- Botones de fila de Movimientos («Eliminar movimiento», «Duplicar…») se
-  repiten sin el nombre del movimiento; mejora análoga a la de recurrentes.

@@ -1,5 +1,8 @@
 # Preparación para producción
 
+> Resumen vigente para la revisión `dev → main`, con los bugs corregidos y los
+> bloqueadores: `docs/24-revision-dev.md`.
+
 > Estado del 2026-09-27. Rama de integración: `dev`. Nada de esto se ha
 > desplegado ni aplicado en el proyecto remoto.
 
