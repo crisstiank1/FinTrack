@@ -1,9 +1,10 @@
 import { LogOut } from 'lucide-react'
-import { Outlet, useNavigate } from 'react-router-dom'
+import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 
 import { Logo } from '@/components/shared/logo'
 import { ThemeToggle } from '@/components/theme/theme-toggle'
 import { Button } from '@/components/ui/button'
+import { useDocumentTitle } from '@/hooks/use-document-title'
 import { useMediaQuery } from '@/hooks/use-media-query'
 import { cn } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
@@ -29,8 +30,23 @@ const NAV_CLASS: Record<NavMode, string> = {
   narrow: 'ml-auto',
 }
 
+/** Título de pestaña por ruta: lo anuncian los lectores de pantalla al navegar. */
+const ROUTE_TITLES: Record<string, string> = {
+  '/dashboard': 'Dashboard',
+  '/accounts': 'Cuentas',
+  '/transactions': 'Movimientos',
+  '/ledger': 'Libro',
+  '/sheets': 'Hojas',
+  '/budgets': 'Presupuestos',
+  '/plan': 'Plan mensual',
+  '/import': 'Importar CSV',
+  '/settings': 'Ajustes',
+}
+
 export function AppLayout() {
   const navigate = useNavigate()
+  const { pathname } = useLocation()
+  useDocumentTitle(ROUTE_TITLES[pathname] ?? 'Inicio')
   const isCompactOrWider = useMediaQuery(NAV_COMPACT_QUERY)
   const isWide = useMediaQuery(NAV_WIDE_QUERY)
   const mode: NavMode = isWide ? 'wide' : isCompactOrWider ? 'compact' : 'narrow'

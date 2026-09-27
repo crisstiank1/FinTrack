@@ -42,6 +42,7 @@
         "@types/react-dom": "^19.1.2",
         "@vitejs/plugin-react": "^4.4.1",
         "@vitest/ui": "^5.0.0",
+        "axe-core": "^4.13.0",
         "eslint": "^9.22.0",
         "eslint-plugin-react-hooks": "^5.2.0",
         "eslint-plugin-react-refresh": "^0.4.19",
@@ -546,6 +547,8 @@
     "ast-types": ["ast-types@0.16.3", "", { "dependencies": { "tslib": "^2.0.1" } }, "sha512-FvWoWYfSCM6kRxCSH+MGLHIKKGRL6A6AW7Zek2O32REPQRdg131428uRTKMBYAeRd3XXAaHDS60Wpri7CdKDrA=="],
 
     "atomically": ["atomically@1.7.0", "", {}, "sha512-Xcz9l0z7y9yQ9rdDaxlmaI4uJHf/T8g9hOEzJcsEqX2SjCj4J20uK7+ldkDHMbpJDK76wF7xEIgxc/vSlsfw5w=="],
+
+    "axe-core": ["axe-core@4.13.0", "", {}, "sha512-UzGt8zg7Ny8djbYMhxl2zuEevVa7r2gJjYY5Lwr1xM7+XU2nd6CkIWFTVcCIbAP63vSz71NaVyyuSk9lHKcy0A=="],
 
     "balanced-match": ["balanced-match@1.0.2", "", {}, "sha512-3oSeUO0TMV67hN1AmbXsK4yaqU7tjiHlbxRDZOpH0KW9+CeX4bRAaX0Anxt0tx2MrpRpWwQaPwIlISEJhYU5Pw=="],
 

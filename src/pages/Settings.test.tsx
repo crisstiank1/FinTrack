@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { axeViolations } from '@/test/axe'
 
 import { ClassificationError } from '@/features/categories/classifications/errors'
 import { PAGE_HELP } from '@/components/shared/page-help'
@@ -413,7 +414,7 @@ describe('Settings — perfil (M16)', () => {
 
     await user.clear(screen.getByLabelText('Nombre'))
     await user.type(screen.getByLabelText('Nombre'), 'Cris')
-    await user.click(screen.getByRole('button', { name: 'Guardar' }))
+    await user.click(screen.getByRole('button', { name: 'Guardar nombre' }))
 
     await waitFor(() => expect(updateDisplayName).toHaveBeenCalledWith('Cris'))
     expect(toastSuccess).toHaveBeenCalledWith('Nombre actualizado')
@@ -424,7 +425,7 @@ describe('Settings — perfil (M16)', () => {
     renderSettings()
 
     await user.clear(screen.getByLabelText('Nombre'))
-    await user.click(screen.getByRole('button', { name: 'Guardar' }))
+    await user.click(screen.getByRole('button', { name: 'Guardar nombre' }))
 
     expect(await screen.findByText('Ingresa tu nombre')).toBeInTheDocument()
     expect(updateDisplayName).not.toHaveBeenCalled()
@@ -436,7 +437,7 @@ describe('Settings — perfil (M16)', () => {
 
     await user.clear(screen.getByLabelText('Nombre'))
     await user.type(screen.getByLabelText('Nombre'), 'a'.repeat(61))
-    await user.click(screen.getByRole('button', { name: 'Guardar' }))
+    await user.click(screen.getByRole('button', { name: 'Guardar nombre' }))
 
     expect(await screen.findByText('Máximo 60 caracteres')).toBeInTheDocument()
     expect(updateDisplayName).not.toHaveBeenCalled()
@@ -447,7 +448,7 @@ describe('Settings — perfil (M16)', () => {
     updateDisplayName.mockRejectedValue(new Error('sin conexión'))
     renderSettings()
 
-    await user.click(screen.getByRole('button', { name: 'Guardar' }))
+    await user.click(screen.getByRole('button', { name: 'Guardar nombre' }))
 
     await waitFor(() =>
       expect(toastError).toHaveBeenCalledWith('No se pudo guardar el nombre', {
@@ -473,5 +474,12 @@ describe('Settings — ayuda de la pantalla (M18)', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Ayuda: Ajustes' }))
 
     expect(screen.getByRole('region', { name: 'Ajustes' })).toHaveTextContent(PAGE_HELP.settings)
+  })
+})
+
+describe('Settings — accesibilidad', () => {
+  it('no tiene infracciones de axe', async () => {
+    const { container } = renderSettings()
+    expect(await axeViolations(container)).toEqual([])
   })
 })

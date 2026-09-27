@@ -407,7 +407,7 @@ function DisplayNameForm({ defaultName, isSaving, onSave }: DisplayNameFormProps
         />
         <Button type="submit" disabled={isSaving}>
           {isSaving && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
-          Guardar
+          Guardar nombre
         </Button>
       </div>
       {errors.displayName && (

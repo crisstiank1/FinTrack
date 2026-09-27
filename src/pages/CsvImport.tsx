@@ -298,7 +298,7 @@ export default function CsvImport() {
                 <thead className="bg-muted/50">
                   <tr>
                     {csv.headers.map((header, index) => (
-                      <th key={index} className="px-3 py-2 font-medium">
+                      <th key={index} scope="col" className="px-3 py-2 font-medium">
                         {header}
                       </th>
                     ))}
@@ -475,7 +475,7 @@ export default function CsvImport() {
               </ul>
             ) : (
               <>
-                <p className="mt-2 text-sm text-muted-foreground">
+                <p role="status" className="mt-2 text-sm text-muted-foreground">
                   {counts.valid} listas · {counts.review} requieren revisión · {counts.invalid} con
                   errores · {counts.duplicates} posibles duplicados
                   {existingQuery.isFetching && ' · comprobando duplicados...'}
@@ -484,13 +484,27 @@ export default function CsvImport() {
                   <table className="w-full text-left text-sm">
                     <thead className="sticky top-0 bg-muted">
                       <tr>
-                        <th className="px-3 py-2 font-medium">Importar</th>
-                        <th className="px-3 py-2 font-medium">Línea</th>
-                        <th className="px-3 py-2 font-medium">Fecha</th>
-                        <th className="px-3 py-2 font-medium">Descripción</th>
-                        <th className="px-3 py-2 font-medium">Tipo</th>
-                        <th className="px-3 py-2 text-right font-medium">Monto</th>
-                        <th className="px-3 py-2 font-medium">Estado</th>
+                        <th scope="col" className="px-3 py-2 font-medium">
+                          Incluir
+                        </th>
+                        <th scope="col" className="px-3 py-2 font-medium">
+                          Línea
+                        </th>
+                        <th scope="col" className="px-3 py-2 font-medium">
+                          Fecha
+                        </th>
+                        <th scope="col" className="px-3 py-2 font-medium">
+                          Descripción
+                        </th>
+                        <th scope="col" className="px-3 py-2 font-medium">
+                          Tipo
+                        </th>
+                        <th scope="col" className="px-3 py-2 text-right font-medium">
+                          Monto
+                        </th>
+                        <th scope="col" className="px-3 py-2 font-medium">
+                          Estado
+                        </th>
                       </tr>
                     </thead>
                     <tbody>

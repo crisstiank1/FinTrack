@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { axeViolations } from '@/test/axe'
 
 import { PAGE_HELP } from '@/components/shared/page-help'
 import type { Tables } from '@/types/database.types'
@@ -598,5 +599,14 @@ describe('Transactions — repetir cada mes', () => {
 
     await waitFor(() => expect(createTransactionMock).toHaveBeenCalledTimes(1))
     expect(createTemplateAfterMovement).not.toHaveBeenCalled()
+  })
+})
+
+describe('Transactions — accesibilidad', () => {
+  it('la lista y el diálogo de nuevo movimiento no tienen infracciones de axe', async () => {
+    const { container } = renderTransactions('/transactions?month=2026-08')
+    expect(await axeViolations(container)).toEqual([])
+    fireEvent.click(screen.getByRole('button', { name: 'Nuevo movimiento' }))
+    expect(await axeViolations(screen.getByRole('dialog'))).toEqual([])
   })
 })
