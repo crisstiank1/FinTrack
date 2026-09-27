@@ -69,6 +69,8 @@ Estilo: negro y morado profesional, alto contraste, especialmente para tablas, m
   cumple ≥ 4,8:1 en todo el tramo, en ambos temas.
 - Superficies: tarjetas `rounded-2xl` con sombra teñida de marca
   (`shadow-card`, `shadow-card-hover`); cabecera fija y translúcida.
+- Diálogos `rounded-3xl` con velo propio (`--overlay`) y 1 rem de margen en
+  móvil; casillas y radios nativos con `accent-color` de marca.
 - Texto sobre tintes de marca o de estado: `--primary-strong`,
   `--success-strong` y `--danger-strong` (el color base no llega a 4,5:1 sobre
   su propio tinte).

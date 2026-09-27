@@ -97,6 +97,15 @@ corregidos:
   `--primary-strong` y subrayado, que además lo distingue sin depender del
   color.
 
+Al extender el estilo al resto de pantallas:
+
+- Categoría seleccionada en el formulario rápido e ícono seleccionado en el
+  selector de íconos: `text-primary` sobre su tinte daba ~4,1:1 (texto) y
+  2,99:1 (ícono). Ahora `--primary-strong`.
+- Onboarding sin `main` y con una lista con scroll que no se podía recorrer con
+  el teclado; Restablecer contraseña sin `main`. Corregidos.
+- La pantalla de verificación de acceso anuncia su estado con `role="status"`.
+
 También: en móvil, las filas de Movimientos dejaban la descripción en una o
 dos letras; el importe y las acciones bajan ahora a una segunda línea.
 
