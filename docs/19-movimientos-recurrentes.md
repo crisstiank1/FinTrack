@@ -128,7 +128,8 @@ adicional.
 - **Formulario de movimiento** (Dashboard y Movimientos, solo al crear): casilla
   «Repetir cada mes», desmarcada por defecto, con la explicación de que se
   creará un borrador cada mes. No aparece al editar ni en transferencias. El
-  alta rápida del panel del Dashboard no la ofrece.
+  alta rápida del panel del Dashboard también la ofrece (`c6a943a`) y la
+  desmarca tras cada alta.
 - **Creación:** primero el movimiento con el flujo existente; después la
   plantilla (`day_of_month` = día de la fecha). No existe una RPC que haga las
   dos cosas en una transacción, así que si la plantilla falla se muestra un

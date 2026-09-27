@@ -123,3 +123,15 @@ separadores, encabezados desconocidos, formatos de fecha y ambigüedad,
 decimales con punto y coma, miles, débito/crédito, archivo vacío, filas
 inválidas, cuenta y categoría archivadas, duplicados, transferencias,
 fórmulas, HTML, moneda de la cuenta, y que no se escribe en `transactions`.
+
+## Pendientes antes de afirmar compatibilidad
+
+| Pendiente                                                                                | Bloqueo                                                               |
+| ---------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| Extractos reales anonimizados por banco                                                  | Externo: requiere que el propietario los aporte                       |
+| Fixtures por banco en `src/features/csv-import/fixtures/` y pruebas de extremo a extremo | Depende del punto anterior                                            |
+| Probar `/import` contra Supabase real (inserción de hoja y borradores con RLS)           | Requiere entorno con la sesión real                                   |
+| Recorrido con teclado y en móvil en navegador real                                       | Pantalla protegida por sesión; en jsdom axe no encuentra infracciones |
+
+Hasta entonces, el importador se documenta como genérico: no se nombra ningún
+banco en la interfaz ni en las páginas públicas (una prueba lo vigila).

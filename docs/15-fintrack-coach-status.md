@@ -233,9 +233,12 @@ porque CI no levanta una base de datos.
 
 ## Próximo paso autorizado
 
-Ninguno en curso para el Coach. Pendientes, cada uno con revisión propia:
+Ninguno en curso para el Coach. La interfaz de consentimiento y revocación ya
+existe en Ajustes (`src/features/coach-consent/`). Pendientes, cada uno con
+revisión propia:
 
-1. Interfaz de consentimiento y revocación en Ajustes.
+1. Programar la purga (`pg_cron`) y aplicar
+   `20260927130000_restringir_funciones_coach.sql`.
 2. Historial y `conversationId` (`docs/16-coach-fase-4.md` §7).
 3. Interfaz de chat.
 4. Activación: facturación del proveedor, secretos y despliegue, con

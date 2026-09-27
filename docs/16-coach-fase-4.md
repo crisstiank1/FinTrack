@@ -40,14 +40,22 @@ anteriores: el usuario debe aceptar de nuevo lo que hoy se hace con sus datos.
 Sin consentimiento válido: `consent_required` (HTTP 200), sin leer datos
 financieros, sin consumir cuota y sin llamar al proveedor.
 
-### Pendiente
+### Interfaz (Ajustes → FinTrack Coach)
 
-No existe todavía interfaz para aceptar o revocar. Hasta que exista, ningún
-usuario tiene consentimiento válido y la ruta de IA es inalcanzable en
-producción aunque se configuren los secretos. La interfaz debe escribir
-`ai_consent_at = now()` y `ai_consent_version = CURRENT_AI_CONSENT_VERSION`
-juntas, y revocar poniendo ambas a `NULL`; las políticas de `profiles` ya
-permiten que el usuario actualice su propia fila.
+`src/features/coach-consent/`. Casilla nunca marcada por defecto, enlace a
+`/privacy`, botón «Autorizar análisis de FinTrack Coach» bloqueado hasta
+marcarla. Conceder escribe `ai_consent_at` y
+`ai_consent_version = CURRENT_AI_CONSENT_VERSION` juntas sobre el propio
+perfil; revocar pone ambas a `NULL` con un solo clic. Una versión antigua se
+muestra como caducada y se vuelve a pedir. El estado se calcula con la misma
+`hasExplicitConsent` que usa `finance-chat`.
+
+Probado contra PostgreSQL (`supabase/tests/db/30-coach-consent-and-purge.sql`):
+el usuario concede y revoca en su perfil, no en el ajeno, y la restricción del
+par impide una versión sin fecha.
+
+Conceder no activa nada por sí solo: sin secretos del proveedor la ruta de IA
+sigue inerte.
 
 ---
 
@@ -142,8 +150,18 @@ que el backend del Coach mencione esas tablas o `conversationId`.
 ## 5. Purga
 
 `public.purge_ai_data(p_message_days default 90, p_counter_days default 7)` es
-`security definer` y **no la puede ejecutar ningún usuario final** (`revoke …
-from public`). Devuelve cuántas filas borró de cada tabla.
+`security definer`. Devuelve cuántas filas borró de cada tabla.
+
+**Defecto corregido:** la migración original solo hacía `revoke … from public`,
+pero Supabase concede EXECUTE a `anon` y `authenticated` por privilegios por
+defecto, así que cualquier sesión podía llamar `purge_ai_data(0, 0)` y borrar
+contadores e historial de todos. `20260927130000_restringir_funciones_coach.sql`
+revoca con nombre; **pendiente de aplicar en el proyecto**.
+
+Operación verificable: `30-coach-consent-and-purge.sql` comprueba que borra
+solo lo vencido (mensajes de más de 90 días, conversaciones vacías, contadores
+de más de 7 días), que es idempotente y que ni `anon` ni `authenticated` pueden
+ejecutarla. Corre en CI (`validar-base-de-datos`).
 
 Ejecución manual, desde el editor SQL del proyecto con un rol de
 administración:
@@ -152,9 +170,16 @@ administración:
 select * from public.purge_ai_data();
 ```
 
-Programación: pendiente. Requiere decidir entre `pg_cron` (extensión del
-proyecto) y un programador externo. Hasta entonces, ejecutarla al menos una vez
-por semana mientras el Coach esté activo.
+Programación: **pendiente y bloqueante antes de persistir historial**. Requiere
+habilitar `pg_cron` en el proyecto (decisión y acción del propietario). Una vez
+habilitada:
+
+```sql
+select cron.schedule('purge-ai-data', '17 3 * * *', $$select public.purge_ai_data()$$);
+```
+
+Mientras no esté programada, los plazos de 90 y 7 días no se publican en
+`/privacy`.
 
 ---
 
