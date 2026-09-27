@@ -73,6 +73,24 @@ gestionan foco atrapado, Escape y retorno del foco.
   página (390 y 320 px).
 - Escape cierra el diálogo de nuevo movimiento; modo oscuro aplicado.
 
+## Actualización visual (axe en Chromium, ambos temas)
+
+axe-core ejecutado en el navegador real (con `color-contrast`, que jsdom no
+calcula) en 10 rutas y en los dos temas: **sin infracciones**. Antes del
+cambio fallaban:
+
+- Enlace activo de la navegación en todas las páginas: 2,99:1 (claro) y
+  2,23:1 (oscuro). Ahora `--primary-strong` sobre un tinte de marca: 6,1:1 y
+  13,1:1.
+- Insignias de ingreso y gasto en el Libro: 4,0–4,4:1. Ahora ≥ 5,3:1.
+- Gráficas del Dashboard ocultas a lectores de pantalla pero enfocables con
+  Tab (capa de teclado de Recharts). Ya no reciben el foco; la tabla y la
+  lista siguen siendo su equivalente.
+- Cuentas saltaba de `h1` a `h3`; el nombre de cada cuenta es ahora `h2`.
+
+También: en móvil, las filas de Movimientos dejaban la descripción en una o
+dos letras; el importe y las acciones bajan ahora a una segunda línea.
+
 ## Pendiente
 
 - Lector de pantalla (NVDA/VoiceOver) con datos reales.
