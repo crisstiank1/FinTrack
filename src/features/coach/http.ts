@@ -58,10 +58,18 @@ export function corsHeaders(origin: string | null): Record<string, string> {
 }
 
 export function jsonResponse(response: CoachResponse, origin: string | null): Response {
-  return new Response(JSON.stringify(response), {
-    status: httpStatusFor(response),
-    headers: { ...corsHeaders(origin), 'Content-Type': 'application/json; charset=utf-8' },
-  })
+  const headers: Record<string, string> = {
+    ...corsHeaders(origin),
+    'Content-Type': 'application/json; charset=utf-8',
+  }
+
+  // La misma espera que va en el cuerpo, en la cabecera estándar, para que un
+  // cliente HTTP genérico también la respete.
+  if (response.type === 'error' && response.retryAfterSeconds !== undefined) {
+    headers['Retry-After'] = String(response.retryAfterSeconds)
+  }
+
+  return new Response(JSON.stringify(response), { status: httpStatusFor(response), headers })
 }
 
 /**

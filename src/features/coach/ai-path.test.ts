@@ -110,7 +110,11 @@ const INVENTED = JSON.stringify({
 })
 
 function ai(provider: LLMProvider, consent: boolean): CoachAI {
-  return { provider, hasConsent: async () => consent }
+  return {
+    provider,
+    hasConsent: async () => consent,
+    consumeQuota: async () => ({ kind: 'allowed', used: 1 }),
+  }
 }
 
 async function ask(message: string, aiDeps: CoachAI, data?: FakeData) {
@@ -131,7 +135,7 @@ describe('consentimiento', () => {
 
     const { response, reads } = await ask('¿En qué gasté más este mes?', ai(provider, false))
 
-    expect(response.type).toBe('coach_context_ready')
+    expect(response.type).toBe('consent_required')
     expect(requests).toHaveLength(0)
     expect(reads.some((read) => read.table === 'transactions')).toBe(false)
   })
@@ -287,13 +291,17 @@ describe('preguntas sin datos', () => {
   }
 
   it('una pregunta de concepto no pide moneda aunque haya varias', async () => {
+    const concept = JSON.stringify({
+      title: 'La tasa de ahorro',
+      summary: 'Es la parte de tus ingresos que no gastaste en el período.',
+    })
     const { response } = await ask(
       '¿Qué es la tasa de ahorro?',
-      ai(fakeProvider([]).provider, false),
+      ai(fakeProvider([concept]).provider, true),
       multiCurrency,
     )
 
-    expect(response).toMatchObject({ type: 'coach_context_ready', intent: 'financial_concept' })
+    expect(response).toMatchObject({ type: 'financial_answer', intent: 'financial_concept' })
   })
 
   it('una pregunta de concepto no lee cuentas ni movimientos', async () => {

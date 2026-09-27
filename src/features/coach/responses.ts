@@ -127,6 +127,23 @@ export interface CoachError {
   type: 'error'
   code: CoachErrorCode
   message: string
+  /**
+   * Solo en `rate_limited`: segundos hasta que se renueve la cuota. Se calcula
+   * con la ventana de la migración, no es una espera fija inventada.
+   */
+  retryAfterSeconds?: number
+}
+
+/**
+ * El usuario no ha autorizado el análisis por IA.
+ *
+ * No es un error: la petición se procesó y la respuesta es que falta una
+ * decisión del usuario. Se emite **antes** de leer un solo dato financiero y
+ * antes de consumir cuota.
+ */
+export interface CoachConsentRequired {
+  type: 'consent_required'
+  message: string
 }
 
 export type CoachResponse =
@@ -135,6 +152,7 @@ export type CoachResponse =
   | CoachOutOfScope
   | CoachUnsupportedFeature
   | CoachFinancialAnswer
+  | CoachConsentRequired
   | CoachError
 
 /* -------------------------------------------------------------------------- */
@@ -173,6 +191,22 @@ const UNSUPPORTED_MESSAGES: Record<UnsupportedFeature, string> = {
   currency_conversion:
     'FinTrack no convierte entre monedas ni usa tipos de cambio: cada cuenta mantiene la suya y ' +
     'los totales nunca se mezclan. Puedo analizar una moneda a la vez.',
+}
+
+const CONSENT_REQUIRED_MESSAGE =
+  'Para analizar tus datos financieros con FinTrack Coach, primero debes autorizar el uso de la ' +
+  'información necesaria para generar respuestas personalizadas. Puedes cambiar esta decisión en ' +
+  'Ajustes cuando quieras.'
+
+const RATE_LIMITED_MESSAGE =
+  'Alcanzaste el límite temporal de consultas de FinTrack Coach. Inténtalo de nuevo más tarde.'
+
+export function consentRequired(): CoachConsentRequired {
+  return { type: 'consent_required', message: CONSENT_REQUIRED_MESSAGE }
+}
+
+export function rateLimited(retryAfterSeconds: number): CoachError {
+  return { type: 'error', code: 'rate_limited', message: RATE_LIMITED_MESSAGE, retryAfterSeconds }
 }
 
 export function outOfScope(reason: OutOfScopeReason): CoachOutOfScope {

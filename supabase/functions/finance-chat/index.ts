@@ -13,19 +13,24 @@
  *    anónima y la cabecera `Authorization` de quien pregunta, así que RLS aplica
  *    igual que en el navegador. No se usa `service_role` en ninguna parte.
  * 2. **El `user_id` sale de `auth.getUser()`**, nunca del cuerpo de la petición.
- * 3. **Sin consentimiento no sale nada hacia el proveedor.** Hasta que exista la
- *    columna de consentimiento, `consentNotYetAvailable` responde que no para
- *    todos: aunque los secretos del proveedor estén configurados, la función
- *    sigue devolviendo solo el contexto resuelto.
- * 4. **La clave del proveedor solo existe aquí**, leída de los secretos de
+ * 3. **Sin consentimiento no sale nada hacia el proveedor.** `readAIConsent` lee
+ *    `profiles.ai_consent_at` y `ai_consent_version` con el cliente del usuario;
+ *    solo un consentimiento explícito abre la ruta, y cualquier error la cierra.
+ * 4. **Cuota antes de cada llamada.** `consumeAIQuota` llama a la función SQL
+ *    `consume_ai_quota`, que decide de forma atómica con el `auth.uid()` del
+ *    mismo JWT. Sin cuota concedida no se construye el snapshot.
+ * 5. **La clave del proveedor solo existe aquí**, leída de los secretos de
  *    Supabase. Ningún módulo de `src/` la conoce ni la lee del entorno.
+ * 6. **Sin secretos, la ruta sigue inerte**: sin proveedor no se lee el
+ *    consentimiento, no se consume cuota y se responde solo el contexto.
  */
 
 import { createClient } from '@supabase/supabase-js'
 
-import { consentNotYetAvailable } from '@/features/coach/consent'
+import { readAIConsent } from '@/features/coach/consent'
 import { handleCoachHttpRequest, jsonResponse } from '@/features/coach/http'
 import { createOpenAICompatibleProvider } from '@/features/coach/llm/openai-compatible'
+import { consumeAIQuota } from '@/features/coach/quota'
 import type { CoachAI } from '@/features/coach/request'
 import { coachError } from '@/features/coach/responses'
 
@@ -50,7 +55,8 @@ function readAI(): CoachAI | undefined {
       model,
       apiKey,
     }),
-    hasConsent: consentNotYetAvailable,
+    hasConsent: readAIConsent,
+    consumeQuota: consumeAIQuota,
   }
 }
 

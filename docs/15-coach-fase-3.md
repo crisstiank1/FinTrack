@@ -23,6 +23,10 @@ datos de ningún usuario.
 
 ## Por qué la ruta está cerrada
 
+> **Superado en la Fase 4b (2026-09-27).** `consentNotYetAvailable` ya no
+> existe: la función lee el consentimiento real de `profiles` y aplica la cuota
+> persistente. Estado vigente en `docs/15-fintrack-coach-status.md`.
+
 La especificación es explícita: sin consentimiento no se envía nada a un
 tercero. La columna de consentimiento no existe todavía, así que la Edge
 Function usa `consentNotYetAvailable`, que responde **no** para todos.

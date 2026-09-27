@@ -102,12 +102,28 @@ describe('frontera del backend del Coach', () => {
     }
   })
 
-  it('la ruta de IA sigue cerrada en producción hasta que exista el consentimiento', () => {
-    // Guardia explícita: cuando llegue la migración de consentimiento, esta
-    // prueba debe cambiar a propósito, no dejar de cumplirse por accidente.
+  it('la Edge Function usa el consentimiento real y la cuota persistente', () => {
+    // Guardia explícita: si alguien vuelve a un consentimiento fijo o quita la
+    // cuota, esta prueba debe fallar, no pasar en silencio.
     const entry = code(join(FUNCTIONS_DIR, 'finance-chat', 'index.ts'))
 
-    expect(entry).toMatch(/hasConsent:\s*consentNotYetAvailable/)
+    expect(entry).toMatch(/hasConsent:\s*readAIConsent\b/)
+    expect(entry).toMatch(/consumeQuota:\s*consumeAIQuota\b/)
+    expect(entry).not.toMatch(/hasConsent:\s*async\s*\(\)\s*=>\s*true/)
+  })
+
+  it('no acepta conversationId ni escribe historial todavía', () => {
+    for (const path of backendSources) {
+      const source = code(path)
+      expect(source).not.toMatch(/conversationId/)
+      expect(source).not.toMatch(/ai_conversations|ai_messages/)
+    }
+  })
+
+  it('no escribe datos financieros', () => {
+    for (const path of backendSources) {
+      expect(code(path)).not.toMatch(/\.(insert|update|upsert|delete)\(/)
+    }
   })
 
   it('no llama a ningún servicio externo', () => {
