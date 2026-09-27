@@ -46,6 +46,8 @@ function draft(id: string, cells: Record<string, string>, position: number): She
     sheet_id: 'sheet-1',
     position,
     cells,
+    source_template_id: null,
+    generated_for_month: null,
     created_at: '2026-09-16T10:00:00.000Z',
     updated_at: '2026-09-16T10:00:00.000Z',
   }

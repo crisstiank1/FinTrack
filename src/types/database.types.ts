@@ -538,35 +538,134 @@ export type Database = {
         }
         Relationships: []
       }
+      recurring_template_projections: {
+        Row: {
+          created_at: string
+          generated_for_month: string
+          template_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          generated_for_month: string
+          template_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          generated_for_month?: string
+          template_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'recurring_template_projections_template_same_user_fkey'
+            columns: ['template_id', 'user_id']
+            isOneToOne: false
+            referencedRelation: 'recurring_templates'
+            referencedColumns: ['id', 'user_id']
+          },
+        ]
+      }
+      recurring_templates: {
+        Row: {
+          account_id: string
+          amount_minor: number
+          category_id: string
+          created_at: string
+          day_of_month: number
+          description: string
+          id: string
+          is_active: boolean
+          type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          account_id: string
+          amount_minor: number
+          category_id: string
+          created_at?: string
+          day_of_month: number
+          description: string
+          id?: string
+          is_active?: boolean
+          type: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          account_id?: string
+          amount_minor?: number
+          category_id?: string
+          created_at?: string
+          day_of_month?: number
+          description?: string
+          id?: string
+          is_active?: boolean
+          type?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: 'recurring_templates_account_same_user_fkey'
+            columns: ['account_id', 'user_id']
+            isOneToOne: false
+            referencedRelation: 'accounts'
+            referencedColumns: ['id', 'user_id']
+          },
+          {
+            foreignKeyName: 'recurring_templates_category_same_user_fkey'
+            columns: ['category_id', 'user_id']
+            isOneToOne: false
+            referencedRelation: 'categories'
+            referencedColumns: ['id', 'user_id']
+          },
+        ]
+      }
       sheet_drafts: {
         Row: {
           cells: Json
           created_at: string
+          generated_for_month: string | null
           id: string
           position: number
           sheet_id: string
+          source_template_id: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
           cells?: Json
           created_at?: string
+          generated_for_month?: string | null
           id?: string
           position: number
           sheet_id: string
+          source_template_id?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
           cells?: Json
           created_at?: string
+          generated_for_month?: string | null
           id?: string
           position?: number
           sheet_id?: string
+          source_template_id?: string | null
           updated_at?: string
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: 'sheet_drafts_source_template_fkey'
+            columns: ['source_template_id']
+            isOneToOne: false
+            referencedRelation: 'recurring_templates'
+            referencedColumns: ['id']
+          },
           {
             foreignKeyName: 'sheet_drafts_sheet_id_fkey'
             columns: ['sheet_id']
@@ -693,6 +792,7 @@ export type Database = {
           mensajes: number
         }[]
       }
+      project_recurring_templates: { Args: { p_month: string }; Returns: Json }
       register_sheet_draft: { Args: { p_draft_id: string }; Returns: Json }
     }
     Enums: {
