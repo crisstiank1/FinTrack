@@ -94,15 +94,20 @@ $$;
 
 insert into public.ai_usage_counters (user_id, window_start, message_count) values
   ('dddddddd-0000-4000-8000-000000000004', date_trunc('hour', now()) - interval '8 days', 3),
-  ('dddddddd-0000-4000-8000-000000000004', date_trunc('hour', now()) - interval '1 day', 2);
+  ('dddddddd-0000-4000-8000-000000000004', date_trunc('hour', now()) - interval '1 day', 2),
+  -- Límite: 6 días todavía no vence (retención de 7).
+  ('dddddddd-0000-4000-8000-000000000004', now() - interval '6 days', 1);
 
 insert into public.ai_conversations (id, user_id, updated_at) values
   ('f1000000-0000-4000-8000-000000000004', 'dddddddd-0000-4000-8000-000000000004', now() - interval '100 days'),
-  ('f2000000-0000-4000-8000-000000000004', 'dddddddd-0000-4000-8000-000000000004', now());
+  ('f2000000-0000-4000-8000-000000000004', 'dddddddd-0000-4000-8000-000000000004', now()),
+  ('f3000000-0000-4000-8000-000000000004', 'dddddddd-0000-4000-8000-000000000004', now() - interval '89 days');
 
 insert into public.ai_messages (conversation_id, user_id, role, content, created_at) values
   ('f1000000-0000-4000-8000-000000000004', 'dddddddd-0000-4000-8000-000000000004', 'user', 'viejo', now() - interval '100 days'),
-  ('f2000000-0000-4000-8000-000000000004', 'dddddddd-0000-4000-8000-000000000004', 'user', 'reciente', now());
+  ('f2000000-0000-4000-8000-000000000004', 'dddddddd-0000-4000-8000-000000000004', 'user', 'reciente', now()),
+  -- Límite: 89 días todavía no vence (retención de 90).
+  ('f3000000-0000-4000-8000-000000000004', 'dddddddd-0000-4000-8000-000000000004', 'user', 'casi', now() - interval '89 days');
 
 select t.claims('dddddddd-0000-4000-8000-000000000004');
 set role authenticated;
@@ -132,9 +137,22 @@ begin
   perform t.eq(v.conversaciones, 1, 'conversaciones vacías purgadas');
   perform t.eq(v.contadores, 1, 'contadores purgados');
 
-  perform t.eq((select count(*)::integer from public.ai_messages), 1, 'queda el mensaje reciente');
-  perform t.eq((select count(*)::integer from public.ai_conversations), 1, 'queda la conversación reciente');
-  perform t.eq((select count(*)::integer from public.ai_usage_counters), 1, 'queda el contador reciente');
+  perform t.eq(
+    (select array_agg(content order by content) from public.ai_messages),
+    array['casi', 'reciente'],
+    'quedan los mensajes de menos de 90 días'
+  );
+  perform t.eq(
+    (select array_agg(id order by id) from public.ai_conversations),
+    array['f2000000-0000-4000-8000-000000000004', 'f3000000-0000-4000-8000-000000000004']::uuid[],
+    'quedan las conversaciones con mensajes vigentes'
+  );
+  perform t.eq((select count(*)::integer from public.ai_usage_counters), 2, 'quedan los contadores de menos de 7 días');
+  perform t.eq(
+    (select count(*)::integer from public.ai_usage_counters where window_start < now() - interval '7 days'),
+    0,
+    'no queda ningún contador vencido'
+  );
 
   -- Segunda ejecución: nada que borrar.
   select * into v from public.purge_ai_data();
