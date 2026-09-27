@@ -80,7 +80,8 @@ describe('RecurringTemplatesSection', () => {
     })
     render(<RecurringTemplatesSection accounts={accounts} categories={categories} />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Desactivar' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Desactivar «A»' }))
+    expect(screen.getByRole('button', { name: 'Eliminar «A»' })).toBeInTheDocument()
     expect(setActive).toHaveBeenCalledWith({ id: 't1', isActive: false })
   })
 

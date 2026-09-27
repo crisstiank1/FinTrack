@@ -111,6 +111,7 @@ export function RecurringTemplatesSection({ accounts, categories }: Props) {
                     variant="outline"
                     size="sm"
                     onClick={() => toggle(template)}
+                    aria-label={`${template.is_active ? 'Desactivar' : 'Activar'} «${template.description}»`}
                   >
                     {template.is_active ? 'Desactivar' : 'Activar'}
                   </Button>
@@ -119,6 +120,7 @@ export function RecurringTemplatesSection({ accounts, categories }: Props) {
                     variant="outline"
                     size="sm"
                     onClick={() => setDeleting(template)}
+                    aria-label={`Eliminar «${template.description}»`}
                   >
                     Eliminar
                   </Button>
