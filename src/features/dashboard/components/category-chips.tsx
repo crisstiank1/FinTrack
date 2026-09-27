@@ -68,8 +68,8 @@ export function CategoryChips({
               'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
               isSelected
-                ? 'border-primary bg-primary/12 text-primary'
-                : 'border-border text-muted-foreground hover:bg-muted hover:text-foreground',
+                ? 'border-primary bg-primary/12 font-semibold text-primary-strong'
+                : 'border-border bg-card text-muted-foreground hover:bg-primary/8 hover:text-foreground',
             )}
           >
             <Icon className="size-3.5" aria-hidden="true" />
