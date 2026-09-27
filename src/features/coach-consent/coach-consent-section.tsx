@@ -70,6 +70,7 @@ export function CoachConsentSection() {
             <Button
               type="button"
               variant="outline"
+              className="h-auto min-h-9 whitespace-normal"
               disabled={setConsent.isPending}
               onClick={() => change(false)}
             >

@@ -208,7 +208,7 @@ export default function Settings() {
 
   return (
     <div className="mx-auto max-w-3xl p-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <PageTitle helpTitle="Ajustes" help={PAGE_HELP.settings}>
             Ajustes

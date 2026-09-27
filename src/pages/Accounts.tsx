@@ -116,7 +116,7 @@ export default function Accounts() {
 
   return (
     <div className="mx-auto max-w-5xl p-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <PageTitle helpTitle="Cuentas" help={PAGE_HELP.accounts}>
           Cuentas
         </PageTitle>

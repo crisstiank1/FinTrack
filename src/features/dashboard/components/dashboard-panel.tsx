@@ -33,7 +33,7 @@ export function DashboardPanel({
       )}
       style={{ animationDelay: `${index * 40}ms` }}
     >
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 id={titleId} className="text-base font-semibold text-foreground">
             {title}

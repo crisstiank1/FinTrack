@@ -254,7 +254,7 @@ export default function Transactions() {
         <PageTitle helpTitle="Movimientos" help={PAGE_HELP.transactions}>
           Movimientos
         </PageTitle>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button type="button" variant="outline" onClick={openCreateTransfer}>
             <ArrowLeftRight className="size-4" aria-hidden="true" />
             Transferir
