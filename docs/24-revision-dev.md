@@ -55,6 +55,33 @@ El total dentro del donut de gastos rozaba el anillo (esquinas del texto a
 55 px del centro, hueco de 52 px); ahora se limita al hueco y parte entre
 moneda y cifra (46 px), commit `b2d5cb5`.
 
+## Revisión final en navegador (build de producción)
+
+Recorrido de 23 pasos con una cuenta nueva sobre `vite build` + Supabase local:
+registro, onboarding con cuentas COP y USD, gasto e ingreso rápidos (con
+«Repetir cada mes»), presupuesto, transferencia COP → USD, edición, duplicado y
+borrado, importación CSV con fila rota y fórmula, registro de borradores, Libro
+(búsqueda y exportación con fórmula escapada), Presupuestos, Plan, Cuentas
+(saldos cuadrados), Ajustes, tema, cierre e inicio de sesión y contraseña
+incorrecta. Además, axe sin infracciones en 10 rutas × 2 temas, y 13 rutas a
+1280, 390 y 320 px con un `h1`, un `main`, sin scroll horizontal ni errores de
+consola; el primer Tab lleva a «Saltar al contenido».
+
+| #   | Bug                                                                                                              | Corrección                                                      | Prueba                       | Commit    |
+| --- | ---------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- | ---------------------------- | --------- |
+| 9   | Llegar con Tab a un campo de monto y teclear concatenaba: editar 85.400 escribiendo 90000 guardaba 8.540.090.000 | El campo respeta la selección completa al recibir el foco       | `currency-input.test.tsx`    | `ea0917a` |
+| 10  | Los errores de acceso se mostraban en inglés («Invalid login credentials»)                                       | Traducción por código de error, con mensaje genérico en español | `auth-error-message.test.ts` | `6d4d46e` |
+
+Observaciones sin cambio (decisión de producto):
+
+- Sin movimientos, el Dashboard muestra «Tu dashboard está listo» y no los
+  saldos iniciales de las cuentas (sí aparecen en Cuentas).
+- Los selectores nativos de mes y fecha se ven en el idioma del navegador
+  («September 2026», «mm/dd/yyyy»).
+- «Duplicar» crea la copia al instante, sin confirmación ni deshacer.
+- El paquete principal pesa 936 kB (272 kB comprimido); Vite avisa de que
+  supera 500 kB.
+
 ## Garantía de propiedad entre borrador y plantilla recurrente
 
 - `sheet_drafts (source_template_id, user_id)` → `recurring_templates (id, user_id)`:
