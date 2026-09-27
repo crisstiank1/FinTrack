@@ -3,7 +3,8 @@
 > Página viva de estado. Sustituye a las secciones «Siguiente paso» de los
 > documentos de cada fase, que quedan como registro histórico.
 >
-> **Actualizado:** 2026-09-27.
+> **Actualizado:** 2026-09-27 (auditoría final: sin cambios de comportamiento del
+> Coach; consentimiento, cuota, proveedor y purga verificados por pruebas).
 
 Plan: `docs/12-fintrack-coach.md`. Detalle por fase: `docs/13-coach-fase-0.md`,
 `docs/14-coach-fase-2.md`, `docs/15-coach-fase-3.md`.

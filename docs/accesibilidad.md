@@ -53,6 +53,13 @@ Sin cambios, ya cumplían: texto principal (16,1 / 18,8), texto secundario
 Los diálogos usan Radix (`@radix-ui/react-dialog` y `alert-dialog`), que
 gestionan foco atrapado, Escape y retorno del foco.
 
+## Cambios de la auditoría final
+
+- Ajustes → Movimientos recurrentes: botones con el nombre de la plantilla
+  («Eliminar «Arriendo»»), estados de carga y de error en vez del vacío.
+- Resultado de la proyección: cada plantilla omitida con nombre, motivo y
+  acción sugerida.
+
 ## Pendiente (requiere navegador real)
 
 - Recorrido completo con teclado y lector de pantalla (NVDA/VoiceOver) de
@@ -60,3 +67,7 @@ gestionan foco atrapado, Escape y retorno del foco.
 - Contraste de las gráficas de Recharts y de los colores de categoría elegidos
   por el usuario.
 - Zoom al 200 % y reflujo a 320 px en Hojas (la rejilla tiene scroll propio).
+- Botón flotante del Dashboard (< 1024 px): comprobar que no tapa los enlaces
+  del pie al final de la página.
+- Botones de fila de Movimientos («Eliminar movimiento», «Duplicar…») se
+  repiten sin el nombre del movimiento; mejora análoga a la de recurrentes.
