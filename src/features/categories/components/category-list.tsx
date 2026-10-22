@@ -53,14 +53,16 @@ function CategoryGroup({
               className="animate-card-in flex items-center justify-between gap-3 rounded-lg border border-border bg-card px-4 py-3 transition-opacity duration-300"
               style={{ animationDelay: `${index * 30}ms`, opacity: category.is_archived ? 0.6 : 1 }}
             >
-              <div className="flex items-center gap-3">
+              <div className="flex min-w-0 items-center gap-3">
                 <div
-                  className="flex size-8 items-center justify-center rounded-full"
+                  className="flex size-8 shrink-0 items-center justify-center rounded-xl"
                   style={{ backgroundColor: `${accentColor}1a`, color: accentColor }}
                 >
                   <Icon className="size-4" aria-hidden="true" />
                 </div>
-                <span className="text-sm font-medium text-foreground">{category.name}</span>
+                <span className="min-w-0 break-words text-sm font-medium text-foreground">
+                  {category.name}
+                </span>
                 {category.is_archived && (
                   <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
                     Archivada
@@ -79,7 +81,12 @@ function CategoryGroup({
                   >
                     <Pencil className="size-4" aria-hidden="true" />
                   </Button>
-                  <Button type="button" variant="ghost" size="sm" onClick={() => onArchive(category)}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => onArchive(category)}
+                  >
                     Archivar
                   </Button>
                 </div>

@@ -72,7 +72,7 @@ export function BudgetVsActualTable({
 
       {/* Escritorio: tabla semántica. El desbordamiento vive en este
           contenedor, nunca en la página. */}
-      <div className="mt-3 hidden overflow-x-auto rounded-xl border border-border sm:block">
+      <div className="relative mt-3 hidden overflow-x-auto rounded-2xl border border-border bg-card shadow-card sm:block">
         <table className="w-full border-collapse text-sm">
           <caption className="sr-only">
             Presupuesto frente a lo real en {monthLabel}. Las filas del desglose de gastos suman los

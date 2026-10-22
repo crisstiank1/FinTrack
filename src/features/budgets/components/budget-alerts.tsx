@@ -44,7 +44,7 @@ export function BudgetAlerts({ items, globalAlert, currencyCode, linkToMonth }: 
       {globalAlert && (
         <li
           role="status"
-          className="flex items-start gap-2 rounded-lg border border-danger/30 bg-danger/8 p-3 text-sm"
+          className="flex items-start gap-2 rounded-xl border border-danger/30 bg-danger/8 p-3.5 text-sm shadow-xs"
         >
           <TrendingDown className="mt-0.5 size-4 shrink-0 text-danger" aria-hidden="true" />
           <span className="text-foreground">
@@ -61,7 +61,7 @@ export function BudgetAlerts({ items, globalAlert, currencyCode, linkToMonth }: 
         return (
           <li
             key={item.categoryId}
-            className="flex flex-wrap items-start gap-2 rounded-lg border border-danger/30 bg-danger/8 p-3 text-sm"
+            className="flex flex-wrap items-start gap-2 rounded-xl border border-danger/30 bg-danger/8 p-3.5 text-sm shadow-xs"
           >
             <AlertTriangle className="mt-0.5 size-4 shrink-0 text-danger" aria-hidden="true" />
             <span className="flex-1 text-foreground">{message}</span>
@@ -75,7 +75,7 @@ export function BudgetAlerts({ items, globalAlert, currencyCode, linkToMonth }: 
               linkToMonth && (
                 <Link
                   to={`/budgets?month=${linkToMonth}`}
-                  className="text-xs font-medium text-primary underline-offset-4 hover:underline"
+                  className="text-xs font-medium text-primary-strong underline underline-offset-4"
                 >
                   Ajustar presupuesto
                 </Link>

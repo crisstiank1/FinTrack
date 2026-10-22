@@ -69,14 +69,60 @@ describe('frontera del backend del Coach', () => {
     }
   })
 
-  it('no contiene proveedores de IA ni sus claves', () => {
-    const providers = ['GROQ', 'OPENAI', 'GEMINI', 'ANTHROPIC', 'NVIDIA', 'API_KEY', 'LLMProvider']
+  // Fase 3: el proveedor de IA ya existe, así que la regla deja de ser "no hay
+  // proveedor" y pasa a ser "no hay credenciales escritas y solo la Edge
+  // Function lee el entorno".
+
+  it('no contiene credenciales escritas en el código', () => {
+    // Formas habituales de clave: Groq, NVIDIA, OpenAI, Google y un JWT.
+    const credentialShapes = [
+      /gsk_[A-Za-z0-9]{16,}/,
+      /nvapi-[A-Za-z0-9_-]{16,}/,
+      /sk-[A-Za-z0-9]{20,}/,
+      /AIza[0-9A-Za-z_-]{20,}/,
+      /eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\./,
+    ]
 
     for (const path of backendSources) {
       const source = code(path)
-      for (const provider of providers) {
-        expect(source).not.toContain(provider)
+      for (const shape of credentialShapes) {
+        expect(source).not.toMatch(shape)
       }
+    }
+  })
+
+  it('solo la Edge Function lee variables de entorno', () => {
+    // Si un módulo de `src/` leyera el entorno, la clave del proveedor podría
+    // acabar en el bundle del navegador. Los módulos reciben la configuración
+    // como parámetro; quien la lee es `index.ts`, que solo corre en Deno.
+    for (const path of backendSources) {
+      if (path.replace(/\\/g, '/').endsWith('supabase/functions/finance-chat/index.ts')) continue
+
+      expect(code(path)).not.toMatch(/Deno\.env|process\.env|import\.meta\.env/)
+    }
+  })
+
+  it('la Edge Function usa el consentimiento real y la cuota persistente', () => {
+    // Guardia explícita: si alguien vuelve a un consentimiento fijo o quita la
+    // cuota, esta prueba debe fallar, no pasar en silencio.
+    const entry = code(join(FUNCTIONS_DIR, 'finance-chat', 'index.ts'))
+
+    expect(entry).toMatch(/hasConsent:\s*readAIConsent\b/)
+    expect(entry).toMatch(/consumeQuota:\s*consumeAIQuota\b/)
+    expect(entry).not.toMatch(/hasConsent:\s*async\s*\(\)\s*=>\s*true/)
+  })
+
+  it('no acepta conversationId ni escribe historial todavía', () => {
+    for (const path of backendSources) {
+      const source = code(path)
+      expect(source).not.toMatch(/conversationId/)
+      expect(source).not.toMatch(/ai_conversations|ai_messages/)
+    }
+  })
+
+  it('no escribe datos financieros', () => {
+    for (const path of backendSources) {
+      expect(code(path)).not.toMatch(/\.(insert|update|upsert|delete)\(/)
     }
   })
 

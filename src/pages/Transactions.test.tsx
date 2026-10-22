@@ -1,6 +1,8 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { axeViolations } from '@/test/axe'
 
 import { PAGE_HELP } from '@/components/shared/page-help'
 import type { Tables } from '@/types/database.types'
@@ -16,11 +18,12 @@ const updateTransfer = vi.fn()
 const usePrimaryCurrency = vi.fn()
 const useAccounts = vi.fn()
 const mutation = () => ({ mutateAsync: vi.fn(), isPending: false })
+const createTransactionMock = vi.fn()
 
 vi.mock('@/features/transactions/hooks', () => ({
   useTransactions: (filters: unknown) => useTransactions(filters),
   useTransferCounterparts: (transactions: unknown) => useTransferCounterparts(transactions),
-  useCreateTransaction: () => mutation(),
+  useCreateTransaction: () => ({ mutateAsync: createTransactionMock, isPending: false }),
   useUpdateTransaction: () => mutation(),
   useCreateTransfer: () => ({ mutateAsync: createTransfer, isPending: false }),
   useUpdateTransfer: () => ({ mutateAsync: updateTransfer, isPending: false }),
@@ -38,12 +41,21 @@ vi.mock('@/features/accounts/hooks', () => ({
   useAccounts: () => useAccounts(),
 }))
 
+const createTemplateAfterMovement = vi.fn(async () => true)
+vi.mock('@/features/recurring/hooks', () => ({
+  useCreateTemplateAfterMovement: () => createTemplateAfterMovement,
+  useRecurringProjectionStatus: () => ({ monthKey: '2026-09', pending: [], ready: true }),
+  useProjectRecurring: () => ({ mutateAsync: vi.fn(), isPending: false }),
+}))
+
 vi.mock('@/features/profile/hooks', () => ({
   usePrimaryCurrency: () => usePrimaryCurrency(),
 }))
 
 vi.mock('@/features/categories/hooks', () => ({
-  useCategories: () => ({ data: [] }),
+  useCategories: () => ({
+    data: [{ id: 'cat-rent', name: 'Arriendo', type: 'expense', is_archived: false }],
+  }),
 }))
 
 vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }))
@@ -348,6 +360,33 @@ describe('Transactions — moneda de cada fila', () => {
   })
 })
 
+describe('Transactions — nombres accesibles de las acciones de fila', () => {
+  it('cada botón de solo icono nombra su movimiento y no se repite entre filas', () => {
+    useTransactions.mockReturnValue({
+      data: [
+        row({ id: 't-1', type: 'expense', amount_minor: 1000, description: 'Mercado' }),
+        row({ id: 't-2', type: 'expense', amount_minor: 2000, description: 'Farmacia' }),
+      ],
+      isLoading: false,
+    })
+
+    renderTransactions('/transactions?month=2026-08')
+
+    for (const name of ['Mercado', 'Farmacia']) {
+      expect(
+        screen.getByRole('button', { name: `Editar movimiento «${name}»` }),
+      ).toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: `Duplicar movimiento «${name}»` }),
+      ).toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: `Eliminar movimiento «${name}»` }),
+      ).toBeInTheDocument()
+    }
+    expect(screen.queryByRole('button', { name: 'Eliminar movimiento' })).not.toBeInTheDocument()
+  })
+})
+
 describe('Transactions — transferencias entre monedas', () => {
   const transferRows = [
     row({
@@ -466,15 +505,17 @@ describe('Transactions — editar transferencias (M8)', () => {
 
     renderTransactions('/transactions?month=2026-08')
 
-    expect(screen.queryByRole('button', { name: 'Editar transferencia' })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /^Editar transferencia «/ }),
+    ).not.toBeInTheDocument()
     // Duplicar y eliminar siguen disponibles: no dependen de la otra pata.
-    expect(screen.getAllByRole('button', { name: 'Duplicar movimiento' })).toHaveLength(2)
+    expect(screen.getAllByRole('button', { name: /^Duplicar movimiento «/ })).toHaveLength(2)
   })
 
   it('abre la transferencia completa desde la pata que entra, en su sentido original', () => {
     renderTransactions('/transactions?month=2026-08')
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Editar transferencia' })[1])
+    fireEvent.click(screen.getAllByRole('button', { name: /^Editar transferencia «/ })[1])
 
     const dialog = within(screen.getByRole('dialog'))
     expect(dialog.getByText('Editar transferencia')).toBeInTheDocument()
@@ -487,7 +528,7 @@ describe('Transactions — editar transferencias (M8)', () => {
   it('guarda las dos patas con su grupo y cada importe en su moneda', async () => {
     renderTransactions('/transactions?month=2026-08')
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Editar transferencia' })[0])
+    fireEvent.click(screen.getAllByRole('button', { name: /^Editar transferencia «/ })[0])
     const dialog = within(screen.getByRole('dialog'))
     fireEvent.change(dialog.getByLabelText('Monto recibido (USD)'), { target: { value: '30' } })
 
@@ -513,7 +554,7 @@ describe('Transactions — editar transferencias (M8)', () => {
   it('«Transferir» abre el formulario vacío aunque se acabe de editar una', () => {
     renderTransactions('/transactions?month=2026-08')
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Editar transferencia' })[0])
+    fireEvent.click(screen.getAllByRole('button', { name: /^Editar transferencia «/ })[0])
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: /cerrar/i }))
     fireEvent.click(screen.getByRole('button', { name: 'Transferir' }))
 
@@ -533,5 +574,68 @@ describe('Transactions — ayuda de la pantalla (M18)', () => {
     expect(screen.getByRole('region', { name: 'Movimientos' })).toHaveTextContent(
       PAGE_HELP.transactions,
     )
+  })
+})
+
+describe('Transactions — repetir cada mes', () => {
+  async function fillAndSubmit(repeat: boolean) {
+    const user = userEvent.setup()
+    renderTransactions('/transactions?month=2026-08')
+    fireEvent.click(screen.getByRole('button', { name: 'Nuevo movimiento' }))
+    const dialog = within(screen.getByRole('dialog'))
+
+    await user.type(dialog.getByLabelText('Descripción'), 'Arriendo')
+    await user.type(dialog.getByLabelText('Monto'), '1500000')
+    await user.selectOptions(dialog.getByLabelText('Cuenta'), 'acc-bank')
+    await user.selectOptions(dialog.getByLabelText('Categoría'), 'cat-rent')
+    if (repeat) await user.click(dialog.getByLabelText('Repetir cada mes'))
+    await user.click(dialog.getByRole('button', { name: 'Registrar movimiento' }))
+  }
+
+  beforeEach(() => {
+    createTransactionMock.mockReset()
+    createTemplateAfterMovement.mockClear()
+  })
+
+  it('crea el movimiento con el flujo normal y después la plantilla', async () => {
+    createTransactionMock.mockResolvedValue({ id: 'tx-1' })
+    await fillAndSubmit(true)
+
+    await waitFor(() => expect(createTemplateAfterMovement).toHaveBeenCalledTimes(1))
+    expect(createTransactionMock).toHaveBeenCalledTimes(1)
+    expect(createTransactionMock).toHaveBeenCalledWith(
+      expect.objectContaining({ amount_minor: 1500000, account_id: 'acc-bank', type: 'expense' }),
+    )
+    expect(createTemplateAfterMovement).toHaveBeenCalledWith(
+      expect.objectContaining({ repeatMonthly: true, amount: 1500000, categoryId: 'cat-rent' }),
+    )
+    expect(createTransactionMock.mock.invocationCallOrder[0]).toBeLessThan(
+      createTemplateAfterMovement.mock.invocationCallOrder[0],
+    )
+  })
+
+  it('sin marcar la casilla no crea plantilla', async () => {
+    createTransactionMock.mockResolvedValue({ id: 'tx-1' })
+    await fillAndSubmit(false)
+
+    await waitFor(() => expect(createTransactionMock).toHaveBeenCalledTimes(1))
+    expect(createTemplateAfterMovement).not.toHaveBeenCalled()
+  })
+
+  it('si el movimiento falla, no se crea la plantilla', async () => {
+    createTransactionMock.mockRejectedValue(new Error('boom'))
+    await fillAndSubmit(true)
+
+    await waitFor(() => expect(createTransactionMock).toHaveBeenCalledTimes(1))
+    expect(createTemplateAfterMovement).not.toHaveBeenCalled()
+  })
+})
+
+describe('Transactions — accesibilidad', () => {
+  it('la lista y el diálogo de nuevo movimiento no tienen infracciones de axe', async () => {
+    const { container } = renderTransactions('/transactions?month=2026-08')
+    expect(await axeViolations(container)).toEqual([])
+    fireEvent.click(screen.getByRole('button', { name: 'Nuevo movimiento' }))
+    expect(await axeViolations(screen.getByRole('dialog'))).toEqual([])
   })
 })

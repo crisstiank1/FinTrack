@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 
+import { Logo } from '@/components/shared/logo'
 import { AccountsStep } from '@/features/onboarding/components/accounts-step'
 import { CategoriesStep } from '@/features/onboarding/components/categories-step'
 import { ConfirmationStep } from '@/features/onboarding/components/confirmation-step'
@@ -90,62 +91,65 @@ export function OnboardingWizard() {
   }
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-lg flex-col justify-center px-4 py-10">
-      <div className="mb-6">
-        <p className="text-sm font-medium text-muted-foreground">
-          Paso {step} de {TOTAL_STEPS}
-        </p>
-        <div className="mt-2 flex gap-1.5">
-          {Array.from({ length: TOTAL_STEPS }).map((_, index) => (
-            <div
-              key={index}
-              className={`h-1.5 flex-1 rounded-full transition-colors duration-300 ${
-                index < step ? 'bg-primary' : 'bg-border'
-              }`}
+    <main className="mx-auto flex min-h-screen max-w-lg flex-col justify-center gap-6 px-4 py-10">
+      <Logo className="mx-auto h-14" />
+      <div className="rounded-3xl border border-border bg-card p-6 shadow-card-hover sm:p-8">
+        <div className="mb-6">
+          <p className="text-sm font-medium text-muted-foreground">
+            Paso {step} de {TOTAL_STEPS}
+          </p>
+          <div className="mt-2 flex gap-1.5">
+            {Array.from({ length: TOTAL_STEPS }).map((_, index) => (
+              <div
+                key={index}
+                className={`h-1.5 flex-1 rounded-full transition-colors duration-300 ${
+                  index < step ? 'bg-linear-to-r from-brand-from to-brand-to' : 'bg-primary/15'
+                }`}
+              />
+            ))}
+          </div>
+        </div>
+
+        <div
+          key={`${step}-${direction}`}
+          className={
+            direction === 'forward' ? 'animate-wizard-step-forward' : 'animate-wizard-step-back'
+          }
+        >
+          {step === 1 && (
+            <WelcomeStep
+              defaultValues={profile ?? undefined}
+              onNext={(values) => {
+                setProfile(values)
+                goTo(2, 'forward')
+              }}
             />
-          ))}
+          )}
+          {step === 2 && (
+            <AccountsStep
+              defaultValues={accounts.length > 0 ? accounts : undefined}
+              currencyCode={profile?.currencyCode ?? 'COP'}
+              onBack={() => goTo(1, 'back')}
+              onNext={(values) => {
+                setAccounts(values)
+                goTo(3, 'forward')
+              }}
+            />
+          )}
+          {step === 3 && (
+            <CategoriesStep onBack={() => goTo(2, 'back')} onNext={() => goTo(4, 'forward')} />
+          )}
+          {step === 4 && (
+            <ConfirmationStep
+              profile={profile}
+              accounts={accounts}
+              onBack={() => goTo(3, 'back')}
+              onFinish={handleFinish}
+              isFinishing={isFinishing}
+            />
+          )}
         </div>
       </div>
-
-      <div
-        key={`${step}-${direction}`}
-        className={
-          direction === 'forward' ? 'animate-wizard-step-forward' : 'animate-wizard-step-back'
-        }
-      >
-        {step === 1 && (
-          <WelcomeStep
-            defaultValues={profile ?? undefined}
-            onNext={(values) => {
-              setProfile(values)
-              goTo(2, 'forward')
-            }}
-          />
-        )}
-        {step === 2 && (
-          <AccountsStep
-            defaultValues={accounts.length > 0 ? accounts : undefined}
-            currencyCode={profile?.currencyCode ?? 'COP'}
-            onBack={() => goTo(1, 'back')}
-            onNext={(values) => {
-              setAccounts(values)
-              goTo(3, 'forward')
-            }}
-          />
-        )}
-        {step === 3 && (
-          <CategoriesStep onBack={() => goTo(2, 'back')} onNext={() => goTo(4, 'forward')} />
-        )}
-        {step === 4 && (
-          <ConfirmationStep
-            profile={profile}
-            accounts={accounts}
-            onBack={() => goTo(3, 'back')}
-            onFinish={handleFinish}
-            isFinishing={isFinishing}
-          />
-        )}
-      </div>
-    </div>
+    </main>
   )
 }

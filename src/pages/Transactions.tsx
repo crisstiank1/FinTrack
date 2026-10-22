@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { useAccounts } from '@/features/accounts/hooks'
 import { useCategories } from '@/features/categories/hooks'
 import { usePrimaryCurrency } from '@/features/profile/hooks'
+import { useCreateTemplateAfterMovement } from '@/features/recurring/hooks'
 import {
   formatTransferCounterpart,
   transferEditDefaults,
@@ -72,6 +73,7 @@ export default function Transactions() {
   const { data: counterparts } = useTransferCounterparts(transactions)
 
   const createTransaction = useCreateTransaction()
+  const createTemplateAfterMovement = useCreateTemplateAfterMovement()
   const updateTransaction = useUpdateTransaction()
   const createTransfer = useCreateTransfer()
   const updateTransfer = useUpdateTransfer()
@@ -170,6 +172,11 @@ export default function Transactions() {
           notes: values.notes || null,
         })
         toast.success('Movimiento registrado')
+        setMovementDialog('closed')
+        // El movimiento ya existe: la plantilla va aparte y, si falla, se
+        // reintenta sola sin volver a crear el movimiento.
+        if (values.repeatMonthly) await createTemplateAfterMovement(values)
+        return
       }
       setMovementDialog('closed')
     } catch (error) {
@@ -247,7 +254,7 @@ export default function Transactions() {
         <PageTitle helpTitle="Movimientos" help={PAGE_HELP.transactions}>
           Movimientos
         </PageTitle>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button type="button" variant="outline" onClick={openCreateTransfer}>
             <ArrowLeftRight className="size-4" aria-hidden="true" />
             Transferir
@@ -259,7 +266,7 @@ export default function Transactions() {
         </div>
       </div>
 
-      <div className="mt-4">
+      <div className="mt-4 rounded-2xl border border-border bg-card p-4 shadow-card">
         <TransactionFiltersBar
           filters={filters}
           accounts={accounts}
@@ -268,11 +275,12 @@ export default function Transactions() {
         />
       </div>
 
-      <div className="mt-6 flex flex-col gap-2">
-        {isLoading && <p className="text-sm text-muted-foreground">Cargando movimientos...</p>}
+      {/* Una sola tarjeta con separadores, como la tabla del Libro. */}
+      <div className="mt-6 flex flex-col divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card shadow-card empty:hidden">
+        {isLoading && <p className="p-4 text-sm text-muted-foreground">Cargando movimientos...</p>}
 
         {!isLoading && transactions?.length === 0 && (
-          <div className="rounded-xl border border-dashed border-border p-8 text-center">
+          <div className="p-8 text-center">
             <p className="text-sm text-muted-foreground">
               No hay movimientos para este período. Registra tu primer ingreso o gasto.
             </p>
@@ -334,6 +342,7 @@ export default function Transactions() {
             }
             onSubmit={handleTransactionSubmit}
             submitLabel={editingTransaction ? 'Guardar cambios' : 'Registrar movimiento'}
+            allowRepeat={!editingTransaction}
             isSubmitting={createTransaction.isPending || updateTransaction.isPending}
           />
         </DialogContent>

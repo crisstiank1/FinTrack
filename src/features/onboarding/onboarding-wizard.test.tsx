@@ -78,6 +78,22 @@ describe('OnboardingWizard', () => {
     expect(await screen.findByText('Ingresa un nombre')).toBeInTheDocument()
   })
 
+  it('la lista de categorías con scroll se puede recorrer con el teclado', async () => {
+    const user = userEvent.setup()
+    renderWizard()
+
+    await user.type(screen.getByLabelText('¿Cómo te llamas?'), 'Ana')
+    await user.click(screen.getByRole('button', { name: /continuar/i }))
+    await screen.findByText('Paso 2 de 4')
+    await user.type(screen.getByLabelText('Nombre'), 'Cuenta principal')
+    await user.click(screen.getByRole('button', { name: /continuar/i }))
+    await screen.findByText('Paso 3 de 4')
+
+    const region = screen.getByRole('region', { name: 'Categorías predeterminadas' })
+    expect(region).toHaveAttribute('tabindex', '0')
+    expect(screen.getByRole('main')).toBeInTheDocument()
+  })
+
   it('permite agregar una segunda cuenta y avanzar hasta la confirmación', async () => {
     const user = userEvent.setup()
     renderWizard()

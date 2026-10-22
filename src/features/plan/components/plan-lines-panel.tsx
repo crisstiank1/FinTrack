@@ -109,7 +109,7 @@ export function PlanLinesPanel({
       </div>
 
       {isEmpty ? (
-        <div className="mt-3 rounded-xl border border-dashed border-border bg-card p-6 text-center">
+        <div className="mt-3 rounded-2xl border border-dashed border-border bg-card/60 p-6 text-center">
           <p className="text-sm text-foreground first-letter:uppercase">
             {planLinesEmptyLabel(monthLabel)}
           </p>
@@ -192,7 +192,7 @@ function Group({
             return (
               <li
                 key={line.id}
-                className="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-border bg-card p-3"
+                className="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-border bg-card p-3 shadow-xs transition-shadow duration-200 hover:shadow-card"
               >
                 <div className="min-w-0 flex-1">
                   <p className="flex flex-wrap items-center gap-2 text-sm font-medium text-foreground">

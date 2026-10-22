@@ -10,7 +10,7 @@ const DialogTrigger = DialogPrimitive.Trigger
 function DialogOverlay({ className, ...props }: React.ComponentProps<typeof DialogPrimitive.Overlay>) {
   return (
     <DialogPrimitive.Overlay
-      className={cn('animate-overlay-in fixed inset-0 z-50 bg-background/80 backdrop-blur-sm', className)}
+      className={cn('animate-overlay-in fixed inset-0 z-50 bg-(--overlay) backdrop-blur-sm', className)}
       {...props}
     />
   )
@@ -26,14 +26,14 @@ function DialogContent({
       <DialogOverlay />
       <DialogPrimitive.Content
         className={cn(
-          'animate-dialog-in fixed left-1/2 top-1/2 z-50 max-h-[90vh] w-full max-w-md -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-xl border border-border bg-card p-6 text-card-foreground shadow-xl',
+          'animate-dialog-in fixed left-1/2 top-1/2 z-50 max-h-[90vh] w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-3xl border border-border bg-card p-6 text-card-foreground shadow-card-hover sm:p-7',
           className,
         )}
         {...props}
       >
         {children}
         <DialogPrimitive.Close
-          className="absolute right-4 top-4 rounded-md text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+          className="absolute right-4 top-4 flex size-8 items-center justify-center rounded-full text-muted-foreground outline-none transition-colors hover:bg-primary/10 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
           aria-label="Cerrar"
         >
           <X className="size-4" aria-hidden="true" />
@@ -49,7 +49,7 @@ function DialogHeader({ className, ...props }: React.ComponentProps<'div'>) {
 
 function DialogTitle({ className, ...props }: React.ComponentProps<typeof DialogPrimitive.Title>) {
   return (
-    <DialogPrimitive.Title className={cn('text-lg font-semibold text-foreground', className)} {...props} />
+    <DialogPrimitive.Title className={cn('text-xl font-bold text-foreground', className)} {...props} />
   )
 }
 

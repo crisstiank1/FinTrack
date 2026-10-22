@@ -98,7 +98,13 @@ describe('QuickTransactionForm', () => {
     const user = userEvent.setup()
     const withCard = [
       { id: 'acc-cop', name: 'Efectivo', currency_code: 'COP', is_archived: false, type: 'cash' },
-      { id: 'acc-card', name: 'Visa', currency_code: 'COP', is_archived: false, type: 'credit_card' },
+      {
+        id: 'acc-card',
+        name: 'Visa',
+        currency_code: 'COP',
+        is_archived: false,
+        type: 'credit_card',
+      },
     ] as Tables<'accounts'>[]
     render(
       <QuickTransactionForm
@@ -227,5 +233,21 @@ describe('QuickTransactionForm', () => {
 
     expect(onSubmit).toHaveBeenCalledOnce()
     expect(amountField().value).toBe('15.000')
+  })
+
+  it('«Repetir cada mes» empieza desmarcada, se envía y se desmarca tras registrar', async () => {
+    const user = userEvent.setup()
+    const onSubmit = renderForm()
+
+    const checkbox = screen.getByLabelText('Repetir cada mes')
+    expect(checkbox).not.toBeChecked()
+
+    await user.type(amountField(), '15000')
+    await user.click(chips().getByRole('radio', { name: 'Alimentación' }))
+    await user.click(checkbox)
+    await user.click(screen.getByRole('button', { name: 'Agregar' }))
+
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ repeatMonthly: true }))
+    expect(screen.getByLabelText('Repetir cada mes')).not.toBeChecked()
   })
 })

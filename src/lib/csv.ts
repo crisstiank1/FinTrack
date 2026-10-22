@@ -26,7 +26,10 @@ export function toCsv<T>(rows: T[], columns: CsvColumn<T>[]): string {
       fields: columns.map((column) => column.header),
       data: rows.map((row) => columns.map((column) => column.value(row))),
     },
-    { delimiter: DELIMITER },
+    // Un valor que empiece por =, +, - o @ se prefija con una comilla para que
+    // Excel o Sheets lo muestren como texto y no lo ejecuten como fórmula. Las
+    // descripciones pueden venir de extractos importados que nadie escribió.
+    { delimiter: DELIMITER, escapeFormulae: true },
   )
 }
 

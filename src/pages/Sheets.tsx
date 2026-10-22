@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Columns3, FileSpreadsheet, Loader2, Plus, Trash2 } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import { Columns3, FileSpreadsheet, FileUp, Loader2, Plus, Trash2 } from 'lucide-react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 
 import { PAGE_HELP } from '@/components/shared/page-help'
@@ -216,8 +216,12 @@ function ColumnsDialog({
 
 export default function Sheets() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
 
-  const [selectedSheetId, setSelectedSheetId] = useState<string | null>(null)
+  // `?sheet=` lo pone el importador CSV para abrir la hoja que acaba de crear.
+  const [selectedSheetId, setSelectedSheetId] = useState<string | null>(() =>
+    searchParams.get('sheet'),
+  )
   const [newSheetOpen, setNewSheetOpen] = useState(false)
   const [newSheetName, setNewSheetName] = useState('')
   const [newSheetError, setNewSheetError] = useState<string | null>(null)
@@ -289,17 +293,16 @@ export default function Sheets() {
     }
   }
 
-  function handleSave(draftId: string, cells: DraftCells) {
-    updateDraftCellsMutation.mutate(
-      { draftId, cells },
-      {
-        onError: (error) => {
-          toast.error('No se pudo guardar la fila', {
-            description: error instanceof Error ? error.message : undefined,
-          })
-        },
-      },
-    )
+  async function handleSave(draftId: string, cells: DraftCells): Promise<void> {
+    try {
+      await updateDraftCellsMutation.mutateAsync({ draftId, cells })
+    } catch (error) {
+      toast.error('No se pudo guardar la fila', {
+        description: error instanceof Error ? error.message : undefined,
+      })
+      // Se relanza para que el registro no siga con la fila sin guardar.
+      throw error
+    }
   }
 
   return (
@@ -315,6 +318,10 @@ export default function Sheets() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <Button type="button" variant="outline" onClick={() => navigate('/import')}>
+            <FileUp className="size-4" aria-hidden="true" />
+            Importar CSV
+          </Button>
           <Button
             type="button"
             variant="outline"
@@ -333,7 +340,7 @@ export default function Sheets() {
           Cargando hojas…
         </p>
       ) : sheets.length === 0 ? (
-        <div className="mt-6 rounded-lg border border-dashed p-10 text-center">
+        <div className="mt-6 rounded-2xl border border-dashed border-border bg-card/60 p-10 text-center">
           <FileSpreadsheet className="mx-auto size-10 text-muted-foreground" aria-hidden="true" />
           <h2 className="mt-3 text-lg font-semibold text-foreground">Crea tu primera hoja</h2>
           <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">

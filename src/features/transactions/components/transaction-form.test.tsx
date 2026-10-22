@@ -284,4 +284,62 @@ describe('TransactionForm', () => {
     expect(option).toBeDisabled()
     expect(screen.getByRole('option', { name: 'Efectivo' })).toBeEnabled()
   })
+
+  describe('Repetir cada mes', () => {
+    it('no aparece si el formulario no lo permite', () => {
+      render(
+        <TransactionForm
+          accounts={accounts}
+          categories={categories}
+          currencyCode="COP"
+          onSubmit={vi.fn()}
+        />,
+      )
+      expect(screen.queryByLabelText('Repetir cada mes')).not.toBeInTheDocument()
+    })
+
+    it('no aparece al editar un movimiento', () => {
+      render(
+        <TransactionForm
+          accounts={accounts}
+          categories={categories}
+          currencyCode="COP"
+          onSubmit={vi.fn()}
+          allowRepeat
+          defaultValues={{ description: 'Existente' }}
+        />,
+      )
+      expect(screen.queryByLabelText('Repetir cada mes')).not.toBeInTheDocument()
+    })
+
+    it('empieza desmarcada y envía repeatMonthly al marcarla', async () => {
+      const onSubmit = vi.fn()
+      const user = userEvent.setup()
+      render(
+        <TransactionForm
+          accounts={accounts}
+          categories={categories}
+          currencyCode="COP"
+          onSubmit={onSubmit}
+          allowRepeat
+        />,
+      )
+
+      const checkbox = screen.getByLabelText('Repetir cada mes')
+      expect(checkbox).not.toBeChecked()
+      expect(screen.getByText(/No se registra nada automáticamente/)).toBeInTheDocument()
+
+      await user.type(screen.getByLabelText('Descripción'), 'Arriendo')
+      await user.type(screen.getByLabelText('Monto'), '1500000')
+      await user.selectOptions(screen.getByLabelText('Cuenta'), 'acc-1')
+      await user.selectOptions(screen.getByLabelText('Categoría'), 'cat-expense-1')
+      await user.click(checkbox)
+      await user.click(screen.getByRole('button', { name: /guardar/i }))
+
+      expect(onSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({ repeatMonthly: true, amount: 1500000 }),
+        expect.anything(),
+      )
+    })
+  })
 })

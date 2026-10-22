@@ -29,8 +29,10 @@ export function ColorPicker({ value, onChange }: ColorPickerProps) {
             title={hex}
             onClick={() => onChange(hex)}
             className={cn(
-              'size-8 rounded-full border-2 transition-transform',
-              selected ? 'scale-110 border-foreground' : 'border-transparent hover:scale-105',
+              'size-8 rounded-full border-2 shadow-xs transition-transform',
+              selected
+                ? 'scale-110 border-card ring-2 ring-foreground'
+                : 'border-transparent hover:scale-105',
             )}
             style={{ backgroundColor: hex }}
           />
@@ -40,7 +42,9 @@ export function ColorPicker({ value, onChange }: ColorPickerProps) {
       <label
         className={cn(
           'relative size-8 shrink-0 cursor-pointer overflow-hidden rounded-full border-2 transition-transform',
-          isCustom ? 'scale-110 border-foreground' : 'border-transparent hover:scale-105',
+          isCustom
+            ? 'scale-110 border-card ring-2 ring-foreground'
+            : 'border-transparent hover:scale-105',
         )}
         style={{ background: isCustom ? customValue : RAINBOW_GRADIENT }}
         title="Color personalizado"

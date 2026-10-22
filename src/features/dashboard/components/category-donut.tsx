@@ -29,7 +29,7 @@ export function CategoryDonut({ slices, currencyCode }: CategoryDonutProps) {
       <div className="relative mx-auto h-44 w-44 shrink-0">
         <div className="absolute inset-0 z-10" aria-hidden="true">
           <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
+            <PieChart accessibilityLayer={false}>
               <Pie
                 data={slices}
                 dataKey="amountMinor"
@@ -37,6 +37,9 @@ export function CategoryDonut({ slices, currencyCode }: CategoryDonutProps) {
                 innerRadius="64%"
                 outerRadius="92%"
                 paddingAngle={2}
+                // Oculto a lectores de pantalla (la lista es su equivalente):
+                // tampoco debe recibir el foco con Tab.
+                rootTabIndex={-1}
                 stroke="none"
                 // Empieza arriba y avanza en sentido horario, así la porción
                 // mayor (las rebanadas llegan ordenadas) queda a las 12.
@@ -53,9 +56,11 @@ export function CategoryDonut({ slices, currencyCode }: CategoryDonutProps) {
           </ResponsiveContainer>
         </div>
 
-        <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
+        {/* Limitado al hueco del anillo (innerRadius 64 % de 92 %): los montos
+            largos parten entre la moneda y la cifra en vez de pisar el anillo. */}
+        <div className="pointer-events-none absolute inset-[25%] flex flex-col items-center justify-center text-center">
           <span className="text-xs text-muted-foreground">Total</span>
-          <span className="px-2 text-sm font-semibold tabular-nums text-foreground">
+          <span className="max-w-full break-words text-sm font-semibold leading-tight tabular-nums text-foreground">
             {formatAmount(totalMinor, currencyCode)}
           </span>
         </div>

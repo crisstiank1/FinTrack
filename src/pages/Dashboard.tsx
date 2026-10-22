@@ -46,6 +46,8 @@ import {
   hasBudgetThisMonth,
 } from '@/features/dashboard/summary'
 import { useDisplayName, usePrimaryCurrency } from '@/features/profile/hooks'
+import { RecurringProjectionBanner } from '@/features/recurring/components/recurring-projection-banner'
+import { useCreateTemplateAfterMovement } from '@/features/recurring/hooks'
 import { TransactionForm } from '@/features/transactions/components/transaction-form'
 import { useCreateTransaction } from '@/features/transactions/hooks'
 import type { TransactionFormValues } from '@/features/transactions/schemas'
@@ -92,6 +94,7 @@ export default function Dashboard() {
   const displayName = useDisplayName().data?.trim()
 
   const createTransaction = useCreateTransaction()
+  const createTemplateAfterMovement = useCreateTemplateAfterMovement()
   const createCategory = useCreateCategory()
   const saveBudget = useSaveBudget()
 
@@ -250,7 +253,11 @@ export default function Dashboard() {
       setFormOpen(false)
     } catch (error) {
       reportSaveError(error)
+      return
     }
+    // Fuera del try: el movimiento ya existe. Si la plantilla falla, el aviso lo
+    // dice y reintenta solo la plantilla, nunca el movimiento.
+    if (values.repeatMonthly) await createTemplateAfterMovement(values)
   }
 
   /**
@@ -265,6 +272,8 @@ export default function Dashboard() {
       reportSaveError(error)
       throw error
     }
+    // El movimiento ya existe: si la plantilla falla, se reintenta sola.
+    if (values.repeatMonthly) await createTemplateAfterMovement(values)
   }
 
   /**
@@ -330,7 +339,16 @@ export default function Dashboard() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <PageTitle helpTitle="Dashboard" help={PAGE_HELP.dashboard}>
-            {displayName ? `Hola, ${displayName}` : 'Hola'}
+            {displayName ? (
+              <>
+                Hola, {/* Degradado de marca: ≥ 4,6:1 sobre el fondo en ambos temas. */}
+                <span className="bg-linear-to-r from-brand-from to-brand-to bg-clip-text text-transparent">
+                  {displayName}
+                </span>
+              </>
+            ) : (
+              'Hola'
+            )}
           </PageTitle>
           <p className="mt-0.5 text-sm text-muted-foreground">{DASHBOARD_DESCRIPTION}</p>
           <p className="mt-1 text-sm text-muted-foreground first-letter:uppercase">{monthLabel}</p>
@@ -361,6 +379,8 @@ export default function Dashboard() {
         flotante y su diálogo: el formulario arriba empujaría las cifras fuera
         de la pantalla.
       */}
+      <RecurringProjectionBanner />
+
       <div className="grid gap-4 lg:grid-cols-[minmax(0,340px)_minmax(0,1fr)]">
         <aside className="mt-6 hidden flex-col gap-4 lg:flex">
           <DashboardPanel index={0} title="Cargar movimiento" description="Se registra al instante">
@@ -549,6 +569,7 @@ export default function Dashboard() {
             onSubmit={handleSubmit}
             submitLabel="Registrar movimiento"
             isSubmitting={createTransaction.isPending}
+            allowRepeat
           />
         </DialogContent>
       </Dialog>

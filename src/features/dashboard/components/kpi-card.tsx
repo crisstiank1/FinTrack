@@ -52,7 +52,7 @@ export function KpiCard({
   return (
     <section
       aria-labelledby={labelId}
-      className="animate-card-in flex flex-col justify-between rounded-2xl border border-border bg-card p-5 shadow-sm transition-shadow duration-200 hover:shadow-md"
+      className="animate-card-in group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-border bg-card p-5 shadow-card transition-[box-shadow,transform] duration-200 hover:shadow-card-hover motion-safe:hover:-translate-y-0.5"
       style={{ animationDelay: `${index * 40}ms` }}
     >
       <div className="flex items-start justify-between gap-3">
@@ -60,16 +60,13 @@ export function KpiCard({
           {label}
         </h2>
         <span
-          className={cn(
-            'flex size-8 shrink-0 items-center justify-center rounded-full',
-            styles.chip,
-          )}
+          className={cn('flex size-9 shrink-0 items-center justify-center rounded-xl', styles.chip)}
         >
           <Icon className="size-4" aria-hidden="true" />
         </span>
       </div>
 
-      <p className={cn('mt-3 text-2xl font-semibold tabular-nums', styles.value)}>{value}</p>
+      <p className={cn('mt-3 text-2xl font-bold tabular-nums', styles.value)}>{value}</p>
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <DeltaBadge value={delta} unit={deltaUnit} higherIsBetter={higherIsBetter} />

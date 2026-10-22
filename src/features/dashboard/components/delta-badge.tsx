@@ -56,8 +56,8 @@ export function DeltaBadge({
       className={cn(
         'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium tabular-nums',
         isGood === null && 'bg-muted text-muted-foreground',
-        isGood === true && 'bg-success/12 text-success',
-        isGood === false && 'bg-danger/12 text-danger',
+        isGood === true && 'bg-success/12 text-success-strong',
+        isGood === false && 'bg-danger/12 text-danger-strong',
         className,
       )}
     >

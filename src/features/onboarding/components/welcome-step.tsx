@@ -27,9 +27,7 @@ export function WelcomeStep({ defaultValues, onNext }: WelcomeStepProps) {
   return (
     <form className="flex flex-col gap-6" onSubmit={handleSubmit(onNext)} noValidate>
       <div className="flex flex-col gap-1.5">
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground">
-          ¡Bienvenido a FinTrack!
-        </h1>
+        <h1 className="text-2xl font-bold text-foreground">¡Bienvenido a FinTrack!</h1>
         <p className="text-sm text-muted-foreground">
           Cuéntanos un poco de ti para personalizar tu cuenta.
         </p>

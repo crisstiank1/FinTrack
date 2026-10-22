@@ -169,7 +169,7 @@ export default function Budgets() {
           </p>
         </div>
 
-        <div className="flex items-center gap-1 rounded-lg border border-border bg-card p-1">
+        <div className="flex items-center gap-1 rounded-xl border border-border bg-card p-1 shadow-xs">
           <Button
             type="button"
             variant="ghost"
@@ -205,14 +205,17 @@ export default function Budgets() {
       </div>
 
       {isPastMonth && (
-        <p className="mt-4 rounded-lg border border-border bg-card p-3 text-sm text-muted-foreground">
+        <p className="mt-4 rounded-xl border border-border bg-card p-3 text-sm text-muted-foreground">
           {monthLabel} ya está cerrado. Puedes ajustarlo solo con una excepción de ese mes o
           corrigiendo una versión desde el historial.
         </p>
       )}
 
       {budgetsQuery.isError && (
-        <div role="alert" className="mt-6 rounded-xl border border-border bg-card p-6 text-center">
+        <div
+          role="alert"
+          className="mt-6 rounded-2xl border border-border bg-card p-6 text-center shadow-card"
+        >
           <p className="text-sm text-foreground">No pudimos cargar tus presupuestos.</p>
           <Button type="button" className="mt-4" onClick={() => void budgetsQuery.refetch()}>
             Reintentar
@@ -225,7 +228,7 @@ export default function Budgets() {
       )}
 
       {!budgetsQuery.isError && !isLoading && items.length === 0 && (
-        <div className="mt-6 rounded-xl border border-dashed border-border bg-card p-8 text-center">
+        <div className="mt-6 rounded-2xl border border-dashed border-border bg-card/60 p-8 text-center">
           <p className="text-sm text-foreground">
             No hay categorías de gasto que presupuestar en {monthLabel}.
           </p>
@@ -243,7 +246,7 @@ export default function Budgets() {
           {excludedNote && (
             <p
               role="note"
-              className="rounded-lg border border-border bg-card p-3 text-sm text-muted-foreground"
+              className="rounded-xl border border-border bg-card p-3 text-sm text-muted-foreground"
             >
               {excludedNote}
             </p>

@@ -7,6 +7,8 @@ import { toast } from 'sonner'
 import { PAGE_HELP } from '@/components/shared/page-help'
 import { PageTitle } from '@/components/shared/page-title'
 import { useAccounts } from '@/features/accounts/hooks'
+import { CoachConsentSection } from '@/features/coach-consent/coach-consent-section'
+import { RecurringTemplatesSection } from '@/features/recurring/components/recurring-templates-section'
 import { ConfirmDialog } from '@/components/shared/confirm-dialog'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -206,7 +208,7 @@ export default function Settings() {
 
   return (
     <div className="mx-auto max-w-3xl p-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <PageTitle helpTitle="Ajustes" help={PAGE_HELP.settings}>
             Ajustes
@@ -219,7 +221,10 @@ export default function Settings() {
         </Button>
       </div>
 
-      <section className="mt-8" aria-labelledby="settings-profile-title">
+      <section
+        className="mt-8 rounded-2xl border border-border bg-card p-4 shadow-card sm:p-6"
+        aria-labelledby="settings-profile-title"
+      >
         <h2 id="settings-profile-title" className="text-lg font-semibold text-foreground">
           Perfil
         </h2>
@@ -241,7 +246,7 @@ export default function Settings() {
         )}
       </section>
 
-      <section className="mt-8">
+      <section className="mt-6 rounded-2xl border border-border bg-card p-4 shadow-card sm:p-6">
         <h2 className="text-lg font-semibold text-foreground">Moneda principal</h2>
         <p className="text-sm text-muted-foreground">
           En qué moneda se presentan tus totales en todas las pantallas. Tus cuentas conservan su
@@ -265,10 +270,33 @@ export default function Settings() {
         </div>
       </section>
 
+      <RecurringTemplatesSection
+        accounts={accountsQuery.data ?? []}
+        categories={categories ?? []}
+      />
+
+      <CoachConsentSection />
+
+      <section className="mt-6 rounded-2xl border border-border bg-card p-4 shadow-card sm:p-6">
+        <h2 className="text-lg font-semibold text-foreground">Privacidad</h2>
+        <p className="text-sm text-muted-foreground">
+          Qué datos guarda FinTrack y cómo funcionará FinTrack Coach.{' '}
+          <a href="/privacy" className="underline underline-offset-4">
+            Leer la política de privacidad
+          </a>
+        </p>
+      </section>
+
       {isLoading && <p className="mt-8 text-sm text-muted-foreground">Cargando categorías...</p>}
 
       {!isLoading && categories && categories.length > 0 && (
-        <div className="mt-8">
+        <section
+          className="mt-6 rounded-2xl border border-border bg-card p-4 shadow-card sm:p-6"
+          aria-labelledby="settings-categories-title"
+        >
+          <h2 id="settings-categories-title" className="mb-4 text-lg font-semibold text-foreground">
+            Categorías
+          </h2>
           <CategoryList
             categories={categories}
             onEdit={(category) => {
@@ -277,7 +305,7 @@ export default function Settings() {
             }}
             onArchive={(category) => setArchivingCategory(category)}
           />
-        </div>
+        </section>
       )}
 
       {!isLoading && (
@@ -388,7 +416,7 @@ function DisplayNameForm({ defaultName, isSaving, onSave }: DisplayNameFormProps
         />
         <Button type="submit" disabled={isSaving}>
           {isSaving && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
-          Guardar
+          Guardar nombre
         </Button>
       </div>
       {errors.displayName && (

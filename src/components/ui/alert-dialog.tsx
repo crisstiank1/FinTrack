@@ -13,7 +13,7 @@ function AlertDialogOverlay({
 }: React.ComponentProps<typeof AlertDialogPrimitive.Overlay>) {
   return (
     <AlertDialogPrimitive.Overlay
-      className={cn('animate-overlay-in fixed inset-0 z-50 bg-background/80 backdrop-blur-sm', className)}
+      className={cn('animate-overlay-in fixed inset-0 z-50 bg-(--overlay) backdrop-blur-sm', className)}
       {...props}
     />
   )
@@ -28,7 +28,7 @@ function AlertDialogContent({
       <AlertDialogOverlay />
       <AlertDialogPrimitive.Content
         className={cn(
-          'animate-dialog-in fixed left-1/2 top-1/2 z-50 w-full max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-xl border border-border bg-card p-6 text-card-foreground shadow-xl',
+          'animate-dialog-in fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 -translate-y-1/2 rounded-3xl border border-border bg-card p-6 text-card-foreground shadow-card-hover sm:p-7',
           className,
         )}
         {...props}
@@ -53,7 +53,7 @@ function AlertDialogTitle({
 }: React.ComponentProps<typeof AlertDialogPrimitive.Title>) {
   return (
     <AlertDialogPrimitive.Title
-      className={cn('text-lg font-semibold text-foreground', className)}
+      className={cn('text-xl font-bold text-foreground', className)}
       {...props}
     />
   )

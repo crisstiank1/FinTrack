@@ -116,7 +116,7 @@ export default function Accounts() {
 
   return (
     <div className="mx-auto max-w-5xl p-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <PageTitle helpTitle="Cuentas" help={PAGE_HELP.accounts}>
           Cuentas
         </PageTitle>
@@ -129,7 +129,7 @@ export default function Accounts() {
       {isLoading && <p className="mt-8 text-sm text-muted-foreground">Cargando cuentas...</p>}
 
       {!isLoading && accounts?.length === 0 && (
-        <div className="mt-8 rounded-xl border border-dashed border-border p-8 text-center">
+        <div className="mt-8 rounded-2xl border border-dashed border-border bg-card/60 p-8 text-center">
           <p className="text-sm text-muted-foreground">
             Aún no tienes cuentas. Crea la primera para empezar a registrar tus movimientos.
           </p>

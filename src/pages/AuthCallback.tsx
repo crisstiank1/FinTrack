@@ -1,7 +1,9 @@
+import { Loader2 } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 
+import { Logo } from '@/components/shared/logo'
 import { redirectAfterAuth } from '@/features/auth/redirect-after-auth'
 import { supabase } from '@/lib/supabase'
 
@@ -56,8 +58,14 @@ export default function AuthCallback() {
   }, [navigate])
 
   return (
-    <div className="grid min-h-screen place-items-center bg-background text-foreground">
-      <p className="text-sm text-muted-foreground">Verificando credenciales...</p>
-    </div>
+    <main className="grid min-h-screen place-items-center bg-background px-4 text-foreground">
+      <div className="flex flex-col items-center gap-4 rounded-3xl border border-border bg-card px-10 py-8 shadow-card">
+        <Logo className="h-11" />
+        <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="size-4 animate-spin text-primary" aria-hidden="true" />
+          Verificando credenciales...
+        </p>
+      </div>
+    </main>
   )
 }

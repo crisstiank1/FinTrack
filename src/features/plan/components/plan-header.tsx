@@ -34,7 +34,7 @@ export function PlanHeader({ monthKey, onMonthChange, currencyCode }: PlanHeader
         </p>
       </div>
 
-      <div className="flex items-center gap-1 rounded-lg border border-border bg-card p-1">
+      <div className="flex items-center gap-1 rounded-xl border border-border bg-card p-1 shadow-xs">
         <Button
           type="button"
           variant="ghost"

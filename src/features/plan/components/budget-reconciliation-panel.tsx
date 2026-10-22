@@ -140,7 +140,7 @@ export function BudgetReconciliationPanel({
 
   return (
     <section aria-labelledby={titleId} className="mt-8">
-      <div className="rounded-2xl border border-border bg-card p-4 shadow-sm sm:p-5">
+      <div className="rounded-2xl border border-border bg-card p-4 shadow-card sm:p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <h2 id={titleId} className="text-sm font-medium text-muted-foreground">
@@ -203,7 +203,7 @@ export function BudgetReconciliationPanel({
                 {/* Cuadre. Dos columnas caben en 375 px, así que la misma tabla
                 sirve en móvil sin desbordar la página. */}
                 <div>
-                  <div className="overflow-x-auto rounded-xl border border-border">
+                  <div className="relative overflow-x-auto rounded-xl border border-border bg-card">
                     <table className="w-full border-collapse text-sm">
                       <caption className="sr-only">
                         Cuadre del presupuesto de {monthLabel}: presupuesto por categorías, aportes

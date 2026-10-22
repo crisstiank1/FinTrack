@@ -87,11 +87,28 @@ export interface CoachFinancialAnswer {
   currency: string
   period: CoachPeriodRange
   snapshot: CoachContextSnapshot
-  content: {
-    titleTemplate: string
-    summaryTemplate: string
-    factReferences: string[]
-  }
+  content: CoachAnswerContent
+  /** Trazabilidad: qué prompt y qué modelo produjeron la redacción. */
+  meta: { promptVersion: string; model: string }
+}
+
+/**
+ * Contenido redactado, ya validado.
+ *
+ * Todo texto es una plantilla: puede citar `{{rutas}}` del `snapshot` y no
+ * puede contener cifras propias. `factReferences` lo calcula el backend —las
+ * rutas realmente citadas, sin repetir—, no el modelo.
+ *
+ * Los tres últimos campos se añadieron en la Fase 3. `financial_answer` no se
+ * había emitido nunca, así que no rompen a ningún cliente.
+ */
+export interface CoachAnswerContent {
+  titleTemplate: string
+  summaryTemplate: string
+  factReferences: string[]
+  factTemplates: string[]
+  recommendationTemplates: string[]
+  assumptionTemplates: string[]
 }
 
 export type CoachErrorCode =
@@ -100,11 +117,32 @@ export type CoachErrorCode =
   | 'method_not_allowed'
   | 'rate_limited'
   | 'invalid_profile_timezone'
+  /** El proveedor de IA no respondió, o respondió con un error. */
+  | 'provider_error'
+  /** El modelo respondió, pero su redacción no pasó la validación ni al reintentar. */
+  | 'answer_rejected'
   | 'internal'
 
 export interface CoachError {
   type: 'error'
   code: CoachErrorCode
+  message: string
+  /**
+   * Solo en `rate_limited`: segundos hasta que se renueve la cuota. Se calcula
+   * con la ventana de la migración, no es una espera fija inventada.
+   */
+  retryAfterSeconds?: number
+}
+
+/**
+ * El usuario no ha autorizado el análisis por IA.
+ *
+ * No es un error: la petición se procesó y la respuesta es que falta una
+ * decisión del usuario. Se emite **antes** de leer un solo dato financiero y
+ * antes de consumir cuota.
+ */
+export interface CoachConsentRequired {
+  type: 'consent_required'
   message: string
 }
 
@@ -114,6 +152,7 @@ export type CoachResponse =
   | CoachOutOfScope
   | CoachUnsupportedFeature
   | CoachFinancialAnswer
+  | CoachConsentRequired
   | CoachError
 
 /* -------------------------------------------------------------------------- */
@@ -154,6 +193,22 @@ const UNSUPPORTED_MESSAGES: Record<UnsupportedFeature, string> = {
     'los totales nunca se mezclan. Puedo analizar una moneda a la vez.',
 }
 
+const CONSENT_REQUIRED_MESSAGE =
+  'Para analizar tus datos financieros con FinTrack Coach, primero debes autorizar el uso de la ' +
+  'información necesaria para generar respuestas personalizadas. Puedes cambiar esta decisión en ' +
+  'Ajustes cuando quieras.'
+
+const RATE_LIMITED_MESSAGE =
+  'Alcanzaste el límite temporal de consultas de FinTrack Coach. Inténtalo de nuevo más tarde.'
+
+export function consentRequired(): CoachConsentRequired {
+  return { type: 'consent_required', message: CONSENT_REQUIRED_MESSAGE }
+}
+
+export function rateLimited(retryAfterSeconds: number): CoachError {
+  return { type: 'error', code: 'rate_limited', message: RATE_LIMITED_MESSAGE, retryAfterSeconds }
+}
+
 export function outOfScope(reason: OutOfScopeReason): CoachOutOfScope {
   return { type: 'out_of_scope', reason, message: OUT_OF_SCOPE_MESSAGE }
 }
@@ -190,6 +245,11 @@ export function httpStatusFor(response: CoachResponse): number {
       return 405
     case 'rate_limited':
       return 429
+    // Fallos de un servicio del que dependemos, no del nuestro ni de quien
+    // pregunta: 502, para que la interfaz pueda ofrecer reintentar.
+    case 'provider_error':
+    case 'answer_rejected':
+      return 502
     default:
       return 500
   }

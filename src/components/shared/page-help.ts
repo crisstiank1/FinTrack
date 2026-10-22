@@ -16,4 +16,6 @@ export const PAGE_HELP = {
     'Cuánto quieres gastar por categoría en el mes y cuánto llevas. Puedes aplicar un presupuesto desde este mes en adelante o solo a este mes.',
   plan: 'Planea tus ingresos y cómo repartirlos, y compáralo con lo que pasó. Las cifras reales se calculan solas desde tus movimientos.',
   settings: 'Tu nombre, tu moneda principal y tus categorías.',
+  csvImport:
+    'Convierte el extracto CSV de tu banco en borradores de una hoja nueva. Nada se registra hasta que lo revises y lo registres desde Hojas.',
 } as const

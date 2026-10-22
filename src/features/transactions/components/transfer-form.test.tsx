@@ -33,7 +33,13 @@ describe('TransferForm', () => {
     const user = userEvent.setup()
     const withCard = [
       ...accounts,
-      { id: 'acc-card', name: 'Visa', currency_code: 'COP', is_archived: false, type: 'credit_card' },
+      {
+        id: 'acc-card',
+        name: 'Visa',
+        currency_code: 'COP',
+        is_archived: false,
+        type: 'credit_card',
+      },
     ] as Tables<'accounts'>[]
     render(<TransferForm accounts={withCard} currencyCode="COP" onSubmit={vi.fn()} />)
 

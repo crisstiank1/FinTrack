@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
+import { axeViolations } from '@/test/axe'
 
 import Dashboard, { DASHBOARD_DESCRIPTION } from './Dashboard'
 import { PAGE_HELP } from '@/components/shared/page-help'
@@ -46,6 +47,14 @@ vi.mock('@/features/categories/hooks', () => ({
   useCategories: () => useCategories(),
   useCreateCategory: () => ({ mutateAsync: createCategoryMutate, isPending: false }),
 }))
+const createTemplateAfterMovement = vi.fn(async () => true)
+vi.mock('@/features/recurring/hooks', () => ({
+  useCreateTemplateAfterMovement: () => createTemplateAfterMovement,
+  useRecurringProjectionStatus: () => ({ monthKey: '2026-09', pending: [], ready: true }),
+  useRecurringTemplates: () => ({ data: [] }),
+  useProjectRecurring: () => ({ mutateAsync: vi.fn(), isPending: false }),
+}))
+
 vi.mock('@/features/profile/hooks', () => ({
   usePrimaryCurrency: () => usePrimaryCurrency(),
   useDisplayName: () => useDisplayName(),
@@ -997,5 +1006,12 @@ describe('Dashboard — saludo (M16)', () => {
 
     const descripcion = screen.getByText(DASHBOARD_DESCRIPTION)
     expect(descripcion.nextElementSibling?.textContent?.length).toBeGreaterThan(0)
+  })
+})
+
+describe('Dashboard — accesibilidad', () => {
+  it('no tiene infracciones de axe', async () => {
+    const { container } = renderDashboard()
+    expect(await axeViolations(container)).toEqual([])
   })
 })

@@ -8,6 +8,7 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { authErrorMessage } from '@/features/auth/auth-error-message'
 import { requestResetSchema, type RequestResetValues } from '@/features/auth/schemas'
 import { supabase } from '@/lib/supabase'
 
@@ -29,7 +30,7 @@ export function RequestResetForm() {
     })
 
     if (error) {
-      toast.error('No se pudo enviar el correo', { description: error.message })
+      toast.error('No se pudo enviar el correo', { description: authErrorMessage(error) })
       return
     }
 

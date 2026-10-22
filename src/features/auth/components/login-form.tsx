@@ -8,6 +8,7 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { authErrorMessage } from '@/features/auth/auth-error-message'
 import { GoogleIcon } from '@/features/auth/components/google-icon'
 import { redirectAfterAuth } from '@/features/auth/redirect-after-auth'
 import { loginSchema, type LoginValues } from '@/features/auth/schemas'
@@ -34,7 +35,7 @@ export function LoginForm({ onSwitchToRegister }: LoginFormProps) {
     const { data, error } = await supabase.auth.signInWithPassword(values)
 
     if (error) {
-      toast.error('No se pudo iniciar sesión', { description: error.message })
+      toast.error('No se pudo iniciar sesión', { description: authErrorMessage(error) })
       return
     }
 
@@ -51,7 +52,7 @@ export function LoginForm({ onSwitchToRegister }: LoginFormProps) {
     })
 
     if (error) {
-      toast.error('No se pudo continuar con Google', { description: error.message })
+      toast.error('No se pudo continuar con Google', { description: authErrorMessage(error) })
       setGoogleLoading(false)
     }
   }

@@ -23,7 +23,12 @@ export function SheetRow({ row, errors, onRemove }: SheetRowProps) {
   const detail = errors.map((error) => sheetErrorText(error.field, error.code)).join('\n')
 
   return (
-    <tr className={cn('border-b border-border', errors.length > 0 && 'bg-destructive/5')}>
+    <tr
+      className={cn(
+        'border-b border-border transition-colors last:border-0 hover:bg-primary/4',
+        errors.length > 0 && 'bg-destructive/5 hover:bg-destructive/8',
+      )}
+    >
       {row.getVisibleCells().map((cell) => (
         <td key={cell.id} className="min-w-28 px-2 py-1 align-top">
           {flexRender(cell.column.columnDef.cell, cell.getContext())}

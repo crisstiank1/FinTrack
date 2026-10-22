@@ -70,19 +70,19 @@ function BudgetRow({
 
   return (
     <li
-      className="animate-card-in rounded-xl border border-border bg-card p-4"
+      className="animate-card-in rounded-2xl border border-border bg-card p-5 shadow-card transition-shadow duration-200 hover:shadow-card-hover"
       style={{ animationDelay: `${index * 30}ms` }}
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-center gap-3">
           <div
-            className="flex size-8 items-center justify-center rounded-full"
+            className="flex size-9 items-center justify-center rounded-xl"
             style={{ backgroundColor: `${accentColor}1a`, color: accentColor }}
           >
             <Icon className="size-4" aria-hidden="true" />
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-foreground">{category.name}</span>
+            <span className="text-sm font-semibold text-foreground">{category.name}</span>
             {category.is_archived && (
               <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
                 Archivada

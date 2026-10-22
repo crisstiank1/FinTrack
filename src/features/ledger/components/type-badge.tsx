@@ -2,8 +2,8 @@ import { TYPE_LABELS } from '@/features/ledger/labels'
 import { cn } from '@/lib/utils'
 
 const TYPE_STYLES: Record<string, string> = {
-  income: 'bg-success/12 text-success',
-  expense: 'bg-danger/12 text-danger',
+  income: 'bg-success/12 text-success-strong',
+  expense: 'bg-danger/12 text-danger-strong',
   transfer: 'bg-muted text-muted-foreground',
 }
 

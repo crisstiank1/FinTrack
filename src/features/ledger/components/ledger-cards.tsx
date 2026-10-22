@@ -55,7 +55,10 @@ export function LedgerCards({
         const canEdit = transaction.type !== 'transfer' || !!counterpart
 
         return (
-          <li key={transaction.id} className="rounded-xl border border-border bg-card p-3 text-sm">
+          <li
+            key={transaction.id}
+            className="rounded-xl border border-border bg-card p-3 text-sm shadow-xs"
+          >
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="truncate font-medium text-foreground">{transaction.description}</p>

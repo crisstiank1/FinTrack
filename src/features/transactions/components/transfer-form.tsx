@@ -152,10 +152,7 @@ export function TransferForm({
       </div>
 
       {isPayingCreditCard && (
-        <div
-          role="note"
-          className="rounded-lg border border-info/30 bg-info/8 p-4 text-sm"
-        >
+        <div role="note" className="rounded-lg border border-info/30 bg-info/8 p-4 text-sm">
           <h3 className="font-medium text-foreground">Estás pagando una tarjeta de crédito</h3>
           <div className="mt-2 space-y-1 text-muted-foreground">
             <p>
@@ -167,8 +164,9 @@ export function TransferForm({
               ¿El extracto incluye intereses, seguros o cuota de manejo?
             </p>
             <p>
-              Registra esa parte aparte directamente como un <strong className="text-foreground">Gasto</strong>{' '}
-              en la categoría «Deudas y créditos».
+              Registra esa parte aparte directamente como un{' '}
+              <strong className="text-foreground">Gasto</strong> en la categoría «Deudas y
+              créditos».
             </p>
           </div>
         </div>

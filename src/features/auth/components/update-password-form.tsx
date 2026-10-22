@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { authErrorMessage } from '@/features/auth/auth-error-message'
 import { redirectAfterAuth } from '@/features/auth/redirect-after-auth'
 import { updatePasswordSchema, type UpdatePasswordValues } from '@/features/auth/schemas'
 import { supabase } from '@/lib/supabase'
@@ -27,7 +28,7 @@ export function UpdatePasswordForm() {
     const { data, error } = await supabase.auth.updateUser({ password: values.password })
 
     if (error || !data.user) {
-      toast.error('No se pudo actualizar la contraseña', { description: error?.message })
+      toast.error('No se pudo actualizar la contraseña', { description: authErrorMessage(error) })
       return
     }
 

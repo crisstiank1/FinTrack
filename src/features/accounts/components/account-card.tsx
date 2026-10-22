@@ -29,7 +29,7 @@ export function AccountCard({ account, balanceMinor, index, onEdit, onArchive }:
 
   return (
     <div
-      className="animate-card-in relative flex flex-col justify-between overflow-hidden rounded-2xl border border-border bg-card p-5 text-card-foreground shadow-sm transition-opacity duration-300"
+      className="animate-card-in relative flex flex-col justify-between overflow-hidden rounded-2xl border border-border bg-card p-5 text-card-foreground shadow-card transition-[opacity,box-shadow,transform] duration-300 hover:shadow-card-hover motion-safe:hover:-translate-y-0.5"
       style={{ animationDelay: `${index * 40}ms`, opacity: account.is_archived ? 0.6 : 1 }}
     >
       <div
@@ -40,7 +40,7 @@ export function AccountCard({ account, balanceMinor, index, onEdit, onArchive }:
 
       <div className="flex items-start justify-between">
         <div
-          className="flex size-10 items-center justify-center rounded-full"
+          className="flex size-10 items-center justify-center rounded-xl"
           style={{ backgroundColor: `${accentColor}1a`, color: accentColor }}
         >
           <Icon className="size-5" aria-hidden="true" />
@@ -54,8 +54,8 @@ export function AccountCard({ account, balanceMinor, index, onEdit, onArchive }:
 
       <div className="mt-4">
         <p className="text-sm text-muted-foreground">{typeLabel}</p>
-        <h3 className="text-lg font-semibold text-foreground">{account.name}</h3>
-        <p className="mt-1 text-2xl font-semibold tabular-nums text-foreground">
+        <h2 className="text-lg font-semibold text-foreground">{account.name}</h2>
+        <p className="mt-1 text-2xl font-bold tabular-nums text-foreground">
           {formatAmount(balanceMinor, account.currency_code)}
         </p>
         <p className="mt-0.5 text-xs text-muted-foreground">

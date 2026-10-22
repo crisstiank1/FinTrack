@@ -58,7 +58,7 @@ export function LedgerFiltersBar({
   }
 
   return (
-    <div className="rounded-xl border border-border bg-card p-4">
+    <div className="rounded-2xl border border-border bg-card p-4 shadow-card sm:p-5">
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <div className="flex flex-col gap-1.5 lg:col-span-3">
           <Label htmlFor="ledger-search">Buscar por descripción</Label>
